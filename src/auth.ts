@@ -18,7 +18,6 @@ export async function redirectToAuthCodeFlow(clientId: string, redirectUri: stri
 
     const scopeString = "playlist-read-private playlist-modify-public playlist-modify-private user-read-private user-read-email streaming user-read-playback-state user-modify-playback-state";
 
-    // Construct URL manually to ensure %20 is used for scopes instead of +
     document.location = `https://accounts.spotify.com/authorize?${params.toString()}&scope=${encodeURIComponent(scopeString)}`;
 }
 

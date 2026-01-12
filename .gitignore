@@ -27,3 +27,4 @@ yarn-error.log*
 /playwright/.cache/
 TODO.*
 /.firebase
+/.idea

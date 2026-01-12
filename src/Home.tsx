@@ -13,9 +13,8 @@ const Home = () => {
     const { deviceId, isActive, isPaused, error: playerError } = useSpotifyPlayer(accessToken);
 
     const [playlists, setPlaylists] = useState<any[]>([]);
-    const [currentTracks, setCurrentTracks] = useState<any[]>([]); // Store tracks for "Play Again"
+    const [currentTracks, setCurrentTracks] = useState<any[]>([]);
 
-    // Game State
     const [targetSong, setTargetSong] = useState<any | null>(null);
     const [snippetDuration, setSnippetDuration] = useState<number>(1000); // ms
     const [gameState, setGameState] = useState<'idle' | 'playing' | 'won'>('idle');
@@ -69,7 +68,7 @@ const Home = () => {
         console.log("Clicked playlist:", playlistId);
         if (accessToken) {
             try {
-                // Add market=from_token to ensure is_playable is accurate for the user's region
+                // market=from_token ensures is_playable is accurate for the user's region
                 const response = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks?market=from_token`, {
                     headers: {
                         'Authorization': `Bearer ${accessToken}`
@@ -80,11 +79,6 @@ const Home = () => {
                 if (response.ok) {
                     const data = await response.json();
 
-                    // Filter for playable tracks:
-                    // - Must have a track object
-                    // - Must have a URI
-                    // - Must not be local
-                    // - is_playable must be strictly true (checking for explicit false isn't enough if undefined, but with market=from_token it should be present)
                     const validTracks = data.items.filter((item: any) =>
                         item.track &&
                         item.track.uri &&
@@ -169,8 +163,7 @@ const Home = () => {
     const handleGuessSubmit = () => {
         if (!targetSong) return;
 
-        // Simple cleanup for comparison (case insensitive, trim)
-        // Fuzzy matching: remove all non-alphanumeric characters
+        // Fuzzy matching
         const normalizeString = (str: string) => {
             return str.toLowerCase().replace(/[^a-z0-9]/g, '');
         };
@@ -188,7 +181,7 @@ const Home = () => {
     };
 
     const handleGiveUp = () => {
-        setGameState('won'); // Reveal the song
+        setGameState('won');
         setFeedbackMessage(`The song was: ${targetSong.name}`);
     };
 

@@ -23,3 +23,5 @@ TuneTeaser is a "Name That Tune" style game where you test your music knowledge 
 *   React & TypeScript
 *   Spotify Web Playback SDK
 *   Material UI
+
+Created by Jordan Rudman
