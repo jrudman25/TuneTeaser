@@ -36,7 +36,7 @@ const NavBar = () => {
                 }}
             >
                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <Link to="/" onClick={handleLogoClick}>
+                    <Link to={location.pathname === '/' ? '/' : '/home'} onClick={handleLogoClick}>
                         <img
                             src={logo}
                             className="list-icon"
