@@ -14,6 +14,7 @@ const Home = () => {
 
     const [playlists, setPlaylists] = useState<any[]>([]);
     const [currentTracks, setCurrentTracks] = useState<any[]>([]);
+    const [recentTracks, setRecentTracks] = useState<string[]>([]);
 
     const [targetSong, setTargetSong] = useState<any | null>(null);
     const [snippetDuration, setSnippetDuration] = useState<number>(1000); // ms
@@ -25,17 +26,27 @@ const Home = () => {
         const fetchPlaylists = async () => {
             if (accessToken) {
                 try {
-                    const response = await fetch('https://api.spotify.com/v1/me/playlists', {
-                        headers: {
-                            'Authorization': `Bearer ${accessToken}`
+                    let allPlaylists: any[] = [];
+                    let nextUrl = 'https://api.spotify.com/v1/me/playlists?limit=50';
+
+                    while (nextUrl) {
+                        const response = await fetch(nextUrl, {
+                            headers: {
+                                'Authorization': `Bearer ${accessToken}`
+                            }
+                        });
+
+                        if (!response.ok) {
+                            console.error('Failed to fetch playlists:', response.statusText);
+                            break;
                         }
-                    });
-                    if (response.ok) {
+
                         const data = await response.json();
-                        setPlaylists(data.items);
-                    } else {
-                        console.error('Failed to fetch playlists:', response.statusText);
+                        allPlaylists = [...allPlaylists, ...data.items];
+                        nextUrl = data.next;
                     }
+
+                    setPlaylists(allPlaylists);
                 } catch (error) {
                     console.error('Error fetching playlists:', error);
                 }
@@ -46,9 +57,19 @@ const Home = () => {
     }, [accessToken]);
 
     const startGame = (tracks: any[]) => {
-        if (tracks.length > 0) {
-            const randomIndex = Math.floor(Math.random() * tracks.length);
-            const selectedTrack = tracks[randomIndex].track;
+        // Filter out recent tracks to prevent repeats
+        let candidates = tracks.filter(t => !recentTracks.includes(t.track.id));
+
+        if (candidates.length === 0 && tracks.length > 0) {
+            // If all tracks have been played, reset history
+            console.log("All tracks played, resetting history.");
+            setRecentTracks([]);
+            candidates = tracks;
+        }
+
+        if (candidates.length > 0) {
+            const randomIndex = Math.floor(Math.random() * candidates.length);
+            const selectedTrack = candidates[randomIndex].track;
             console.log("Selected track:", selectedTrack.name, selectedTrack.uri);
 
             setTargetSong(selectedTrack);
@@ -56,6 +77,17 @@ const Home = () => {
             setSnippetDuration(2000); // Start with 2 seconds
             setFeedbackMessage('');
             setUserGuess('');
+
+            // Add to recent tracks
+            setRecentTracks(prev => {
+                const newRecent = [...prev, selectedTrack.id];
+                const limit = Math.min(50, Math.ceil(tracks.length * 0.5));
+                if (newRecent.length > limit) {
+                    return newRecent.slice(newRecent.length - limit);
+                }
+                return newRecent;
+            });
+
         } else {
             console.warn("No valid tracks.");
             setFeedbackMessage('No playable tracks found in this playlist.');
@@ -67,40 +99,70 @@ const Home = () => {
     const handlePlaylistClick = async (playlistId: string) => {
         console.log("Clicked playlist:", playlistId);
         if (accessToken) {
+            setFeedbackMessage("Loading tracks... This may take a moment for large playlists.");
             try {
-                // market=from_token ensures is_playable is accurate for the user's region
-                const response = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks?market=from_token`, {
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`
-                    }
+                let allTracks: any[] = [];
+                let nextUrl = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?market=from_token&limit=100`;
+
+                // Initial fetch to get first page and total count
+                const response = await fetch(nextUrl, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
                 });
-                console.log("Response status:", response.status);
 
                 if (response.ok) {
                     const data = await response.json();
+                    allTracks = [...data.items];
+                    const total = data.total;
+                    console.log(`Initial fetch: ${allTracks.length} of ${total} tracks`);
 
-                    const validTracks = data.items.filter((item: any) =>
+                    // Calculate remaining requests
+                    const limit = 100;
+                    const requests = [];
+                    for (let offset = limit; offset < total; offset += limit) {
+                        requests.push(async () => {
+                            const res = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks?market=from_token&limit=${limit}&offset=${offset}`, {
+                                headers: { 'Authorization': `Bearer ${accessToken}` }
+                            });
+                            return res.json();
+                        });
+                    }
+
+                    // Execute in batches to avoid rate limits
+                    const BATCH_SIZE = 5;
+                    for (let i = 0; i < requests.length; i += BATCH_SIZE) {
+                        const batch = requests.slice(i, i + BATCH_SIZE).map(req => req());
+                        const results = await Promise.all(batch);
+                        results.forEach((res: any) => {
+                            if (res && res.items) {
+                                allTracks.push(...res.items);
+                            }
+                        });
+                        console.log(`Fetched batch ${i / BATCH_SIZE + 1}, total tracks so far: ${allTracks.length}`);
+                    }
+
+                    const validTracks = allTracks.filter((item: any) =>
                         item.track &&
                         item.track.uri &&
                         !item.is_local &&
                         item.track.is_playable === true
                     );
 
-                    if (validTracks.length === 0 && data.items.length > 0) {
-                        console.warn("No playable tracks found. Dumping first raw item for debug:", data.items[0]);
-                    }
+                    console.log(`Found ${validTracks.length} playable tracks out of ${allTracks.length} total items.`);
 
-                    console.log(`Found ${validTracks.length} playable tracks out of ${data.items.length} total items.`);
+                    if (validTracks.length === 0) {
+                        setFeedbackMessage('No playable tracks found in this playlist.');
+                        return;
+                    }
 
                     setCurrentTracks(validTracks);
                     startGame(validTracks);
                 } else {
                     console.error('Failed to fetch playlist tracks:', response.statusText);
-                    alert(`Error fetching tracks: ${response.status} ${response.statusText}`);
+                    setFeedbackMessage(`Error fetching tracks: ${response.status} ${response.statusText}`);
                 }
             } catch (error) {
                 console.error('Error fetching playlist tracks:', error);
-                alert(`Error: ${error}`);
+                setFeedbackMessage(`Error: ${error}`);
             }
         } else {
             console.error("No access token found in sessionStorage");
