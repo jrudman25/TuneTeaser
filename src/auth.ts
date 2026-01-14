@@ -1,7 +1,7 @@
 /**
  * Auth.ts
  * Handles auth on logging in
- * @version 2026.01.11
+ * @version 2026.01.13
  */
 export async function redirectToAuthCodeFlow(clientId: string, redirectUri: string) {
     const verifier = generateCodeVerifier(128);
@@ -16,7 +16,7 @@ export async function redirectToAuthCodeFlow(clientId: string, redirectUri: stri
     params.append("code_challenge_method", "S256");
     params.append("code_challenge", challenge);
 
-    const scopeString = "playlist-read-private playlist-modify-public playlist-modify-private user-read-private user-read-email streaming user-read-playback-state user-modify-playback-state";
+    const scopeString = "playlist-read-private playlist-modify-public playlist-modify-private user-read-private user-read-email streaming user-read-playback-state user-modify-playback-state user-library-read";
 
     document.location = `https://accounts.spotify.com/authorize?${params.toString()}&scope=${encodeURIComponent(scopeString)}`;
 }
