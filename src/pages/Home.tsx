@@ -1,16 +1,17 @@
 /**
  * Home.tsx
  * The main page of the site.
- * @version 2026.01.13
+ * @version 2026.01.28
  */
 import React, { useEffect, useState } from 'react';
 import { Typography, Box } from "@mui/material";
-import useSpotifyPlayer from './useSpotifyPlayer';
+import usePreviewPlayer from '../hooks/usePreviewPlayer';
+import { getItunesPreview } from '../utils/itunes';
+
 
 const Home = () => {
-
     const accessToken = sessionStorage.getItem('accessToken');
-    const { deviceId, isActive, isPaused, error: playerError } = useSpotifyPlayer(accessToken);
+    const { playPreview, isPlaying, error: playerError } = usePreviewPlayer();
 
     const [playlists, setPlaylists] = useState<any[]>([]);
     const [currentTracks, setCurrentTracks] = useState<any[]>([]);
@@ -20,7 +21,7 @@ const Home = () => {
 
     const [targetSong, setTargetSong] = useState<any | null>(null);
     const [snippetDuration, setSnippetDuration] = useState<number>(1000); // ms
-    const [gameState, setGameState] = useState<'idle' | 'playing' | 'won'>('idle');
+    const [gameState, setGameState] = useState<'idle' | 'playing' | 'end'>('idle');
     const [userGuess, setUserGuess] = useState('');
     const [feedbackMessage, setFeedbackMessage] = useState('');
 
@@ -163,14 +164,14 @@ const Home = () => {
                         console.log(`Fetched batch ${i / BATCH_SIZE + 1}, total tracks so far: ${allTracks.length}`);
                     }
 
+                    // Filter for valid tracks (we'll fetch preview URLs on demand)
                     const validTracks = allTracks.filter((item: any) =>
                         item.track &&
-                        item.track.uri &&
-                        !item.is_local &&
-                        item.track.is_playable === true
+                        item.track.id &&
+                        !item.is_local
                     );
 
-                    console.log(`Found ${validTracks.length} playable tracks out of ${allTracks.length} total items.`);
+                    console.log(`Found ${validTracks.length} valid tracks out of ${allTracks.length} total items.`);
 
                     if (validTracks.length === 0) {
                         setFeedbackMessage('No playable tracks found in this playlist.');
@@ -208,43 +209,30 @@ const Home = () => {
     };
 
     const playSnippet = async () => {
-        if (!deviceId) {
-            alert("Spotify Web Player is not ready yet. Please wait a moment.");
+        if (!targetSong) {
+            setFeedbackMessage("No song selected.");
             return;
         }
 
-        try {
-            // Play
-            const response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
-                method: 'PUT',
-                body: JSON.stringify({ uris: [targetSong.uri], position_ms: 0 }),
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${accessToken}`
-                },
-            });
+        setFeedbackMessage("Loading preview...");
 
-            if (!response.ok) {
-                if (response.status === 403) {
-                    setFeedbackMessage("Playback failed (403). This song might be restricted or unavailable. Try 'Play Again' to skip.");
-                    return;
-                }
-                throw new Error(`Spotify Playback Error: ${response.status}`);
+        try {
+            console.log("No Spotify preview_url, trying iTunes...");
+            const artistName = targetSong.artists[0]?.name || "";
+            const trackName = targetSong.name;
+            let previewUrl = await getItunesPreview(trackName, artistName);
+
+            if (!previewUrl) {
+                setFeedbackMessage("No preview available for this track (checked Spotify & iTunes). Try 'Play Again' to skip.");
+                return;
             }
 
-            // Schedule Pause
-            setTimeout(async () => {
-                await fetch(`https://api.spotify.com/v1/me/player/pause?device_id=${deviceId}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`
-                    },
-                });
-            }, snippetDuration);
+            setFeedbackMessage('');
+            playPreview(previewUrl, snippetDuration);
 
         } catch (e) {
             console.error("Playback error", e);
-            setFeedbackMessage("Error playing snippet. Ensure you have Spotify Premium.");
+            setFeedbackMessage("Error playing snippet. Please try again.");
         }
     };
 
@@ -260,16 +248,21 @@ const Home = () => {
         const checkTitle = normalizeString(targetSong.name);
 
         if (checkTitle.includes(checkGuess) && checkGuess.length > 2) {
-            setGameState('won');
+            setGameState('end');
             setFeedbackMessage(`Correct! You won! Guessed the song in ${snippetDuration / 1000} seconds.`);
         } else {
-            setFeedbackMessage('Incorrect. Increasing snippet length!');
-            setSnippetDuration(prev => Math.min(prev + 2000, 30000)); // Increase by 2s, max 30s
+            if (snippetDuration >= 30000) {
+                setGameState('end');
+                setFeedbackMessage(`Game Over! You didn't get it. The song was: ${targetSong.name}`);
+            } else {
+                setFeedbackMessage('Incorrect. Increasing snippet length!');
+                setSnippetDuration(prev => Math.min(prev + 2000, 30000)); // Increase by 2s, max 30s
+            }
         }
     };
 
     const handleGiveUp = () => {
-        setGameState('won');
+        setGameState('end');
         setFeedbackMessage(`The song was: ${targetSong.name}`);
     };
 
@@ -350,7 +343,7 @@ const Home = () => {
                         <Typography>Snippet Length: {snippetDuration / 1000} seconds</Typography>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                             <button onClick={playSnippet} style={{ padding: '10px 20px', fontSize: '1.2rem' }}>Play Snippet</button>
-                            {!isPaused && <Typography variant="body1" color="primary" sx={{ animation: 'pulse 1s infinite' }}>🎵 Playing...</Typography>}
+                            {isPlaying && <Typography variant="body1" color="primary" sx={{ animation: 'pulse 1s infinite' }}>🎵 Playing...</Typography>}
                         </Box>
 
                         <Box sx={{ display: 'flex', gap: 1 }}>
@@ -375,7 +368,7 @@ const Home = () => {
                     </Box>
                 )}
 
-                {gameState === 'won' && targetSong && (
+                {gameState === 'end' && targetSong && (
                     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                         <Typography variant="h4" color="success.main">{feedbackMessage}</Typography>
                         <Typography variant="h6">Song: {targetSong.name}</Typography>

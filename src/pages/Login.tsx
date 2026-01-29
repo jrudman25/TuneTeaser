@@ -6,7 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import { Box } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { redirectToAuthCodeFlow, getAccessToken } from './auth';
+import { redirectToAuthCodeFlow, getAccessToken } from '../utils/auth';
 
 const Login = () => {
 

@@ -6,7 +6,7 @@
 import React from 'react';
 import { Nav } from './NavBarElement';
 import { Link, useLocation } from 'react-router-dom';
-import logo from './img/tt.jpg';
+import logo from '../img/tt.jpg';
 import './NavBar.css';
 
 const NavBar = () => {
