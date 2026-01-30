@@ -1,7 +1,7 @@
 /**
  * Login.tsx
  * Handles users logging in with a Spotify account.
- * @version 2026.01.11
+ * @version 2026.01.30
  */
 import React, { useEffect, useState } from 'react';
 import { Box } from '@mui/material';
@@ -27,18 +27,25 @@ const Login = () => {
                 effectRan.current = true; // Prevent double firing in Strict Mode
 
                 try {
-                    const accessToken = await getAccessToken(clientId, code, redirectUri);
-                    if (accessToken) {
-                        sessionStorage.setItem('accessToken', accessToken);
+                    const data = await getAccessToken(clientId, code, redirectUri);
+                    if (data.access_token) {
+                        const { access_token, refresh_token, expires_in } = data;
+                        localStorage.setItem('accessToken', access_token);
+                        localStorage.setItem('refreshToken', refresh_token);
+                        localStorage.setItem('tokenExpiry', (Date.now() + expires_in * 1000).toString());
+
+                        // Support legacy session storage for now if other parts use it, but localStorage is primary
+                        sessionStorage.setItem('accessToken', access_token);
+
                         // Clean URL
                         window.history.pushState({}, "", "/");
 
                         // Fetch profile to verify and welcome
                         const response = await fetch('https://api.spotify.com/v1/me', {
-                            headers: { 'Authorization': `Bearer ${accessToken}` }
+                            headers: { 'Authorization': `Bearer ${access_token}` }
                         });
-                        const data = await response.json();
-                        setAccountName(data.display_name);
+                        const profileData = await response.json();
+                        setAccountName(profileData.display_name);
 
                         setTimeout(() => {
                             navigate('/home');

@@ -1,7 +1,7 @@
 /**
  * Auth.ts
  * Handles auth on logging in
- * @version 2026.01.28
+ * @version 2026.01.30
  */
 export async function redirectToAuthCodeFlow(clientId: string, redirectUri: string) {
     const verifier = generateCodeVerifier(128);
@@ -38,9 +38,23 @@ export async function getAccessToken(clientId: string, code: string, redirectUri
     });
 
     const data = await result.json();
-    console.log("Token response:", data);
-    const { access_token } = data;
-    return access_token;
+    return data; // Returns access_token, refresh_token, expires_in
+}
+
+export async function refreshAccessToken(clientId: string, refreshToken: string) {
+    const params = new URLSearchParams();
+    params.append("client_id", clientId);
+    params.append("grant_type", "refresh_token");
+    params.append("refresh_token", refreshToken);
+
+    const result = await fetch("https://accounts.spotify.com/api/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: params
+    });
+
+    const data = await result.json();
+    return data;
 }
 
 function generateCodeVerifier(length: number) {

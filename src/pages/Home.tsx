@@ -1,7 +1,7 @@
 /**
  * Home.tsx
  * The main page of the site.
- * @version 2026.01.29
+ * @version 2026.01.30
  */
 import React, { useEffect, useState } from 'react';
 import { Typography, Box } from "@mui/material";
@@ -9,8 +9,10 @@ import usePreviewPlayer from '../hooks/usePreviewPlayer';
 import { getItunesPreview } from '../utils/itunes';
 
 
+import { refreshAccessToken } from '../utils/auth';
+
 const Home = () => {
-    const accessToken = sessionStorage.getItem('accessToken');
+    const [accessToken, setAccessToken] = useState(localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken'));
     const { playPreview, isPlaying, error: playerError } = usePreviewPlayer();
 
     const [playlists, setPlaylists] = useState<any[]>([]);
@@ -24,8 +26,40 @@ const Home = () => {
     const [gameState, setGameState] = useState<'idle' | 'playing' | 'end'>('idle');
     const [userGuess, setUserGuess] = useState('');
     const [feedbackMessage, setFeedbackMessage] = useState('');
+    const [selectedPlaylistName, setSelectedPlaylistName] = useState('');
+    const [playlistPage, setPlaylistPage] = useState(0);
+    const PLAYLISTS_PER_PAGE = 10;
 
     useEffect(() => {
+        const checkToken = async () => {
+            const tokenExpiry = localStorage.getItem('tokenExpiry');
+            const refreshToken = localStorage.getItem('refreshToken');
+            const clientId = `${process.env.REACT_APP_SPOTIFY_CLIENT_ID}`;
+
+            if (tokenExpiry && refreshToken && Date.now() > parseInt(tokenExpiry)) {
+                console.log("Token expired, refreshing...");
+                try {
+                    const data = await refreshAccessToken(clientId, refreshToken);
+                    if (data.access_token) {
+                        const { access_token, expires_in, refresh_token: newRefreshToken } = data;
+                        localStorage.setItem('accessToken', access_token);
+                        sessionStorage.setItem('accessToken', access_token);
+                        localStorage.setItem('tokenExpiry', (Date.now() + expires_in * 1000).toString());
+                        if (newRefreshToken) localStorage.setItem('refreshToken', newRefreshToken);
+                        setAccessToken(access_token);
+                    }
+                } catch (e) {
+                    console.error("Failed to refresh token", e);
+                    // Logout if refresh fails
+                    localStorage.clear();
+                    sessionStorage.clear();
+                    window.location.href = '/';
+                }
+            }
+        };
+
+        checkToken();
+
         const fetchPlaylists = async () => {
             if (accessToken) {
                 setIsLoadingPlaylists(true);
@@ -39,6 +73,11 @@ const Home = () => {
                                 'Authorization': `Bearer ${accessToken}`
                             }
                         });
+
+                        if (response.status === 401) {
+                            console.error("401 Unauthorized during playlist fetch");
+                            break;
+                        }
 
                         if (!response.ok) {
                             console.error('Failed to fetch playlists:', response.statusText);
@@ -105,90 +144,103 @@ const Home = () => {
     };
 
     const handlePlaylistClick = async (playlistId: string) => {
-        if (isLoading) return; // Prevent multiple clicks
+        if (isLoading) return;
         console.log("Clicked playlist:", playlistId);
+
+        if (playlistId === 'LIKED_SONGS') {
+            setSelectedPlaylistName('Liked Songs');
+        } else {
+            const playlist = playlists.find((p: any) => p.id === playlistId);
+            if (playlist) {
+                setSelectedPlaylistName(playlist.name);
+            }
+        }
 
         if (accessToken) {
             setIsLoading(true);
-            setFeedbackMessage("Loading tracks... This may take a moment for large playlists.");
+            setFeedbackMessage("Loading tracks... Game will start soon.");
             try {
-                let allTracks: any[] = [];
-                let nextUrl: string | null = '';
-
+                let initialUrl = '';
                 if (playlistId === 'LIKED_SONGS') {
-                    nextUrl = 'https://api.spotify.com/v1/me/tracks?market=from_token&limit=50';
+                    initialUrl = 'https://api.spotify.com/v1/me/tracks?market=from_token&limit=50';
                 } else {
-                    nextUrl = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?market=from_token&limit=100`;
+                    initialUrl = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?market=from_token&limit=100`;
                 }
 
                 // Initial fetch to get first page and total count
-                const response = await fetch(nextUrl, {
+                const response = await fetch(initialUrl, {
                     headers: { 'Authorization': `Bearer ${accessToken}` }
                 });
 
                 if (response.ok) {
                     const data = await response.json();
-                    allTracks = [...data.items];
+                    let fetchedTracks = [...data.items];
                     const total = data.total;
-                    console.log(`Initial fetch: ${allTracks.length} of ${total} tracks`);
+                    console.log(`Initial fetch: ${fetchedTracks.length} of ${total} tracks`);
 
-                    // Calculate remaining requests
-                    const limit = playlistId === 'LIKED_SONGS' ? 50 : 100;
-                    const requests = [];
-                    for (let offset = limit; offset < total; offset += limit) {
-                        requests.push(async () => {
+                    const validInitialTracks = fetchedTracks.filter((item: any) =>
+                        item.track && item.track.id && !item.is_local
+                    );
+
+                    if (validInitialTracks.length === 0 && total === 0) {
+                        setFeedbackMessage('No playable tracks found in this playlist.');
+                        setIsLoading(false);
+                        return;
+                    }
+
+                    setCurrentTracks(validInitialTracks);
+                    startGame(validInitialTracks); // Start with first batch of tracks
+                    setIsLoading(false);
+
+                    // Background fetch for the rest of the tracks
+                    if (total > fetchedTracks.length) {
+                        console.log("Starting background fetch for remaining tracks...");
+                        const limit = playlistId === 'LIKED_SONGS' ? 50 : 100;
+                        const BATCH_SIZE = 3;
+                        const requests = [];
+
+                        for (let offset = fetchedTracks.length; offset < total; offset += limit) {
                             let url = '';
                             if (playlistId === 'LIKED_SONGS') {
                                 url = `https://api.spotify.com/v1/me/tracks?market=from_token&limit=${limit}&offset=${offset}`;
                             } else {
                                 url = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?market=from_token&limit=${limit}&offset=${offset}`;
                             }
+                            requests.push(url);
+                        }
 
-                            const res = await fetch(url, {
-                                headers: { 'Authorization': `Bearer ${accessToken}` }
+                        for (let i = 0; i < requests.length; i += BATCH_SIZE) {
+                            const batchUrls = requests.slice(i, i + BATCH_SIZE);
+                            const batchPromises = batchUrls.map(url =>
+                                fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } })
+                                    .then(res => res.json())
+                            );
+
+                            const results = await Promise.all(batchPromises);
+                            const newTracks: any[] = [];
+                            results.forEach((res: any) => {
+                                if (res && res.items) {
+                                    newTracks.push(...res.items);
+                                }
                             });
-                            return res.json();
-                        });
+
+                            const validNewTracks = newTracks.filter((item: any) =>
+                                item.track && item.track.id && !item.is_local
+                            );
+
+                            setCurrentTracks(prev => [...prev, ...validNewTracks]);
+                            console.log(`Background fetched batch ${i / BATCH_SIZE + 1}. Total tracks: ${fetchedTracks.length + newTracks.length}`);
+                        }
                     }
 
-                    // Execute in batches to avoid rate limits
-                    const BATCH_SIZE = 5;
-                    for (let i = 0; i < requests.length; i += BATCH_SIZE) {
-                        const batch = requests.slice(i, i + BATCH_SIZE).map(req => req());
-                        const results = await Promise.all(batch);
-                        results.forEach((res: any) => {
-                            if (res && res.items) {
-                                allTracks.push(...res.items);
-                            }
-                        });
-                        console.log(`Fetched batch ${i / BATCH_SIZE + 1}, total tracks so far: ${allTracks.length}`);
-                    }
-
-                    // Filter for valid tracks
-                    const validTracks = allTracks.filter((item: any) =>
-                        item.track &&
-                        item.track.id &&
-                        !item.is_local
-                    );
-
-                    console.log(`Found ${validTracks.length} valid tracks out of ${allTracks.length} total items.`);
-
-                    if (validTracks.length === 0) {
-                        setFeedbackMessage('No playable tracks found in this playlist.');
-                        setIsLoading(false);
-                        return;
-                    }
-
-                    setCurrentTracks(validTracks);
-                    startGame(validTracks);
                 } else {
                     console.error('Failed to fetch playlist tracks:', response.statusText);
                     setFeedbackMessage(`Error fetching tracks: ${response.status} ${response.statusText}`);
+                    setIsLoading(false);
                 }
             } catch (error) {
                 console.error('Error fetching playlist tracks:', error);
                 setFeedbackMessage(`Error: ${error}`);
-            } finally {
                 setIsLoading(false);
             }
         } else {
@@ -206,6 +258,7 @@ const Home = () => {
         setTargetSong(null);
         setCurrentTracks([]);
         setFeedbackMessage('');
+        setSelectedPlaylistName('');
     };
 
     const playSnippet = async () => {
@@ -304,34 +357,57 @@ const Home = () => {
                         {isLoadingPlaylists ? (
                             <Typography color="textSecondary">Loading playlists...</Typography>
                         ) : (
-                            <ul>
-                                <li
-                                    onClick={() => handlePlaylistClick('LIKED_SONGS')}
-                                    style={{
-                                        cursor: isLoading ? 'default' : 'pointer',
-                                        textDecoration: 'underline',
-                                        color: isLoading ? 'gray' : 'blue',
-                                        fontWeight: 'bold',
-                                        marginBottom: '10px'
-                                    }}
-                                >
-                                    ❤️ Liked Songs
-                                </li>
-                                {playlists.map((playlist: any) => (
-                                    <li
-                                        key={playlist.id}
-                                        onClick={() => handlePlaylistClick(playlist.id)}
-                                        style={{
-                                            cursor: isLoading ? 'default' : 'pointer',
-                                            textDecoration: 'underline',
-                                            color: isLoading ? 'gray' : 'blue',
-                                            pointerEvents: isLoading ? 'none' : 'auto'
-                                        }}
-                                    >
-                                        {playlist.name}
-                                    </li>
-                                ))}
-                            </ul>
+                            <>
+                                <ul>
+                                    {playlistPage === 0 && (
+                                        <li
+                                            onClick={() => handlePlaylistClick('LIKED_SONGS')}
+                                            style={{
+                                                cursor: isLoading ? 'default' : 'pointer',
+                                                textDecoration: 'underline',
+                                                color: isLoading ? 'gray' : 'blue',
+                                                fontWeight: 'bold',
+                                                marginBottom: '10px'
+                                            }}
+                                        >
+                                            Liked Songs
+                                        </li>
+                                    )}
+                                    {playlists.slice(playlistPage * PLAYLISTS_PER_PAGE, (playlistPage + 1) * PLAYLISTS_PER_PAGE).map((playlist: any) => (
+                                        <li
+                                            key={playlist.id}
+                                            onClick={() => handlePlaylistClick(playlist.id)}
+                                            style={{
+                                                cursor: isLoading ? 'default' : 'pointer',
+                                                textDecoration: 'underline',
+                                                color: isLoading ? 'gray' : 'blue',
+                                                pointerEvents: isLoading ? 'none' : 'auto'
+                                            }}
+                                        >
+                                            {playlist.name}
+                                        </li>
+                                    ))}
+                                </ul>
+                                {playlists.length > PLAYLISTS_PER_PAGE && (
+                                    <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, marginTop: 1 }}>
+                                        <button
+                                            disabled={playlistPage === 0}
+                                            onClick={() => setPlaylistPage(p => p - 1)}
+                                            style={{ padding: '5px 10px', cursor: playlistPage === 0 ? 'default' : 'pointer', opacity: playlistPage === 0 ? 0.5 : 1 }}
+                                        >
+                                            Previous
+                                        </button>
+                                        <Typography>Page {playlistPage + 1} of {Math.ceil(playlists.length / PLAYLISTS_PER_PAGE)}</Typography>
+                                        <button
+                                            disabled={(playlistPage + 1) * PLAYLISTS_PER_PAGE >= playlists.length}
+                                            onClick={() => setPlaylistPage(p => p + 1)}
+                                            style={{ padding: '5px 10px', cursor: (playlistPage + 1) * PLAYLISTS_PER_PAGE >= playlists.length ? 'default' : 'pointer', opacity: (playlistPage + 1) * PLAYLISTS_PER_PAGE >= playlists.length ? 0.5 : 1 }}
+                                        >
+                                            Next
+                                        </button>
+                                    </Box>
+                                )}
+                            </>
                         )}
                         {feedbackMessage && <Typography color="error">{feedbackMessage}</Typography>}
                     </>
@@ -339,6 +415,11 @@ const Home = () => {
 
                 {gameState === 'playing' && (
                     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                        {selectedPlaylistName && (
+                            <Typography variant="h6" color="textSecondary">
+                                Playing: {selectedPlaylistName}
+                            </Typography>
+                        )}
                         <Typography variant="h5">Guess the Song!</Typography>
                         <Typography>Snippet Length: {snippetDuration / 1000} seconds</Typography>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -394,7 +475,7 @@ const Home = () => {
                     </Box>
                 )}
             </Box>
-        </div>
+        </div >
     );
 };
 
