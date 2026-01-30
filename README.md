@@ -1,13 +1,13 @@
 # TuneTeaser 🎵
 
-TuneTeaser is a "Name That Tune" style game where you test your music knowledge against your own Spotify playlists!
+[TuneTeaser](https://tuneteaser.web.app/) is a "Name That Tune" style game where you test your music knowledge against your own Spotify playlists!
 
 ## How to Play
-1.  **Login** with your Spotify Premium account.
+1.  **Login** with your Spotify account.
 2.  **Select a Playlist** from your library.
 3.  **Listen** to a short snippet of a random song.
 4.  **Guess** the song title!
-    *   Incorrect guesses increase the snippet length (making it easier).
+    *   Incorrect guesses increase the snippet length up to 30 seconds.
     *   Correct guesses win the round!
 
 ## Features
@@ -16,12 +16,13 @@ TuneTeaser is a "Name That Tune" style game where you test your music knowledge 
 *   **Play Your Way**: Works with any of your personal playlists.
 
 ## Requirements
-*   **Spotify Premium**: Required for the Web Playback SDK to stream music directly in the browser.
+*   **Spotify Account**: Required to log in and select playlists.
 *   **Modern Browser**: Chrome, Edge, or Firefox (with DRM enabled).
 
 ## Tech Stack
 *   React & TypeScript
-*   Spotify Web Playback SDK
+*   Spotify API
+*   iTunes API
 *   Material UI
 
 Created by Jordan Rudman

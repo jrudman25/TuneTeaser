@@ -1,7 +1,7 @@
 /**
  * Home.tsx
  * The main page of the site.
- * @version 2026.01.28
+ * @version 2026.01.29
  */
 import React, { useEffect, useState } from 'react';
 import { Typography, Box } from "@mui/material";
@@ -164,7 +164,7 @@ const Home = () => {
                         console.log(`Fetched batch ${i / BATCH_SIZE + 1}, total tracks so far: ${allTracks.length}`);
                     }
 
-                    // Filter for valid tracks (we'll fetch preview URLs on demand)
+                    // Filter for valid tracks
                     const validTracks = allTracks.filter((item: any) =>
                         item.track &&
                         item.track.id &&
@@ -217,13 +217,13 @@ const Home = () => {
         setFeedbackMessage("Loading preview...");
 
         try {
-            console.log("No Spotify preview_url, trying iTunes...");
+            console.log("Looking for iTunes preview...");
             const artistName = targetSong.artists[0]?.name || "";
             const trackName = targetSong.name;
             let previewUrl = await getItunesPreview(trackName, artistName);
 
             if (!previewUrl) {
-                setFeedbackMessage("No preview available for this track (checked Spotify & iTunes). Try 'Play Again' to skip.");
+                setFeedbackMessage("No preview available for this track. Try 'Play Again' to skip.");
                 return;
             }
 
