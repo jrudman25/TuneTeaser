@@ -1,7 +1,7 @@
 /**
  * Login.tsx
  * Handles users logging in with a Spotify account.
- * @version 2026.01.30
+ * @version 2026.01.31
  */
 import React, { useEffect, useState } from 'react';
 import { Box } from '@mui/material';
@@ -19,6 +19,7 @@ const Login = () => {
     const effectRan = React.useRef(false);
 
     useEffect(() => {
+
         const handleAuthCallback = async () => {
             const params = new URLSearchParams(window.location.search);
             const code = params.get("code");
