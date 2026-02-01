@@ -1,30 +1,25 @@
 /**
  * Home.tsx
  * The main page of the site.
- * @version 2026.01.31
+ * @version 2026.02.01
  */
 import React, { useEffect, useState } from 'react';
 import { Typography, Box } from "@mui/material";
 import { refreshAccessToken } from '../utils/auth';
-
-// Hooks
 import { usePlaylists } from '../hooks/usePlaylists';
 import { useGameLogic } from '../hooks/useGameLogic';
-
-// Components
 import PlaylistMenu from '../components/PlaylistMenu';
 import ActiveGame from '../components/ActiveGame';
 import GameResult from '../components/GameResult';
 
 const Home = () => {
-    // 1. Auth Management
     const [accessToken, setAccessToken] = useState(localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken'));
 
     useEffect(() => {
         const checkToken = async () => {
             const tokenExpiry = localStorage.getItem('tokenExpiry');
             const refreshToken = localStorage.getItem('refreshToken');
-            const clientId = `${process.env.REACT_APP_SPOTIFY_CLIENT_ID}`;
+            const clientId = `${import.meta.env.VITE_SPOTIFY_CLIENT_ID}`;
 
             if (tokenExpiry && refreshToken && Date.now() > parseInt(tokenExpiry)) {
                 console.log("Token expired, refreshing...");
@@ -35,10 +30,10 @@ const Home = () => {
                         localStorage.setItem('accessToken', access_token);
                         sessionStorage.setItem('accessToken', access_token);
                         localStorage.setItem('tokenExpiry', (Date.now() + expires_in * 1000).toString());
-                        if (newRefreshToken) localStorage.setItem('refreshToken', newRefreshToken);
-                        // Refresh the page to reload hooks with new token cleanly, or just set state
+                        if (newRefreshToken) {
+                            localStorage.setItem('refreshToken', newRefreshToken);
+                        }
                         setAccessToken(access_token);
-                        // Force reload might be safer for hooks dependent on initial token, but passing prop works too.
                     }
                 } catch (e) {
                     console.error("Failed to refresh token", e);
@@ -54,7 +49,6 @@ const Home = () => {
         checkToken();
     }, []);
 
-    // 2. Custom Hooks
     const { playlists, isLoadingPlaylists } = usePlaylists(accessToken);
     const {
         gameState,
@@ -75,8 +69,6 @@ const Home = () => {
         playerError
     } = useGameLogic(accessToken);
 
-
-    // 3. Handlers
     const onSelectPlaylist = (playlistId: string) => {
         let name = '';
         if (playlistId === 'LIKED_SONGS') {
