@@ -1,7 +1,7 @@
 /**
  * Home.tsx
  * The main page of the site.
- * @version 2026.02.01
+ * @version 2026.02.05
  */
 import React, { useEffect, useState } from 'react';
 import { Typography, Box } from "@mui/material";
@@ -66,7 +66,10 @@ const Home = () => {
         handlePlayAgain,
         handleSelectNewPlaylist,
         isPlaying,
-        playerError
+        playerError,
+        currentTracks,
+        volume,
+        setVolume
     } = useGameLogic(accessToken);
 
     const onSelectPlaylist = (playlistId: string) => {
@@ -139,6 +142,9 @@ const Home = () => {
                         feedbackMessage={feedbackMessage}
                         isPlaying={isPlaying}
                         selectedPlaylistName={selectedPlaylistName}
+                        songs={currentTracks}
+                        volume={volume}
+                        setVolume={setVolume}
                     />
                 )}
 

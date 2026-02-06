@@ -1,14 +1,14 @@
 /**
  * useGameLogic.ts
  * Handles the core game logic, including track selection, scoring, and state management.
- * @version 2026.01.31
+ * @version 2026.02.05
  */
 import { useState } from 'react';
 import usePreviewPlayer from './usePreviewPlayer';
 import { getItunesPreview } from '../utils/itunes';
 
 export const useGameLogic = (accessToken: string | null) => {
-    const { playPreview, isPlaying, error: playerError } = usePreviewPlayer();
+    const { playPreview, isPlaying, error: playerError, volume, setVolume } = usePreviewPlayer();
 
     const [currentTracks, setCurrentTracks] = useState<any[]>([]);
     const [recentTracks, setRecentTracks] = useState<string[]>([]);
@@ -235,14 +235,16 @@ export const useGameLogic = (accessToken: string | null) => {
         isLoadingGame,
         selectedPlaylistName,
         currentTracks,
-        loadPlaylist, // Exposed now
-        startGame,    // Still exposed if needed
+        loadPlaylist,
+        startGame,
         handleGuessSubmit,
         handleGiveUp,
         playSnippet,
         handlePlayAgain,
         handleSelectNewPlaylist,
         isPlaying,
-        playerError
+        playerError,
+        volume,
+        setVolume
     };
 };

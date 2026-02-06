@@ -21,6 +21,8 @@
 
 ## Tech Stack
 *   React & TypeScript
+*   Vite
+* Firebase
 *   Spotify API
 *   iTunes API
 *   Material UI
