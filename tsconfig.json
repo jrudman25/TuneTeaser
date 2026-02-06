@@ -7,7 +7,9 @@
       "esnext"
     ],
     "types": [
-      "vite/client"
+      "vite/client",
+      "node",
+      "vitest/globals"
     ],
     "allowJs": true,
     "skipLibCheck": true,
