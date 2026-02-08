@@ -1,7 +1,7 @@
 /**
  * itunes.ts
  * Used to fetch preview URLs.
- * @version 2026.02.05
+ * @version 2026.02.07
  */
 
 interface ItunesResult {
@@ -42,26 +42,39 @@ export const getItunesPreview = async (trackName: string, artistName: string): P
             const bestMatch = data.results.find(res => {
                 const resName = res.trackName.toLowerCase();
                 const resArtist = res.artistName.toLowerCase();
+                const targetName = cleanTrackName;
 
+                // Artist Check
                 if (!resArtist.includes(artistName.toLowerCase()) && !artistName.toLowerCase().includes(resArtist)) {
                     return false;
                 }
 
+                // Banned Term Check
                 const hasBannedTerm = bannedTerms.some(term =>
-                    resName.includes(term) && !cleanTrackName.includes(term)
+                    resName.includes(term) && !targetName.includes(term)
                 );
-
                 if (hasBannedTerm) return false;
 
-                return true;
+                const normalize = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+                const normRes = normalize(resName);
+                const normTarget = normalize(targetName);
+
+                const isSimilar = normRes.includes(normTarget) || normTarget.includes(normRes);
+
+                if (isSimilar) {
+                    console.log(`Match found: "${res.trackName}" matches "${trackName}"`);
+                }
+
+                return isSimilar;
             });
 
             if (bestMatch && bestMatch.previewUrl) {
-                console.log("Found preview via iTunes:", bestMatch.trackName);
+                console.log("Found preview via iTunes (High Confidence):", bestMatch.trackName);
                 return bestMatch.previewUrl;
-            } else if (data.results[0].previewUrl) {
-                console.log("Strict matching failed, falling back to first result:", data.results[0].trackName);
-                return data.results[0].previewUrl;
+            } else {
+                console.warn("No high-confidence match found. Top result was:", data.results[0]?.trackName);
+                return null;
             }
         }
 

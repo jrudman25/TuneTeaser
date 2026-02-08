@@ -1,14 +1,14 @@
 /**
  * useGameLogic.ts
  * Handles the core game logic, including track selection, scoring, and state management.
- * @version 2026.02.05
+ * @version 2026.02.07
  */
 import { useState } from 'react';
 import usePreviewPlayer from './usePreviewPlayer';
 import { getItunesPreview } from '../utils/itunes';
 
 export const useGameLogic = (accessToken: string | null) => {
-    const { playPreview, isPlaying, error: playerError, volume, setVolume } = usePreviewPlayer();
+    const { playPreview, pause, isPlaying, error: playerError, volume, setVolume } = usePreviewPlayer();
 
     const [currentTracks, setCurrentTracks] = useState<any[]>([]);
     const [recentTracks, setRecentTracks] = useState<string[]>([]);
@@ -21,6 +21,7 @@ export const useGameLogic = (accessToken: string | null) => {
     const [isLoadingGame, setIsLoadingGame] = useState(false);
 
     const startGame = (tracks: any[]) => {
+        pause();
         let candidates = tracks.filter(t => !recentTracks.includes(t.track.id));
 
         if (candidates.length === 0 && tracks.length > 0) {
@@ -66,11 +67,15 @@ export const useGameLogic = (accessToken: string | null) => {
         const checkGuess = normalizeString(userGuess);
         const checkTitle = normalizeString(targetSong.name);
 
-        if (checkTitle.includes(checkGuess) && checkGuess.length > 2) {
+        const isCorrect = (checkTitle.includes(checkGuess) && checkGuess.length > 2) || (checkTitle === checkGuess && checkGuess.length > 0);
+
+        if (isCorrect) {
+            pause();
             setGameState('end');
             setFeedbackMessage(`Correct! You won! Guessed the song in ${snippetDuration / 1000} seconds.`);
         } else {
             if (snippetDuration >= 30000) {
+                pause();
                 setGameState('end');
                 setFeedbackMessage(`Game Over! You didn't get it. The song was: ${targetSong.name}`);
             } else {
@@ -95,7 +100,7 @@ export const useGameLogic = (accessToken: string | null) => {
             let previewUrl = await getItunesPreview(trackName, artistName);
 
             if (!previewUrl) {
-                setFeedbackMessage("No preview available for this track. Try 'Play Again' to skip.");
+                setFeedbackMessage("No preview available for this track. Try 'Give up' to skip.");
                 return;
             }
 
@@ -109,6 +114,7 @@ export const useGameLogic = (accessToken: string | null) => {
     };
 
     const handleGiveUp = () => {
+        pause();
         setGameState('end');
         setFeedbackMessage(`The song was: ${targetSong.name}`);
     };
@@ -118,6 +124,7 @@ export const useGameLogic = (accessToken: string | null) => {
     };
 
     const handleSelectNewPlaylist = () => {
+        pause();
         setGameState('idle');
         setTargetSong(null);
         setCurrentTracks([]);
