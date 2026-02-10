@@ -25,12 +25,12 @@ interface ItunesTrack {
  * @returns The preview URL or null if not found
  */
 export const getItunesPreview = async (trackName: string, artistName: string): Promise<string | null> => {
-    try {
-        // Cleaning the query allows for better matches
-        const cleanQuery = (str: string) => {
-            return str.replace(/ - .*/, '').replace(/[\(\[].*?[\)\]]/g, '').trim();
-        };
+    // Cleaning the query allows for better matches
+    const cleanQuery = (str: string) => {
+        return str.replace(/ - .*/, '').replace(/[\(\[].*?[\)\]]/g, '').trim();
+    };
 
+    try {
         const searchTerm = cleanQuery(trackName);
         const term = encodeURIComponent(`${searchTerm} ${artistName}`);
         const url = `https://itunes.apple.com/search?term=${term}&media=music&entity=song&limit=50`; // increased limit to find buried tracks
@@ -45,13 +45,11 @@ export const getItunesPreview = async (trackName: string, artistName: string): P
         const data: ItunesResult = await response.json();
 
         if (data.resultCount > 0) {
-            const cleanTrackName = trackName.toLowerCase();
             const bannedTerms = ['remix', 'mix', 'live', 'instrumental', 'club', 'edit'];
 
             const bestMatch = data.results.find((res: ItunesTrack) => {
                 const resName = res.trackName.toLowerCase();
                 const resArtist = res.artistName.toLowerCase();
-                const targetName = cleanTrackName;
 
                 // Artist Check
                 if (!resArtist.includes(artistName.toLowerCase()) && !artistName.toLowerCase().includes(resArtist)) {
@@ -60,14 +58,28 @@ export const getItunesPreview = async (trackName: string, artistName: string): P
 
                 // Banned Term Check (Strict Only)
                 const hasBannedTerm = bannedTerms.some(term =>
-                    resName.includes(term) && !targetName.includes(term)
+                    resName.includes(term) && !trackName.toLowerCase().includes(term)
                 );
                 if (hasBannedTerm) return false;
 
-                const normRes = normalizeString(resName);
-                const normTarget = normalizeString(targetName);
+                // Match Logic
+                const cleanTarget = cleanQuery(trackName);
+                const cleanRes = cleanQuery(res.trackName);
 
-                return normRes.includes(normTarget) || normTarget.includes(normRes);
+                const normRes = normalizeString(cleanRes);
+                const normTarget = normalizeString(cleanTarget);
+
+                if (normRes === normTarget) return true;
+
+                // Substring check with length validation
+                if (normRes.includes(normTarget) || normTarget.includes(normRes)) {
+                    const maxLength = Math.max(normRes.length, normTarget.length);
+                    const lengthDiff = Math.abs(normRes.length - normTarget.length);
+                    // Match must be at least 70% of the length
+                    return (1 - (lengthDiff / maxLength)) > 0.7;
+                }
+
+                return false;
             });
 
             if (bestMatch && bestMatch.previewUrl) {

@@ -11,6 +11,27 @@ describe('getItunesPreview', () => {
         global.fetch = vi.fn();
     });
 
+    it('should NOT match "Me" when searching for "Me & You Together Song"', async () => {
+        const mockResponse = {
+            resultCount: 1,
+            results: [
+                {
+                    trackName: 'Me',
+                    artistName: 'The 1975',
+                    previewUrl: 'http://wrong-url.com',
+                    kind: 'song'
+                }
+            ]
+        };
+        (global.fetch as any).mockResolvedValue({
+            ok: true,
+            json: async () => mockResponse
+        });
+
+        const result = await getItunesPreview('Me & You Together Song', 'The 1975');
+        expect(result).toBeNull();
+    });
+
     it('returns the correct preview URL when exact match is found', async () => {
         const mockData = {
             resultCount: 1,
