@@ -6,12 +6,10 @@
 import { useState } from 'react';
 import usePreviewPlayer from './usePreviewPlayer';
 import { getItunesPreview } from '../utils/itunes';
-
 import { normalizeString } from '../utils/stringUtils';
 
 export const useGameLogic = (accessToken: string | null) => {
     const { playPreview, pause, isPlaying, error: playerError, volume, setVolume } = usePreviewPlayer();
-
     const [currentTracks, setCurrentTracks] = useState<any[]>([]);
     const [recentTracks, setRecentTracks] = useState<string[]>([]);
     const [failedTracks, setFailedTracks] = useState<string[]>([]);
@@ -52,14 +50,11 @@ export const useGameLogic = (accessToken: string | null) => {
         let selectedTrack = null;
         let previewUrl = null;
 
-        // Shuffle candidates to avoid deterministic "next" if we loop
         const shuffled = [...candidates].sort(() => 0.5 - Math.random());
 
         for (const candidate of shuffled) {
             const track = candidate.track;
             const artistName = track.artists[0]?.name || "";
-
-            // Check availability - strict match only per previous feedback
             const url = await getItunesPreview(track.name, artistName);
             if (url) {
                 selectedTrack = track;
