@@ -47,7 +47,7 @@ export const useGameLogic = (accessToken: string | null) => {
             );
         }
 
-        let selectedTrack = null;
+        let selectedTrack: any | null = null;
         let previewUrl = null;
 
         const shuffled = [...candidates].sort(() => 0.5 - Math.random());
