@@ -1,7 +1,7 @@
 /**
  * itunes.test.ts
  * Tests the itunes utility.
- * @version 2026.02.07
+ * @version 2026.02.09
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getItunesPreview } from '../utils/itunes';
@@ -102,6 +102,131 @@ describe('getItunesPreview', () => {
         });
 
         const result = await getItunesPreview('My Target Song', 'My Artist');
+        expect(result).toBeNull();
+    });
+
+    it('cleans "Remaster" from search query and finds match', async () => {
+        const trackName = "Shakedown Street - 2013 Remaster";
+        const artistName = "The Grateful Dead";
+
+        const mockResponse = {
+            resultCount: 5,
+            results: [
+                {
+                    trackName: "Shakedown Street",
+                    artistName: "Grateful Dead",
+                    previewUrl: "http://preview.url/shakedown",
+                    kind: "song"
+                }
+            ]
+        };
+
+        (global.fetch as any).mockResolvedValue({
+            ok: true,
+            json: async () => mockResponse,
+        });
+
+        const result = await getItunesPreview(trackName, artistName);
+
+        // Assert result
+        expect(result).toBe("http://preview.url/shakedown");
+
+        // Ideally we'd test the fetch URL called contained cleaned term, 
+        // but since we mocked `global.fetch` in `beforeEach`, we can inspect it here if we spy on it.
+        // `global.fetch` is already a spy in this test file setup (vi.fn()).
+        expect(global.fetch).toHaveBeenCalledWith(
+            expect.stringContaining('term=Shakedown%20Street%20The%20Grateful%20Dead')
+        );
+    });
+
+    it('finds "American Idiot" even if buried in results', async () => {
+        const trackName = "American Idiot";
+        const artistName = "Green Day";
+
+        const mockResults = [];
+        for (let i = 0; i < 20; i++) {
+            mockResults.push({
+                trackName: `American Idiot (Live variant ${i})`,
+                artistName: "Green Day",
+                previewUrl: "http://wrong.url",
+                kind: "song"
+            });
+        }
+        mockResults.push({
+            trackName: "American Idiot",
+            artistName: "Green Day",
+            previewUrl: "http://right.url/idiot",
+            kind: "song"
+        });
+
+        const mockResponse = {
+            resultCount: 22,
+            results: mockResults
+        };
+
+        (global.fetch as any).mockResolvedValue({
+            ok: true,
+            json: async () => mockResponse,
+        });
+
+        const result = await getItunesPreview(trackName, artistName);
+        expect(result).toBe("http://right.url/idiot");
+
+        // Assert limit increased
+        expect(global.fetch).toHaveBeenCalledWith(
+            expect.stringContaining('limit=50')
+        );
+    });
+
+    it('returns null if strict match fails (even if artist matches)', async () => {
+        const trackName = "American Idiot";
+        const artistName = "Green Day";
+
+        const mockResponse = {
+            resultCount: 1,
+            results: [
+                {
+                    trackName: "American Idiot (Live at Irving Plaza)",
+                    artistName: "Green Day",
+                    previewUrl: "http://preview.url/live",
+                    kind: "song"
+                }
+            ]
+        };
+
+        (global.fetch as any).mockResolvedValue({
+            ok: true,
+            json: async () => mockResponse,
+        });
+
+        const result = await getItunesPreview(trackName, artistName);
+
+        // Should reject "Live" version because strict matching is enforced
+        expect(result).toBeNull();
+    });
+
+    it('does not fallback to incorrect artist even if title matches', async () => {
+        const trackName = "American Idiot";
+        const artistName = "Green Day";
+
+        const mockResponse = {
+            resultCount: 1,
+            results: [
+                {
+                    trackName: "American Idiot",
+                    artistName: "5 Seconds of Summer",
+                    previewUrl: "http://preview.url/cover",
+                    kind: "song"
+                }
+            ]
+        };
+
+        (global.fetch as any).mockResolvedValue({
+            ok: true,
+            json: async () => mockResponse,
+        });
+
+        const result = await getItunesPreview(trackName, artistName);
         expect(result).toBeNull();
     });
 });

@@ -1,17 +1,21 @@
 /**
  * itunes.ts
  * Used to fetch preview URLs.
- * @version 2026.02.07
+ * @version 2026.02.09
  */
+import { normalizeString } from '../utils/stringUtils';
 
 interface ItunesResult {
     resultCount: number;
-    results: Array<{
-        previewUrl: string;
-        trackName: string;
-        artistName: string;
-        kind: string;
-    }>;
+    results: Array<ItunesTrack>;
+}
+
+interface ItunesTrack {
+    previewUrl: string;
+    trackName: string;
+    artistName: string;
+    kind: string;
+    [key: string]: any;
 }
 
 /**
@@ -22,9 +26,14 @@ interface ItunesResult {
  */
 export const getItunesPreview = async (trackName: string, artistName: string): Promise<string | null> => {
     try {
-        // Construct the search query
-        const term = encodeURIComponent(`${trackName} ${artistName}`);
-        const url = `https://itunes.apple.com/search?term=${term}&media=music&entity=song&limit=10`; // increased limit
+        // Cleaning the query allows for better matches
+        const cleanQuery = (str: string) => {
+            return str.replace(/ - .*/, '').replace(/[\(\[].*?[\)\]]/g, '').trim();
+        };
+
+        const searchTerm = cleanQuery(trackName);
+        const term = encodeURIComponent(`${searchTerm} ${artistName}`);
+        const url = `https://itunes.apple.com/search?term=${term}&media=music&entity=song&limit=50`; // increased limit to find buried tracks
 
         const response = await fetch(url);
 
@@ -39,7 +48,7 @@ export const getItunesPreview = async (trackName: string, artistName: string): P
             const cleanTrackName = trackName.toLowerCase();
             const bannedTerms = ['remix', 'mix', 'live', 'instrumental', 'club', 'edit'];
 
-            const bestMatch = data.results.find(res => {
+            const bestMatch = data.results.find((res: ItunesTrack) => {
                 const resName = res.trackName.toLowerCase();
                 const resArtist = res.artistName.toLowerCase();
                 const targetName = cleanTrackName;
@@ -49,31 +58,23 @@ export const getItunesPreview = async (trackName: string, artistName: string): P
                     return false;
                 }
 
-                // Banned Term Check
+                // Banned Term Check (Strict Only)
                 const hasBannedTerm = bannedTerms.some(term =>
                     resName.includes(term) && !targetName.includes(term)
                 );
                 if (hasBannedTerm) return false;
 
-                const normalize = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
+                const normRes = normalizeString(resName);
+                const normTarget = normalizeString(targetName);
 
-                const normRes = normalize(resName);
-                const normTarget = normalize(targetName);
-
-                const isSimilar = normRes.includes(normTarget) || normTarget.includes(normRes);
-
-                if (isSimilar) {
-                    console.log(`Match found: "${res.trackName}" matches "${trackName}"`);
-                }
-
-                return isSimilar;
+                return normRes.includes(normTarget) || normTarget.includes(normRes);
             });
 
             if (bestMatch && bestMatch.previewUrl) {
-                console.log("Found preview via iTunes (High Confidence):", bestMatch.trackName);
+                console.log("Found preview via iTunes:", bestMatch.trackName);
                 return bestMatch.previewUrl;
             } else {
-                console.warn("No high-confidence match found. Top result was:", data.results[0]?.trackName);
+                console.warn("No strict match found. Top result was:", data.results[0]?.trackName);
                 return null;
             }
         }

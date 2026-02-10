@@ -1,7 +1,7 @@
 /**
  * App.test.tsx
  * Tests the App component.
- * @version 2026.02.06
+ * @version 2026.02.09
  */
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -9,7 +9,7 @@ import { useGameLogic } from '../hooks/useGameLogic';
 
 // Mock getItunesPreview to avoid real API calls
 vi.mock('../utils/itunes', () => ({
-  getItunesPreview: vi.fn(),
+  getItunesPreview: vi.fn().mockResolvedValue('http://test-preview-url.com'),
 }));
 
 // Mock usePreviewPlayer to avoid Audio issues
@@ -38,13 +38,13 @@ describe('useGameLogic', () => {
     expect(result.current.gameState).toBe('idle');
   });
 
-  it('correctly identifies a correct guess (exact match)', () => {
+  it('correctly identifies a correct guess (exact match)', async () => {
     const { result } = renderHook(() => useGameLogic(mockAccessToken));
 
-    const mockTracks = [{ track: { id: '1', name: 'Paranoid Android', uri: 'spotify:track:1' } }];
+    const mockTracks = [{ track: { id: '1', name: 'Paranoid Android', uri: 'spotify:track:1', artists: [{ name: 'Radiohead' }] } }];
 
-    act(() => {
-      result.current.startGame(mockTracks);
+    await act(async () => {
+      await result.current.startGame(mockTracks);
     });
 
     // Verify game started
@@ -64,13 +64,13 @@ describe('useGameLogic', () => {
     expect(result.current.feedbackMessage).toContain('Correct');
   });
 
-  it('correctly identifies a correct guess (partial match)', () => {
+  it('correctly identifies a correct guess (partial match)', async () => {
     const { result } = renderHook(() => useGameLogic(mockAccessToken));
 
-    const mockTracks = [{ track: { id: '1', name: 'Paranoid Android (Remastered)', uri: 'spotify:track:1' } }];
+    const mockTracks = [{ track: { id: '1', name: 'Paranoid Android (Remastered)', uri: 'spotify:track:1', artists: [{ name: 'Radiohead' }] } }];
 
-    act(() => {
-      result.current.startGame(mockTracks);
+    await act(async () => {
+      await result.current.startGame(mockTracks);
     });
 
     // Verify game started
@@ -90,13 +90,13 @@ describe('useGameLogic', () => {
     expect(result.current.feedbackMessage).toContain('Correct');
   });
 
-  it('correctly identifies a correct guess (no punctuation)', () => {
+  it('correctly identifies a correct guess (no punctuation)', async () => {
     const { result } = renderHook(() => useGameLogic(mockAccessToken));
 
-    const mockTracks = [{ track: { id: '1', name: 'Why Can\'t We Be Friends?', uri: 'spotify:track:1' } }];
+    const mockTracks = [{ track: { id: '1', name: 'Why Can\'t We Be Friends?', uri: 'spotify:track:1', artists: [{ name: 'War' }] } }];
 
-    act(() => {
-      result.current.startGame(mockTracks);
+    await act(async () => {
+      await result.current.startGame(mockTracks);
     });
 
     // Verify game started
@@ -116,13 +116,13 @@ describe('useGameLogic', () => {
     expect(result.current.feedbackMessage).toContain('Correct');
   });
 
-  it('correctly identifies a wrong guess', () => {
+  it('correctly identifies a wrong guess', async () => {
     const { result } = renderHook(() => useGameLogic(mockAccessToken));
 
-    const mockTracks = [{ track: { id: '1', name: 'Some Girls Are Bigger Than Others', uri: 'spotify:track:1' } }];
+    const mockTracks = [{ track: { id: '1', name: 'Some Girls Are Bigger Than Others', uri: 'spotify:track:1', artists: [{ name: 'The Smiths' }] } }];
 
-    act(() => {
-      result.current.startGame(mockTracks);
+    await act(async () => {
+      await result.current.startGame(mockTracks);
     });
 
     // Verify game started
@@ -142,13 +142,13 @@ describe('useGameLogic', () => {
     expect(result.current.feedbackMessage).toContain('Incorrect');
   });
 
-  it('correctly identifies two wrong guesses', () => {
+  it('correctly identifies two wrong guesses', async () => {
     const { result } = renderHook(() => useGameLogic(mockAccessToken));
 
-    const mockTracks = [{ track: { id: '1', name: 'Some Girls Are Bigger Than Others', uri: 'spotify:track:1' } }];
+    const mockTracks = [{ track: { id: '1', name: 'Some Girls Are Bigger Than Others', uri: 'spotify:track:1', artists: [{ name: 'The Smiths' }] } }];
 
-    act(() => {
-      result.current.startGame(mockTracks);
+    await act(async () => {
+      await result.current.startGame(mockTracks);
     });
 
     // Verify game started
@@ -180,13 +180,13 @@ describe('useGameLogic', () => {
     expect(result.current.feedbackMessage).toContain('Incorrect');
   });
 
-  it('correctly identifies a right guess after a wrong guess', () => {
+  it('correctly identifies a right guess after a wrong guess', async () => {
     const { result } = renderHook(() => useGameLogic(mockAccessToken));
 
-    const mockTracks = [{ track: { id: '1', name: 'Some Girls Are Bigger Than Others', uri: 'spotify:track:1' } }];
+    const mockTracks = [{ track: { id: '1', name: 'Some Girls Are Bigger Than Others', uri: 'spotify:track:1', artists: [{ name: 'The Smiths' }] } }];
 
-    act(() => {
-      result.current.startGame(mockTracks);
+    await act(async () => {
+      await result.current.startGame(mockTracks);
     });
 
     // Verify game started

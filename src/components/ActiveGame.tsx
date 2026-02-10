@@ -1,7 +1,7 @@
 /**
  * ActiveGame.tsx
  * Handles the active game state, including song snippets and user input.
- * @version 2026.02.05
+ * @version 2026.02.09
  */
 import React from 'react';
 import { Typography, Box, Autocomplete, TextField, Slider, Stack } from "@mui/material";
@@ -13,7 +13,7 @@ interface ActiveGameProps {
     snippetDuration: number;
     userGuess: string;
     setUserGuess: (guess: string) => void;
-    onGuessSubmit: () => void;
+    onGuessSubmit: (specificGuess?: string) => void;
     onPlaySnippet: () => void;
     onGiveUp: () => void;
     feedbackMessage: string;
@@ -39,10 +39,13 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
     volume,
     setVolume
 }) => {
-    const songOptions = Array.from(new Set(songs.map((s: any) => s.track.name)));
+    const songOptions = React.useMemo(() => {
+        return Array.from(new Set(songs.map((s: any) => s.track.name)));
+    }, [songs]);
+
     const [inputValue, setInputValue] = React.useState('');
     const [open, setOpen] = React.useState(false);
-    const [highlighted, setHighlighted] = React.useState(false);
+    const [highlightedOption, setHighlightedOption] = React.useState<string | null>(null);
 
     const handleVolumeChange = (event: Event, newValue: number | number[]) => {
         setVolume(newValue as number / 100);
@@ -65,7 +68,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
 
             <Typography>Snippet Length: {snippetDuration / 1000} seconds</Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <button onClick={onPlaySnippet} style={{ padding: '10px 20px', fontSize: '1.2rem' }}>Play Snippet</button>
+                <button onClick={onPlaySnippet} disabled={isPlaying} style={{ padding: '10px 20px', fontSize: '1.2rem', opacity: isPlaying ? 0.5 : 1, cursor: isPlaying ? 'not-allowed' : 'pointer' }}>Play Snippet</button>
                 {isPlaying && <Typography variant="body1" color="primary" sx={{ animation: 'pulse 1s infinite' }}>🎵 Playing...</Typography>}
             </Box>
 
@@ -79,9 +82,12 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
                         }
                     }}
                     openOnFocus
-                    onClose={() => setOpen(false)}
+                    onClose={() => {
+                        setOpen(false);
+                        setHighlightedOption(null);
+                    }}
                     onHighlightChange={(event, option) => {
-                        setHighlighted(!!option);
+                        setHighlightedOption(option);
                     }}
                     options={songOptions}
                     filterOptions={(options, state) => {
@@ -95,6 +101,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
                     onInputChange={(_, newInputValue) => {
                         setInputValue(newInputValue);
                         setUserGuess(newInputValue);
+                        setHighlightedOption(null);
                         if (newInputValue.length > 0) {
                             setOpen(true);
                         } else {
@@ -112,16 +119,26 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
                             sx={{ width: '300px', backgroundColor: 'white' }}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
-                                    if (open && highlighted) {
+                                    if (open && highlightedOption) {
+                                        if (inputValue === highlightedOption) {
+                                            e.preventDefault();
+                                            onGuessSubmit();
+                                            return;
+                                        }
+                                        e.preventDefault();
+                                        setInputValue(highlightedOption);
+                                        setUserGuess(highlightedOption);
+                                        setOpen(false);
                                         return;
                                     }
+                                    e.preventDefault();
                                     onGuessSubmit();
                                 }
                             }}
                         />
                     )}
                 />
-                <button onClick={onGuessSubmit} style={{ padding: '5px 10px', height: '56px' }}>Guess</button>
+                <button onClick={() => onGuessSubmit()} style={{ padding: '5px 10px', height: '56px' }}>Guess</button>
             </Box>
 
             {feedbackMessage && <Typography color="error">{feedbackMessage}</Typography>}
