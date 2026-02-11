@@ -57,7 +57,6 @@ export const getItunesPreview = async (trackName: string, artistName: string, al
                 const resAlbum = (res.collectionName || '').toLowerCase();
                 let score = 0;
 
-                // 1. Basic Eligibility Checks
                 if (!resArtist.includes(artistName.toLowerCase()) && !artistName.toLowerCase().includes(resArtist)) return { res, score: -1 };
 
                 const hasBannedTerm = bannedTerms.some(term =>
