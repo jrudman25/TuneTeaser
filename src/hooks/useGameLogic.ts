@@ -39,7 +39,7 @@ export const useGameLogic = (accessToken: string | null, isGuest: boolean) => {
         let candidates = tracks.filter(isCandidateValid);
 
         if (candidates.length === 0 && tracks.length > 0) {
-            console.log("All tracks played, resetting history.");
+
             setRecentTracks([]);
             // allow recent tracks again, but maintain failedTracks blacklist
             candidates = tracks.filter(t =>
@@ -56,7 +56,8 @@ export const useGameLogic = (accessToken: string | null, isGuest: boolean) => {
         for (const candidate of shuffled) {
             const track = candidate.track;
             const artistName = track.artists[0]?.name || "";
-            const data = await getItunesPreview(track.name, artistName);
+            const albumName = track.album?.name || "";
+            const data = await getItunesPreview(track.name, artistName, albumName);
 
             if (data && data.previewUrl) {
                 selectedTrack = track;
@@ -74,13 +75,13 @@ export const useGameLogic = (accessToken: string | null, isGuest: boolean) => {
                 }
                 break;
             } else {
-                console.log(`No preview for ${track.name}, skipping.`);
+
                 setFailedTracks(prev => [...prev, track.id]);
             }
         }
 
         if (selectedTrack && previewUrl) {
-            console.log("Selected track:", selectedTrack.name);
+
             setTargetSong(selectedTrack);
             setCurrentPreviewUrl(previewUrl);
             setGameState('playing');
@@ -97,7 +98,7 @@ export const useGameLogic = (accessToken: string | null, isGuest: boolean) => {
                 return newRecent;
             });
         } else {
-            console.log("No playable tracks found.");
+
             setFeedbackMessage('No playable tracks found in this playlist (checked all).');
             setTargetSong(null);
             setCurrentPreviewUrl(null);
@@ -166,7 +167,7 @@ export const useGameLogic = (accessToken: string | null, isGuest: boolean) => {
 
     const loadPlaylist = async (playlistId: string, playlistName: string) => {
         if (isLoadingGame) return;
-        console.log("Loading playlist:", playlistId);
+
 
         setSelectedPlaylistName(playlistName);
         setIsLoadingGame(true);
@@ -204,7 +205,7 @@ export const useGameLogic = (accessToken: string | null, isGuest: boolean) => {
                     const data = await response.json();
                     let fetchedTracks = [...data.items];
                     const total = data.total;
-                    console.log(`Initial fetch: ${fetchedTracks.length} of ${total} tracks`);
+
 
                     const validInitialTracks = fetchedTracks.filter((item: any) =>
                         item.track && item.track.id && !item.is_local
@@ -221,7 +222,7 @@ export const useGameLogic = (accessToken: string | null, isGuest: boolean) => {
                     setIsLoadingGame(false);
 
                     if (total > fetchedTracks.length) {
-                        console.log("Starting background fetch for remaining tracks...");
+
                         const limit = playlistId === 'LIKED_SONGS' ? 50 : 100;
                         const BATCH_SIZE = 3;
                         const requests = [];
@@ -256,7 +257,7 @@ export const useGameLogic = (accessToken: string | null, isGuest: boolean) => {
                             );
 
                             setCurrentTracks(prev => [...prev, ...validNewTracks]);
-                            console.log(`Background fetched batch ${i / BATCH_SIZE + 1}. Total tracks: ${fetchedTracks.length + newTracks.length}`);
+
                         }
                     }
 

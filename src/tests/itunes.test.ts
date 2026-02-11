@@ -250,4 +250,40 @@ describe('getItunesPreview', () => {
         const result = await getItunesPreview(trackName, artistName);
         expect(result).toBeNull();
     });
+    it('prioritizes tracks that match the provided album name', async () => {
+        const trackName = "The 1975";
+        const artistName = "The 1975";
+        const targetAlbum = "The 1975"; // Self-titled album
+
+        const mockResponse = {
+            resultCount: 2,
+            results: [
+                {
+                    trackName: "The 1975",
+                    artistName: "The 1975",
+                    collectionName: "Being Funny In A Foreign Language",
+                    previewUrl: "http://preview.url/wrong-album",
+                    kind: "song"
+                },
+                {
+                    trackName: "The 1975",
+                    artistName: "The 1975",
+                    collectionName: "The 1975",
+                    previewUrl: "http://preview.url/correct-album",
+                    kind: "song"
+                }
+            ]
+        };
+
+        (global.fetch as any).mockResolvedValue({
+            ok: true,
+            json: async () => mockResponse,
+        });
+
+        // Search WITH album name
+        const result = await getItunesPreview(trackName, artistName, targetAlbum);
+
+        // Should score the second result higher because collectionName matches
+        expect(result?.previewUrl).toBe("http://preview.url/correct-album");
+    });
 });
