@@ -1,7 +1,7 @@
 /**
  * gameLogic.test.tsx
  * Tests the useGameLogic hook.
- * @version 2026.02.09
+ * @version 2026.02.10
  */
 import { renderHook, act } from '@testing-library/react';
 import { useGameLogic } from '../hooks/useGameLogic';
@@ -50,17 +50,14 @@ describe('useGameLogic - Auto Skip', () => {
             return null;
         });
 
-        const { result } = renderHook(() => useGameLogic('fake-token'));
+        const { result } = renderHook(() => useGameLogic('fake-token', false));
 
         await act(async () => {
             // Since startGame shuffles, we might hit Good Song first. 
             // To ensure we test skipping, we can force the shuffle or just check that *eventually* we get a valid song and NO invalid song is set as target.
-            // Actually, mocking Math.random is better to ensure deterministic order.
             vi.spyOn(Math, 'random').mockReturnValue(0.1); // Ensure predictable shuffle/random index?
             // The shuffle uses .sort(() => 0.5 - Math.random()). 
             // If Math.random() < 0.5, it returns positive (swap).
-            // Let's just trust that the logic handles it. 
-            // If we limit the mock tracks, it HAS to pick one or the other.
 
             await result.current.startGame(mockTracks);
         });
@@ -80,7 +77,7 @@ describe('useGameLogic - Auto Skip', () => {
 
         (getItunesPreview as any).mockResolvedValue(null);
 
-        const { result } = renderHook(() => useGameLogic('fake-token'));
+        const { result } = renderHook(() => useGameLogic('fake-token', false));
 
         await act(async () => {
             await result.current.startGame(mockTracks);

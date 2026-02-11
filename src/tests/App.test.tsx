@@ -1,7 +1,7 @@
 /**
  * App.test.tsx
  * Tests the App component.
- * @version 2026.02.09
+ * @version 2026.02.10
  */
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -34,12 +34,12 @@ describe('useGameLogic', () => {
   });
 
   it('initializes with idle state', () => {
-    const { result } = renderHook(() => useGameLogic(mockAccessToken));
+    const { result } = renderHook(() => useGameLogic(mockAccessToken, false));
     expect(result.current.gameState).toBe('idle');
   });
 
   it('correctly identifies a correct guess (exact match)', async () => {
-    const { result } = renderHook(() => useGameLogic(mockAccessToken));
+    const { result } = renderHook(() => useGameLogic(mockAccessToken, false));
 
     const mockTracks = [{ track: { id: '1', name: 'Paranoid Android', uri: 'spotify:track:1', artists: [{ name: 'Radiohead' }] } }];
 
@@ -65,7 +65,7 @@ describe('useGameLogic', () => {
   });
 
   it('correctly identifies a correct guess (partial match)', async () => {
-    const { result } = renderHook(() => useGameLogic(mockAccessToken));
+    const { result } = renderHook(() => useGameLogic(mockAccessToken, false));
 
     const mockTracks = [{ track: { id: '1', name: 'Paranoid Android (Remastered)', uri: 'spotify:track:1', artists: [{ name: 'Radiohead' }] } }];
 
@@ -91,7 +91,7 @@ describe('useGameLogic', () => {
   });
 
   it('correctly identifies a correct guess (no punctuation)', async () => {
-    const { result } = renderHook(() => useGameLogic(mockAccessToken));
+    const { result } = renderHook(() => useGameLogic(mockAccessToken, false));
 
     const mockTracks = [{ track: { id: '1', name: 'Why Can\'t We Be Friends?', uri: 'spotify:track:1', artists: [{ name: 'War' }] } }];
 
@@ -117,7 +117,7 @@ describe('useGameLogic', () => {
   });
 
   it('correctly identifies a wrong guess', async () => {
-    const { result } = renderHook(() => useGameLogic(mockAccessToken));
+    const { result } = renderHook(() => useGameLogic(mockAccessToken, false));
 
     const mockTracks = [{ track: { id: '1', name: 'Some Girls Are Bigger Than Others', uri: 'spotify:track:1', artists: [{ name: 'The Smiths' }] } }];
 
@@ -143,7 +143,7 @@ describe('useGameLogic', () => {
   });
 
   it('correctly identifies two wrong guesses', async () => {
-    const { result } = renderHook(() => useGameLogic(mockAccessToken));
+    const { result } = renderHook(() => useGameLogic(mockAccessToken, false));
 
     const mockTracks = [{ track: { id: '1', name: 'Some Girls Are Bigger Than Others', uri: 'spotify:track:1', artists: [{ name: 'The Smiths' }] } }];
 
@@ -181,7 +181,7 @@ describe('useGameLogic', () => {
   });
 
   it('correctly identifies a right guess after a wrong guess', async () => {
-    const { result } = renderHook(() => useGameLogic(mockAccessToken));
+    const { result } = renderHook(() => useGameLogic(mockAccessToken, false));
 
     const mockTracks = [{ track: { id: '1', name: 'Some Girls Are Bigger Than Others', uri: 'spotify:track:1', artists: [{ name: 'The Smiths' }] } }];
 

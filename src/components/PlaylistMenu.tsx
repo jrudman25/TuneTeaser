@@ -1,7 +1,7 @@
 /**
  * PlaylistMenu.tsx
  * Displays user playlists for selection.
- * @version 2026.01.31
+ * @version 2026.02.10
  */
 import React, { useState } from 'react';
 import { Typography, Box } from "@mui/material";
@@ -10,9 +10,10 @@ interface PlaylistMenuProps {
     playlists: any[];
     onSelectPlaylist: (id: string) => void;
     isLoading: boolean;
+    isGuest?: boolean;
 }
 
-const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist, isLoading }) => {
+const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist, isLoading, isGuest = false }) => {
     const [playlistPage, setPlaylistPage] = useState(0);
     const PLAYLISTS_PER_PAGE = 10;
 
@@ -24,7 +25,7 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
             ) : (
                 <>
                     <ul>
-                        {playlistPage === 0 && (
+                        {playlistPage === 0 && !isGuest && (
                             <li
                                 onClick={() => onSelectPlaylist('LIKED_SONGS')}
                                 style={{

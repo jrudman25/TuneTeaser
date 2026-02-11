@@ -1,14 +1,15 @@
 /**
  * useGameLogic.ts
  * Handles the core game logic, including track selection, scoring, and state management.
- * @version 2026.02.09
+ * @version 2026.02.10
  */
 import { useState } from 'react';
 import usePreviewPlayer from './usePreviewPlayer';
 import { getItunesPreview } from '../utils/itunes';
 import { normalizeString } from '../utils/stringUtils';
+import { GUEST_TRACKS } from '../utils/guestData';
 
-export const useGameLogic = (accessToken: string | null) => {
+export const useGameLogic = (accessToken: string | null, isGuest: boolean) => {
     const { playPreview, pause, isPlaying, error: playerError, volume, setVolume } = usePreviewPlayer();
     const [currentTracks, setCurrentTracks] = useState<any[]>([]);
     const [recentTracks, setRecentTracks] = useState<string[]>([]);
@@ -94,8 +95,8 @@ export const useGameLogic = (accessToken: string | null) => {
     };
 
     const handleGuessSubmit = (specificGuess?: string) => {
-        const guessToCheck = specificGuess || userGuess;
-        if (!targetSong || !guessToCheck) return;
+        const guessToCheck = specificGuess !== undefined ? specificGuess : userGuess;
+        if (!targetSong) return;
 
         const checkGuess = normalizeString(guessToCheck);
         const checkTitle = normalizeString(targetSong.name);
@@ -124,7 +125,7 @@ export const useGameLogic = (accessToken: string | null) => {
 
         if (!currentPreviewUrl) {
             setFeedbackMessage("Error: Preview URL missing. Skipping...");
-            startGame(currentTracks, targetSong.id);
+            await startGame(currentTracks, targetSong.id);
             return;
         }
 
@@ -159,6 +160,21 @@ export const useGameLogic = (accessToken: string | null) => {
         setIsLoadingGame(true);
         setFeedbackMessage("Loading tracks... Game will start soon.");
 
+        setFeedbackMessage("Loading tracks... Game will start soon.");
+
+        if (isGuest) {
+            // Guest Mode Loading
+            const tracks = GUEST_TRACKS[playlistId];
+            if (tracks) {
+                setCurrentTracks(tracks);
+                await startGame(tracks);
+            } else {
+                setFeedbackMessage("Error: Playlist not found.");
+                setIsLoadingGame(false);
+            }
+            return;
+        }
+
         if (accessToken) {
             try {
                 let initialUrl = '';
@@ -189,7 +205,7 @@ export const useGameLogic = (accessToken: string | null) => {
                     }
 
                     setCurrentTracks(validInitialTracks);
-                    startGame(validInitialTracks);
+                    await startGame(validInitialTracks);
                     setIsLoadingGame(false);
 
                     if (total > fetchedTracks.length) {

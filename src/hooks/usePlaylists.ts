@@ -1,15 +1,22 @@
 /**
  * usePlaylists.ts
  * Handles fetching user playlists from Spotify.
- * @version 2026.01.31
+ * @version 2026.02.10
  */
 import { useState, useEffect, useCallback } from 'react';
+import { GUEST_PLAYLISTS } from '../utils/guestData';
 
-export const usePlaylists = (accessToken: string | null) => {
+export const usePlaylists = (accessToken: string | null, isGuest: boolean = false) => {
     const [playlists, setPlaylists] = useState<any[]>([]);
     const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(true);
 
     const fetchPlaylists = useCallback(async () => {
+        if (isGuest) {
+            setPlaylists(GUEST_PLAYLISTS);
+            setIsLoadingPlaylists(false);
+            return;
+        }
+
         if (!accessToken) {
             setIsLoadingPlaylists(false);
             return;
@@ -48,7 +55,7 @@ export const usePlaylists = (accessToken: string | null) => {
         } finally {
             setIsLoadingPlaylists(false);
         }
-    }, [accessToken]);
+    }, [accessToken, isGuest]);
 
     useEffect(() => {
         fetchPlaylists();

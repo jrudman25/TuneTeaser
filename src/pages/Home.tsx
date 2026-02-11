@@ -1,7 +1,7 @@
 /**
  * Home.tsx
  * The main page of the site.
- * @version 2026.02.05
+ * @version 2026.02.10
  */
 import React, { useEffect, useState } from 'react';
 import { Typography, Box } from "@mui/material";
@@ -13,9 +13,13 @@ import ActiveGame from '../components/ActiveGame';
 import GameResult from '../components/GameResult';
 
 const Home = () => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const isGuest = searchParams.get('mode') === 'guest';
     const [accessToken, setAccessToken] = useState(localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken'));
 
     useEffect(() => {
+        if (isGuest) return;
+
         const checkToken = async () => {
             const tokenExpiry = localStorage.getItem('tokenExpiry');
             const refreshToken = localStorage.getItem('refreshToken');
@@ -47,9 +51,9 @@ const Home = () => {
             }
         };
         checkToken();
-    }, []);
+    }, [isGuest]);
 
-    const { playlists, isLoadingPlaylists } = usePlaylists(accessToken);
+    const { playlists, isLoadingPlaylists } = usePlaylists(accessToken, isGuest);
     const {
         gameState,
         targetSong,
@@ -70,7 +74,7 @@ const Home = () => {
         currentTracks,
         volume,
         setVolume
-    } = useGameLogic(accessToken);
+    } = useGameLogic(accessToken, isGuest);
 
     const onSelectPlaylist = (playlistId: string) => {
         let name = '';
@@ -84,6 +88,10 @@ const Home = () => {
     };
 
     const handleLogout = () => {
+        if (isGuest) {
+            window.location.href = '/';
+            return;
+        }
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('tokenExpiry');
@@ -103,14 +111,14 @@ const Home = () => {
                 }}
             >
                 <Typography color='black' marginBottom='0.5rem'>
-                    Home
+                    {isGuest ? 'Guest Mode' : 'Logged in with Spotify'}
                 </Typography>
 
                 <button
                     onClick={handleLogout}
                     style={{ marginBottom: '1rem', padding: '5px 10px', backgroundColor: '#ff4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
                 >
-                    Logout / Reset Token
+                    {isGuest ? 'Exit Guest Mode' : 'Logout / Reset Token'}
                 </button>
 
                 {playerError && (
@@ -121,12 +129,13 @@ const Home = () => {
                     </div>
                 )}
 
-                {/* GAME STATE RENDERER */}
+                { }
                 {gameState === 'idle' && (
                     <PlaylistMenu
                         playlists={playlists}
                         isLoading={isLoadingPlaylists || isLoadingGame}
                         onSelectPlaylist={onSelectPlaylist}
+                        isGuest={isGuest}
                     />
                 )}
 
@@ -154,6 +163,7 @@ const Home = () => {
                         feedbackMessage={feedbackMessage}
                         onPlayAgain={handlePlayAgain}
                         onSelectNewPlaylist={handleSelectNewPlaylist}
+                        isLoading={isLoadingGame}
                     />
                 )}
             </Box>

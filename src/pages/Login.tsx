@@ -1,7 +1,7 @@
 /**
  * Login.tsx
  * Handles users logging in with a Spotify account.
- * @version 2026.02.01
+ * @version 2026.02.10
  */
 import React, { useEffect, useState } from 'react';
 import { Box } from '@mui/material';
@@ -11,6 +11,8 @@ import { redirectToAuthCodeFlow, getAccessToken } from '../utils/auth';
 const Login = () => {
 
     const [accountName, setAccountName] = useState('');
+    const [isLoading, setIsLoading] = useState(true);
+
     const clientId = `${import.meta.env.VITE_SPOTIFY_CLIENT_ID}`;
     // Use environment variable if set, otherwise default to current origin + slash
     const redirectUri = import.meta.env.VITE_REDIRECT_URI || `${window.location.origin}/`;
@@ -52,14 +54,19 @@ const Login = () => {
                         setTimeout(() => {
                             navigate('/home');
                         }, 1500);
+                    } else {
+                        setIsLoading(false);
                     }
                 } catch (error) {
                     console.error("Error during auth callback:", error);
+                    setIsLoading(false);
                 }
             } else if (!code) {
                 const existingToken = sessionStorage.getItem('accessToken');
                 if (existingToken) {
                     navigate('/home');
+                } else {
+                    setIsLoading(false);
                 }
             }
         };
@@ -69,6 +76,10 @@ const Login = () => {
 
     const handleLogin = async () => {
         await redirectToAuthCodeFlow(clientId, redirectUri);
+    };
+
+    const handleGuestLogin = () => {
+        navigate('/home?mode=guest');
     };
 
     return (
@@ -81,10 +92,24 @@ const Login = () => {
                 }}
             >
                 <h1>Login with Spotify</h1>
-                {accountName ? (
-                    <p>Welcome, {accountName}!</p>
+                {isLoading ? (
+                    <p>Checking authentication...</p>
                 ) : (
-                    <button onClick={handleLogin}>Login with Spotify</button>
+                    <>
+                        {accountName ? (
+                            <p>Welcome, {accountName}!</p>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                <button onClick={handleLogin}>Login with Spotify</button>
+                                <button
+                                    onClick={handleGuestLogin}
+                                    style={{ backgroundColor: '#2196f3' }}
+                                >
+                                    Play as Guest (Featured Playlists)
+                                </button>
+                            </div>
+                        )}
+                    </>
                 )}
             </Box>
         </div>
