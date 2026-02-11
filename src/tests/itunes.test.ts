@@ -1,7 +1,7 @@
 /**
  * itunes.test.ts
  * Tests the itunes utility.
- * @version 2026.02.09
+ * @version 2026.02.11
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getItunesPreview } from '../utils/itunes';
@@ -50,7 +50,7 @@ describe('getItunesPreview', () => {
         });
 
         const result = await getItunesPreview('Bohemian Rhapsody', 'Queen');
-        expect(result).toBe('http://preview.url/1');
+        expect(result?.previewUrl).toBe('http://preview.url/1');
     });
 
     it('rejects a result with same artist but different track name (Album match scenario)', async () => {
@@ -80,7 +80,7 @@ describe('getItunesPreview', () => {
         const result = await getItunesPreview('American Idiot', 'Green Day');
 
         // Should skip "Holiday" (no string match) and find "American Idiot"
-        expect(result).toBe('http://preview.url/american-idiot');
+        expect(result?.previewUrl).toBe('http://preview.url/american-idiot');
     });
 
     it('matches tracks with punctuation differences (e.g. Rio vs Rio [Remaster])', async () => {
@@ -102,7 +102,7 @@ describe('getItunesPreview', () => {
         });
 
         const result = await getItunesPreview('Rio - 2009 Remaster', 'Duran Duran');
-        expect(result).toBe('http://preview.url/rio');
+        expect(result?.previewUrl).toBe('http://preview.url/rio');
     });
 
     it('returns null if no results meet similarity threshold', async () => {
@@ -150,7 +150,7 @@ describe('getItunesPreview', () => {
         const result = await getItunesPreview(trackName, artistName);
 
         // Assert result
-        expect(result).toBe("http://preview.url/shakedown");
+        expect(result?.previewUrl).toBe("http://preview.url/shakedown");
 
         // Ideally we'd test the fetch URL called contained cleaned term, 
         // but since we mocked `global.fetch` in `beforeEach`, we can inspect it here if we spy on it.
@@ -191,7 +191,7 @@ describe('getItunesPreview', () => {
         });
 
         const result = await getItunesPreview(trackName, artistName);
-        expect(result).toBe("http://right.url/idiot");
+        expect(result?.previewUrl).toBe("http://right.url/idiot");
 
         // Assert limit increased
         expect(global.fetch).toHaveBeenCalledWith(

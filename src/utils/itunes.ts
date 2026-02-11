@@ -1,7 +1,7 @@
 /**
  * itunes.ts
  * Used to fetch preview URLs.
- * @version 2026.02.09
+ * @version 2026.02.11
  */
 import { normalizeString } from '../utils/stringUtils';
 
@@ -12,6 +12,7 @@ interface ItunesResult {
 
 interface ItunesTrack {
     previewUrl: string;
+    artworkUrl100: string;
     trackName: string;
     artistName: string;
     kind: string;
@@ -19,12 +20,12 @@ interface ItunesTrack {
 }
 
 /**
- * Searches iTunes for a track and returns its preview URL.
+ * Searches iTunes for a track and returns its preview and artwork URLs.
  * @param trackName Name of the song
  * @param artistName Name of the artist
- * @returns The preview URL or null if not found
+ * @returns Object with previewUrl and artworkUrl, or null if not found
  */
-export const getItunesPreview = async (trackName: string, artistName: string): Promise<string | null> => {
+export const getItunesPreview = async (trackName: string, artistName: string): Promise<{ previewUrl: string; artworkUrl: string } | null> => {
     // Cleaning the query allows for better matches
     const cleanQuery = (str: string) => {
         return str.replace(/ - .*/, '').replace(/[\(\[].*?[\)\]]/g, '').trim();
@@ -84,7 +85,12 @@ export const getItunesPreview = async (trackName: string, artistName: string): P
 
             if (bestMatch && bestMatch.previewUrl) {
                 console.log("Found preview via iTunes:", bestMatch.trackName);
-                return bestMatch.previewUrl;
+                // Get higher resolution artwork (600x600)
+                const highResArtwork = bestMatch.artworkUrl100 ? bestMatch.artworkUrl100.replace('100x100', '600x600') : '';
+                return {
+                    previewUrl: bestMatch.previewUrl,
+                    artworkUrl: highResArtwork
+                };
             } else {
                 console.warn("No strict match found. Top result was:", data.results[0]?.trackName);
                 return null;

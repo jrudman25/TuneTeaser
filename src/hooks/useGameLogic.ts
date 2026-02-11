@@ -1,7 +1,7 @@
 /**
  * useGameLogic.ts
  * Handles the core game logic, including track selection, scoring, and state management.
- * @version 2026.02.10
+ * @version 2026.02.11
  */
 import { useState } from 'react';
 import usePreviewPlayer from './usePreviewPlayer';
@@ -56,10 +56,22 @@ export const useGameLogic = (accessToken: string | null, isGuest: boolean) => {
         for (const candidate of shuffled) {
             const track = candidate.track;
             const artistName = track.artists[0]?.name || "";
-            const url = await getItunesPreview(track.name, artistName);
-            if (url) {
+            const data = await getItunesPreview(track.name, artistName);
+
+            if (data && data.previewUrl) {
                 selectedTrack = track;
-                previewUrl = url;
+                previewUrl = data.previewUrl;
+
+                // For Guest Mode or missing artwork, use iTunes artwork
+                if (data.artworkUrl) {
+                    if (!selectedTrack.album) selectedTrack.album = { images: [] };
+                    if (!selectedTrack.album.images) selectedTrack.album.images = [];
+
+                    if (isGuest || selectedTrack.album.images.length === 0) {
+                        // Clear any existing (potentially broken) URLs if Guest
+                        selectedTrack.album.images = [{ url: data.artworkUrl }];
+                    }
+                }
                 break;
             } else {
                 console.log(`No preview for ${track.name}, skipping.`);

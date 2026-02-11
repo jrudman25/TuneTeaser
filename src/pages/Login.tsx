@@ -1,7 +1,7 @@
 /**
  * Login.tsx
  * Handles users logging in with a Spotify account.
- * @version 2026.02.10
+ * @version 2026.02.11
  */
 import React, { useEffect, useState } from 'react';
 import { Box } from '@mui/material';
@@ -91,7 +91,7 @@ const Login = () => {
                     alignItems: 'center',
                 }}
             >
-                <h1>Login with Spotify</h1>
+                <h1>TuneTeaser</h1>
                 {isLoading ? (
                     <p>Checking authentication...</p>
                 ) : (

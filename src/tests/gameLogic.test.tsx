@@ -1,7 +1,7 @@
 /**
  * gameLogic.test.tsx
  * Tests the useGameLogic hook.
- * @version 2026.02.10
+ * @version 2026.02.11
  */
 import { renderHook, act } from '@testing-library/react';
 import { useGameLogic } from '../hooks/useGameLogic';
@@ -46,7 +46,7 @@ describe('useGameLogic - Auto Skip', () => {
         // Mock getItunesPreview implementation to return null for Bad Song, URL for Good Song
         (getItunesPreview as any).mockImplementation(async (name: string) => {
             if (name === 'Bad Song') return null;
-            if (name === 'Good Song') return 'http://preview.url/good';
+            if (name === 'Good Song') return { previewUrl: 'http://preview.url/good', artworkUrl: 'http://art.url' };
             return null;
         });
 

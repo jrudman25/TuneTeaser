@@ -1,7 +1,7 @@
 /**
  * App.test.tsx
  * Tests the App component.
- * @version 2026.02.10
+ * @version 2026.02.11
  */
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -9,7 +9,7 @@ import { useGameLogic } from '../hooks/useGameLogic';
 
 // Mock getItunesPreview to avoid real API calls
 vi.mock('../utils/itunes', () => ({
-  getItunesPreview: vi.fn().mockResolvedValue('http://test-preview-url.com'),
+  getItunesPreview: vi.fn().mockResolvedValue({ previewUrl: 'http://test-preview-url.com', artworkUrl: 'http://test-art.com' }),
 }));
 
 // Mock usePreviewPlayer to avoid Audio issues
