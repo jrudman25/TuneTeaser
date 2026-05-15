@@ -25,7 +25,6 @@ yarn-error.log*
 /test-results/
 /playwright-report/
 /playwright/.cache/
-TODO.*
 /.firebase
 /.idea
 /.vscode

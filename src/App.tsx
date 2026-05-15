@@ -1,7 +1,7 @@
 /**
  * App.tsx
  * Handles loading and routing for the site.
- * @version 2024.04.06
+ * @version 2026.05.14
  */
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
@@ -15,13 +15,15 @@ function App() {
 
     return (
         <Router>
-            <NavBar />
-            <Routes>
-                <Route path="/" element={<Login />} />
-                <Route path="/home" element={<Home />} />
-                <Route path="*" element={<Error />} />
-            </Routes>
-            <Footer />
+            <div className="app-shell">
+                <NavBar />
+                <Routes>
+                    <Route path="/" element={<Login />} />
+                    <Route path="/home" element={<Home />} />
+                    <Route path="*" element={<Error />} />
+                </Routes>
+                <Footer />
+            </div>
         </Router>
     );
 }

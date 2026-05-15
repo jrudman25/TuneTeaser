@@ -1,10 +1,10 @@
 /**
  * ActiveGame.tsx
  * Handles the active game state, including song snippets and user input.
- * @version 2026.02.09
+ * @version 2026.05.14
  */
 import React from 'react';
-import { Typography, Box, Autocomplete, TextField, Slider, Stack } from "@mui/material";
+import { Autocomplete, TextField, Slider } from "@mui/material";
 import VolumeDown from '@mui/icons-material/VolumeDown';
 import VolumeUp from '@mui/icons-material/VolumeUp';
 
@@ -52,28 +52,43 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
     };
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, width: '100%', maxWidth: '600px' }}>
-            {selectedPlaylistName && (
-                <Typography variant="h6" color="textSecondary">
-                    Playing: {selectedPlaylistName}
-                </Typography>
-            )}
-            <Typography variant="h5">Guess the Song!</Typography>
+        <section className="stage-card">
+            <div className="stage-header">
+                {selectedPlaylistName && (
+                    <span className="eyebrow">Playing: {selectedPlaylistName}</span>
+                )}
+                <h2 className="section-title">Guess the song</h2>
+                <span className="snippet-meter">Snippet length: {snippetDuration / 1000} seconds</span>
+            </div>
 
-            <Box sx={{ width: 200, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <div className="volume-console">
                 <VolumeDown />
-                <Slider aria-label="Volume" value={volume * 100} onChange={handleVolumeChange} />
+                <Slider
+                    aria-label="Volume"
+                    value={volume * 100}
+                    onChange={handleVolumeChange}
+                    sx={{
+                        color: 'var(--gold)',
+                        '& .MuiSlider-thumb': {
+                            border: '3px solid var(--ink)',
+                            backgroundColor: 'var(--cream)'
+                        },
+                        '& .MuiSlider-rail': {
+                            opacity: 0.45
+                        }
+                    }}
+                />
                 <VolumeUp />
-            </Box>
+            </div>
 
-            <Typography>Snippet Length: {snippetDuration / 1000} seconds</Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <button onClick={onPlaySnippet} disabled={isPlaying} style={{ padding: '10px 20px', fontSize: '1.2rem', opacity: isPlaying ? 0.5 : 1, cursor: isPlaying ? 'not-allowed' : 'pointer' }}>Play Snippet</button>
-                {isPlaying && <Typography variant="body1" color="primary" sx={{ animation: 'pulse 1s infinite' }}>🎵 Playing...</Typography>}
-            </Box>
+            <div className="play-row">
+                <button className="button button-large" onClick={onPlaySnippet} disabled={isPlaying}>Play Snippet</button>
+                {isPlaying && <span className="playing-badge">Playing...</span>}
+            </div>
 
-            <Box sx={{ display: 'flex', gap: 1, width: '100%', justifyContent: 'center' }}>
+            <div className="guess-row">
                 <Autocomplete
+                    className="guess-input"
                     freeSolo
                     open={open}
                     onOpen={() => {
@@ -116,7 +131,30 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
                             {...params}
                             label="Enter song title..."
                             variant="outlined"
-                            sx={{ width: '300px', backgroundColor: 'white' }}
+                            sx={{
+                                width: '100%',
+                                backgroundColor: 'var(--cream)',
+                                borderRadius: '16px',
+                                '& .MuiOutlinedInput-root': {
+                                    borderRadius: '16px',
+                                    fontFamily: 'var(--body)',
+                                    fontWeight: 800,
+                                    '& fieldset': {
+                                        border: '3px solid var(--ink)'
+                                    },
+                                    '&:hover fieldset': {
+                                        borderColor: 'var(--red)'
+                                    },
+                                    '&.Mui-focused fieldset': {
+                                        borderColor: 'var(--teal)'
+                                    }
+                                },
+                                '& .MuiInputLabel-root': {
+                                    color: 'var(--ink-soft)',
+                                    fontFamily: 'var(--body)',
+                                    fontWeight: 900
+                                }
+                            }}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
                                     if (open && highlightedOption) {
@@ -138,13 +176,13 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
                         />
                     )}
                 />
-                <button onClick={() => onGuessSubmit()} style={{ padding: '5px 10px', height: '56px' }}>Guess</button>
-            </Box>
+                <button className="button button-tertiary" onClick={() => onGuessSubmit()}>Guess</button>
+            </div>
 
-            {feedbackMessage && <Typography color="error">{feedbackMessage}</Typography>}
+            {feedbackMessage && <div className="feedback-pill">{feedbackMessage}</div>}
 
-            <button onClick={onGiveUp} style={{ marginTop: '20px' }}>Give Up</button>
-        </Box>
+            <button className="button button-quiet" onClick={onGiveUp}>Give Up</button>
+        </section>
     );
 };
 

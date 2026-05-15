@@ -1,10 +1,9 @@
 /**
  * Login.tsx
  * Handles users logging in with a Spotify account.
- * @version 2026.02.11
+ * @version 2026.05.14
  */
 import React, { useEffect, useState } from 'react';
-import { Box } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { redirectToAuthCodeFlow, getAccessToken } from '../utils/auth';
 
@@ -83,36 +82,44 @@ const Login = () => {
     };
 
     return (
-        <div>
-            <Box
-                sx={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                }}
-            >
-                <h1>TuneTeaser</h1>
-                {isLoading ? (
-                    <p>Checking authentication...</p>
-                ) : (
-                    <>
-                        {accountName ? (
-                            <p>Welcome, {accountName}!</p>
+        <main className="page hero-page">
+            <section className="hero-card">
+                <div className="hero-copy">
+                    <span className="eyebrow">Name that tune from your own crates</span>
+                    <h1 className="title">TuneTeaser</h1>
+                    <p className="lede">
+                        Drop the needle on a tiny song snippet, race the clock in your head, and prove you know your playlists better than anyone.
+                    </p>
+                    <div className="how-to-card">
+                        <span className="kicker">How it works</span>
+                        <ol className="how-to-list">
+                            <li><span className="number-chip">1</span><span>Choose Spotify or jump into featured guest playlists.</span></li>
+                            <li><span className="number-chip">2</span><span>Pick a playlist from the record bin.</span></li>
+                            <li><span className="number-chip">3</span><span>Hear a short snippet and guess the track title.</span></li>
+                        </ol>
+                    </div>
+                    <div className="hero-actions">
+                        {isLoading ? (
+                            <div className="loading-card">Checking authentication...</div>
                         ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                <button onClick={handleLogin}>Login with Spotify</button>
-                                <button
-                                    onClick={handleGuestLogin}
-                                    style={{ backgroundColor: '#2196f3' }}
-                                >
-                                    Play as Guest (Featured Playlists)
-                                </button>
-                            </div>
+                            <>
+                                {accountName ? (
+                                    <p className="lede">Welcome, {accountName}!</p>
+                                ) : (
+                                    <>
+                                        <button className="button button-large" onClick={handleLogin}>Login with Spotify</button>
+                                        <button className="button button-secondary button-large" onClick={handleGuestLogin}>
+                                            Play as Guest
+                                        </button>
+                                    </>
+                                )}
+                            </>
                         )}
-                    </>
-                )}
-            </Box>
-        </div>
+                    </div>
+                </div>
+                <div className="record-visual" aria-hidden="true" />
+            </section>
+        </main>
     );
 };
 

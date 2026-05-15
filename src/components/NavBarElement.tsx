@@ -1,16 +1,16 @@
 /**
  * NavBarElement.js
  * Styles the NavBar
- * @version 2023.09.18
+ * @version 2026.05.14
  */
 import styled from "styled-components";
 
 export const Nav = styled.nav`
-  background: #3F8FCC;
-  height: 85px;
+  background: transparent;
+  height: auto;
   display: flex;
   justify-content: space-between;
-  padding: 0.2rem calc((100vw - 1000px) / 2);
+  padding: 0;
   z-index: 12;
 `;
 

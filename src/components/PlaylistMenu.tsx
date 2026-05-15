@@ -1,10 +1,9 @@
 /**
  * PlaylistMenu.tsx
  * Displays user playlists for selection.
- * @version 2026.02.10
+ * @version 2026.05.14
  */
 import React, { useState } from 'react';
-import { Typography, Box } from "@mui/material";
 
 interface PlaylistMenuProps {
     playlists: any[];
@@ -18,64 +17,64 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
     const PLAYLISTS_PER_PAGE = 10;
 
     return (
-        <>
-            <Typography variant="h4">Select a Playlist to Start Game</Typography>
+        <section className="record-bin">
+            <div>
+                <span className="eyebrow">Record bin</span>
+                <h2 className="section-title">Choose your crate</h2>
+                <p className="body-copy">Pick the playlist you know best. We will pull one track and start the quiz stage.</p>
+            </div>
             {isLoading ? (
-                <Typography color="textSecondary">Loading playlists...</Typography>
+                <div className="loading-card">Loading playlists...</div>
             ) : (
                 <>
-                    <ul>
+                    <ul className="record-grid">
                         {playlistPage === 0 && !isGuest && (
-                            <li
-                                onClick={() => onSelectPlaylist('LIKED_SONGS')}
-                                style={{
-                                    cursor: isLoading ? 'default' : 'pointer',
-                                    textDecoration: 'underline',
-                                    color: isLoading ? 'gray' : 'blue',
-                                    fontWeight: 'bold',
-                                    marginBottom: '10px'
-                                }}
-                            >
-                                Liked Songs
+                            <li>
+                                <button
+                                    className="playlist-card playlist-card-featured"
+                                    onClick={() => onSelectPlaylist('LIKED_SONGS')}
+                                    disabled={isLoading}
+                                >
+                                    <span className="playlist-label">Spotify shelf</span>
+                                    <span className="playlist-name">Liked Songs</span>
+                                </button>
                             </li>
                         )}
                         {playlists.slice(playlistPage * PLAYLISTS_PER_PAGE, (playlistPage + 1) * PLAYLISTS_PER_PAGE).map((playlist: any) => (
-                            <li
-                                key={playlist.id}
-                                onClick={() => onSelectPlaylist(playlist.id)}
-                                style={{
-                                    cursor: isLoading ? 'default' : 'pointer',
-                                    textDecoration: 'underline',
-                                    color: isLoading ? 'gray' : 'blue',
-                                    pointerEvents: isLoading ? 'none' : 'auto'
-                                }}
-                            >
-                                {playlist.name}
+                            <li key={playlist.id}>
+                                <button
+                                    className="playlist-card"
+                                    onClick={() => onSelectPlaylist(playlist.id)}
+                                    disabled={isLoading}
+                                >
+                                    <span className="playlist-label">Playlist</span>
+                                    <span className="playlist-name">{playlist.name}</span>
+                                </button>
                             </li>
                         ))}
                     </ul>
                     {playlists.length > PLAYLISTS_PER_PAGE && (
-                        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, marginTop: 1 }}>
+                        <div className="pagination-row">
                             <button
+                                className="button button-quiet"
                                 disabled={playlistPage === 0}
                                 onClick={() => setPlaylistPage(p => p - 1)}
-                                style={{ padding: '5px 10px', cursor: playlistPage === 0 ? 'default' : 'pointer', opacity: playlistPage === 0 ? 0.5 : 1 }}
                             >
                                 Previous
                             </button>
-                            <Typography>Page {playlistPage + 1} of {Math.ceil(playlists.length / PLAYLISTS_PER_PAGE)}</Typography>
+                            <span className="snippet-meter">Page {playlistPage + 1} of {Math.ceil(playlists.length / PLAYLISTS_PER_PAGE)}</span>
                             <button
+                                className="button button-quiet"
                                 disabled={(playlistPage + 1) * PLAYLISTS_PER_PAGE >= playlists.length}
                                 onClick={() => setPlaylistPage(p => p + 1)}
-                                style={{ padding: '5px 10px', cursor: (playlistPage + 1) * PLAYLISTS_PER_PAGE >= playlists.length ? 'default' : 'pointer', opacity: (playlistPage + 1) * PLAYLISTS_PER_PAGE >= playlists.length ? 0.5 : 1 }}
                             >
                                 Next
                             </button>
-                        </Box>
+                        </div>
                     )}
                 </>
             )}
-        </>
+        </section>
     );
 };
 

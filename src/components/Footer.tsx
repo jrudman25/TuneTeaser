@@ -1,28 +1,16 @@
 /**
  * Footer.tsx
  * A small footer at the bottom of the page.
- * @version 2024.04.06
+ * @version 2026.05.14
  */
 import React from 'react';
-import { Box, Typography } from '@mui/material';
 
 const Footer = () => {
 
     return (
-        <Box
-            sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-            }}
-        >
-            <Typography
-                color = 'black'
-                marginBottom = '0.5rem'
-            >
-                Made with ♥ by me © {new Date().getFullYear()}
-            </Typography>
-        </Box>
+        <footer className="site-footer">
+            Made with ❤️ by Jordan © {new Date().getFullYear()} | <a href="https://github.com/jrudman25/tuneteaser" target="_blank" rel="noopener noreferrer">Source</a>
+        </footer>
     );
 };
 

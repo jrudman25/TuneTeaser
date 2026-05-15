@@ -14,6 +14,7 @@
 *   **Smart Matching**: Guesses don't need to be perfect (ignores case and punctuation).
 *   **Dynamic Difficulty**: Snippets start short (2s) and grow longer if you're stumped.
 *   **Play Your Way**: Works with any of your personal playlists.
+*   **Retro Arcade Design**: A record-shop inspired interface with arcade-style game panels, responsive layouts, and accessible focus states.
 
 ## Requirements
 *   **Spotify Account**: Required to log in and select playlists.
@@ -22,9 +23,10 @@
 ## Tech Stack
 *   React & TypeScript
 *   Vite
-* Firebase
+*   Firebase
 *   Spotify API
 *   iTunes API
 *   Material UI
+*   styled-components
 
 Created by Jordan Rudman

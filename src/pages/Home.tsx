@@ -1,10 +1,9 @@
 /**
  * Home.tsx
  * The main page of the site.
- * @version 2026.02.10
+ * @version 2026.05.14
  */
 import React, { useEffect, useState } from 'react';
-import { Typography, Box } from "@mui/material";
 import { refreshAccessToken } from '../utils/auth';
 import { usePlaylists } from '../hooks/usePlaylists';
 import { useGameLogic } from '../hooks/useGameLogic';
@@ -101,73 +100,61 @@ const Home = () => {
     };
 
     return (
-        <div>
-            <Box
-                sx={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 2
-                }}
-            >
-                <Typography color='black' marginBottom='0.5rem'>
-                    {isGuest ? 'Guest Mode' : 'Logged in with Spotify'}
-                </Typography>
-
-                <button
-                    onClick={handleLogout}
-                    style={{ marginBottom: '1rem', padding: '5px 10px', backgroundColor: '#ff4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                >
+        <main className="page home-page">
+            <section className="top-strip">
+                <span className="status-badge">
+                    {isGuest ? 'Guest mode' : 'Logged in with Spotify'}
+                </span>
+                <button className="button button-danger" onClick={handleLogout}>
                     {isGuest ? 'Exit Guest Mode' : 'Logout / Reset Token'}
                 </button>
+            </section>
 
-                {playerError && (
-                    <div style={{ padding: '10px', backgroundColor: '#ffebee', color: '#c62828', borderRadius: '4px', border: '1px solid #ef9a9a' }}>
-                        <strong>Error:</strong> {playerError}
-                        <br />
-                        <small>Please try logging out and logging in again.</small>
-                    </div>
-                )}
+            {playerError && (
+                <div className="error-banner">
+                    <strong>Error:</strong> {playerError}
+                    <br />
+                    <small>Please try logging out and logging in again.</small>
+                </div>
+            )}
 
-                { }
-                {gameState === 'idle' && (
-                    <PlaylistMenu
-                        playlists={playlists}
-                        isLoading={isLoadingPlaylists || isLoadingGame}
-                        onSelectPlaylist={onSelectPlaylist}
-                        isGuest={isGuest}
-                    />
-                )}
+            {gameState === 'idle' && (
+                <PlaylistMenu
+                    playlists={playlists}
+                    isLoading={isLoadingPlaylists || isLoadingGame}
+                    onSelectPlaylist={onSelectPlaylist}
+                    isGuest={isGuest}
+                />
+            )}
 
-                {gameState === 'playing' && (
-                    <ActiveGame
-                        targetSong={targetSong}
-                        snippetDuration={snippetDuration}
-                        userGuess={userGuess}
-                        setUserGuess={setUserGuess}
-                        onGuessSubmit={handleGuessSubmit}
-                        onPlaySnippet={playSnippet}
-                        onGiveUp={handleGiveUp}
-                        feedbackMessage={feedbackMessage}
-                        isPlaying={isPlaying}
-                        selectedPlaylistName={selectedPlaylistName}
-                        songs={currentTracks}
-                        volume={volume}
-                        setVolume={setVolume}
-                    />
-                )}
+            {gameState === 'playing' && (
+                <ActiveGame
+                    targetSong={targetSong}
+                    snippetDuration={snippetDuration}
+                    userGuess={userGuess}
+                    setUserGuess={setUserGuess}
+                    onGuessSubmit={handleGuessSubmit}
+                    onPlaySnippet={playSnippet}
+                    onGiveUp={handleGiveUp}
+                    feedbackMessage={feedbackMessage}
+                    isPlaying={isPlaying}
+                    selectedPlaylistName={selectedPlaylistName}
+                    songs={currentTracks}
+                    volume={volume}
+                    setVolume={setVolume}
+                />
+            )}
 
-                {gameState === 'end' && (
-                    <GameResult
-                        targetSong={targetSong}
-                        feedbackMessage={feedbackMessage}
-                        onPlayAgain={handlePlayAgain}
-                        onSelectNewPlaylist={handleSelectNewPlaylist}
-                        isLoading={isLoadingGame}
-                    />
-                )}
-            </Box>
-        </div>
+            {gameState === 'end' && (
+                <GameResult
+                    targetSong={targetSong}
+                    feedbackMessage={feedbackMessage}
+                    onPlayAgain={handlePlayAgain}
+                    onSelectNewPlaylist={handleSelectNewPlaylist}
+                    isLoading={isLoadingGame}
+                />
+            )}
+        </main>
     );
 };
 
