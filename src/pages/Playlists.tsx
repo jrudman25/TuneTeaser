@@ -1,8 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { parsePlaylistLines } from '../utils/manualPlaylists';
+import { ManualTrack, parseTrackImportInput } from '../utils/manualPlaylists';
 import { useManualPlaylists } from '../hooks/useManualPlaylists';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
+import { resolveSpotifyTracks } from '../utils/spotifyTrackResolver';
+import { fetchSpotifyPlaylistName } from '../utils/spotifyPlaylistName';
 
 const Playlists = () => {
     const navigate = useNavigate();
@@ -20,11 +22,20 @@ const Playlists = () => {
     const [isAdding, setIsAdding] = useState(isOnboarding);
     const [playlistName, setPlaylistName] = useState('');
     const [sourceUrl, setSourceUrl] = useState('');
+    const nameWasAutoFilled = useRef(false);
     const [trackLines, setTrackLines] = useState('');
     const [formError, setFormError] = useState('');
     const [isSaving, setIsSaving] = useState(false);
+    const [isResolvingTracks, setIsResolvingTracks] = useState(false);
+    const [resolvedSpotifyTracks, setResolvedSpotifyTracks] = useState<ManualTrack[]>([]);
+    const [resolvedSpotifyTrackIdsKey, setResolvedSpotifyTrackIdsKey] = useState('');
+    const [resolverErrors, setResolverErrors] = useState<string[]>([]);
 
-    const parsedLines = useMemo(() => parsePlaylistLines(trackLines), [trackLines]);
+    const parsedImport = useMemo(() => parseTrackImportInput(trackLines), [trackLines]);
+    const spotifyTrackIdsKey = parsedImport.spotifyTrackIds.join(',');
+    const resolvedTracksAreCurrent = spotifyTrackIdsKey === resolvedSpotifyTrackIdsKey;
+    const resolvedCurrentSpotifyTracks = resolvedTracksAreCurrent ? resolvedSpotifyTracks : [];
+    const tracksToSave = [...parsedImport.manualTracks, ...resolvedCurrentSpotifyTracks];
     const hasPlaylists = manualPlaylists.length > 0;
 
     React.useEffect(() => {
@@ -38,6 +49,66 @@ const Playlists = () => {
         setSourceUrl('');
         setTrackLines('');
         setFormError('');
+        setResolverErrors([]);
+        setResolvedSpotifyTracks([]);
+        setResolvedSpotifyTrackIdsKey('');
+        nameWasAutoFilled.current = false;
+    };
+
+    // Auto-populate playlist name from Spotify playlist URL
+    useEffect(() => {
+        if (!sourceUrl.trim()) return;
+
+        let cancelled = false;
+        fetchSpotifyPlaylistName(sourceUrl).then(name => {
+            if (cancelled || !name) return;
+
+            // Only auto-fill if the name is empty or was previously auto-filled
+            if (!playlistName.trim() || nameWasAutoFilled.current) {
+                setPlaylistName(name);
+                nameWasAutoFilled.current = true;
+            }
+        });
+
+        return () => { cancelled = true; };
+    }, [sourceUrl]); // intentionally omit playlistName to avoid re-triggering on name edits
+
+    const handleTrackLinesChange = (value: string) => {
+        setTrackLines(value);
+        setFormError('');
+        setResolverErrors([]);
+    };
+
+    const handleResolveTracks = async () => {
+        setFormError('');
+        setResolverErrors([]);
+
+        if (parsedImport.errors.length > 0) {
+            setFormError('Fix the track list errors before resolving.');
+            return;
+        }
+
+        if (parsedImport.spotifyTrackIds.length === 0) {
+            setFormError('Paste at least one Spotify track URL to resolve.');
+            return;
+        }
+
+        if (parsedImport.spotifyTrackIds.length > 200) {
+            setFormError('A single import can resolve up to 200 Spotify track links.');
+            return;
+        }
+
+        setIsResolvingTracks(true);
+        try {
+            const response = await resolveSpotifyTracks(parsedImport.spotifyTrackIds);
+            setResolvedSpotifyTracks(response.tracks);
+            setResolvedSpotifyTrackIdsKey(spotifyTrackIdsKey);
+            setResolverErrors(response.errors || []);
+        } catch (error: any) {
+            setFormError(error.message || 'Could not resolve Spotify track links.');
+        } finally {
+            setIsResolvingTracks(false);
+        }
     };
 
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -54,19 +125,24 @@ const Playlists = () => {
             return;
         }
 
-        if (parsedLines.errors.length > 0) {
+        if (parsedImport.errors.length > 0) {
             setFormError('Fix the track list errors before saving.');
             return;
         }
 
-        if (parsedLines.tracks.length < 2) {
+        if (parsedImport.spotifyTrackIds.length > 0 && !resolvedTracksAreCurrent) {
+            setFormError('Resolve the Spotify track links before saving.');
+            return;
+        }
+
+        if (tracksToSave.length < 2) {
             setFormError('Add at least 2 valid tracks.');
             return;
         }
 
         setIsSaving(true);
         try {
-            await addManualPlaylist(playlistName, sourceUrl, parsedLines.tracks);
+            await addManualPlaylist(playlistName, sourceUrl, tracksToSave);
             resetForm();
             setIsAdding(false);
         } catch (error: any) {
@@ -114,7 +190,7 @@ const Playlists = () => {
                     <span className="eyebrow">Your library</span>
                     <h2 className="section-title">Manual playlists</h2>
                     <p className="body-copy">
-                        Save a Spotify playlist link as the source, then paste tracks as Song - Artist so TuneTeaser can build games from your saved snapshot.
+                        Save a Spotify playlist link as the source, then paste Spotify track links or Song - Artist lines so TuneTeaser can build games from your saved snapshot.
                     </p>
                 </div>
 
@@ -131,7 +207,10 @@ const Playlists = () => {
                             <input
                                 className="text-input"
                                 value={playlistName}
-                                onChange={(event) => setPlaylistName(event.target.value)}
+                                onChange={(event) => {
+                                    setPlaylistName(event.target.value);
+                                    nameWasAutoFilled.current = false;
+                                }}
                                 placeholder="Road Trip Mix"
                                 required
                             />
@@ -151,17 +230,51 @@ const Playlists = () => {
                             <textarea
                                 className="text-area"
                                 value={trackLines}
-                                onChange={(event) => setTrackLines(event.target.value)}
-                                placeholder={"Song One - Artist One\nSong Two - Artist Two"}
+                                onChange={(event) => handleTrackLinesChange(event.target.value)}
+                                placeholder={"https://open.spotify.com/track/76GlO5H5RT6g7y0gev86Nk\nspotify:track:4PTG3Z6ehGkBFwjybzWkR8\nSong Two - Artist Two"}
                                 rows={9}
                                 required
                             />
                         </label>
                         <div className="import-summary">
-                            <span className="snippet-meter">{parsedLines.tracks.length} valid tracks</span>
-                            {parsedLines.errors.length > 0 && (
+                            <div className="action-row">
+                                <span className="snippet-meter">{tracksToSave.length} ready tracks</span>
+                                {parsedImport.spotifyTrackIds.length > 0 && (
+                                    <span className="snippet-meter">{parsedImport.spotifyTrackIds.length} Spotify links found</span>
+                                )}
+                                {parsedImport.duplicateCount > 0 && (
+                                    <span className="snippet-meter">{parsedImport.duplicateCount} duplicate links ignored</span>
+                                )}
+                            </div>
+                            {parsedImport.spotifyTrackIds.length > 0 && (
+                                <button
+                                    className="button button-tertiary"
+                                    type="button"
+                                    onClick={handleResolveTracks}
+                                    disabled={isResolvingTracks || parsedImport.errors.length > 0}
+                                >
+                                    {isResolvingTracks ? 'Resolving...' : 'Resolve Tracks'}
+                                </button>
+                            )}
+                            {parsedImport.errors.length > 0 && (
                                 <ul className="error-list compact-list">
-                                    {parsedLines.errors.map(error => <li key={error}>{error}</li>)}
+                                    {parsedImport.errors.map(error => <li key={error}>{error}</li>)}
+                                </ul>
+                            )}
+                            {resolverErrors.length > 0 && (
+                                <ul className="error-list compact-list">
+                                    {resolverErrors.map(error => <li key={error}>{error}</li>)}
+                                </ul>
+                            )}
+                            {tracksToSave.length > 0 && (
+                                <ul className="resolved-track-list">
+                                    {tracksToSave.slice(0, 12).map(track => (
+                                        <li key={track.id}>
+                                            <span>{track.name}</span>
+                                            <span>{track.artists.map(artist => artist.name).join(', ')}</span>
+                                        </li>
+                                    ))}
+                                    {tracksToSave.length > 12 && <li>+ {tracksToSave.length - 12} more tracks</li>}
                                 </ul>
                             )}
                         </div>

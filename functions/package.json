@@ -1,0 +1,23 @@
+{
+  "name": "tuneteaser-functions",
+  "version": "0.1.0",
+  "private": true,
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "deploy": "npm run build && firebase deploy --only functions",
+    "test": "vitest run --config vitest.config.ts"
+  },
+  "engines": {
+    "node": "22"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.10.0",
+    "firebase-functions": "^7.2.5"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vitest": "^4.0.18"
+  }
+}

@@ -274,6 +274,32 @@ code {
   justify-items: start;
 }
 
+.resolved-track-list {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.resolved-track-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 12px;
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  padding: 10px 12px;
+  color: var(--ink);
+  font-weight: 900;
+  background: rgba(255, 248, 232, 0.72);
+}
+
+.resolved-track-list span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .button {
   display: inline-flex;
   align-items: center;
