@@ -166,7 +166,13 @@ export const fetchPlaylistTracks = async (
     const firstResponse = await fetch(firstUrl, { headers });
 
     if (!firstResponse.ok) {
-        throw new Error(`Spotify playlist lookup failed with ${firstResponse.status}.`);
+        if (firstResponse.status === 404) {
+            throw new Error('This playlist was not found. Check the URL and try again.');
+        }
+        if (firstResponse.status === 403) {
+            throw new Error('This playlist is private. Make it public on Spotify, then try again.');
+        }
+        throw new Error(`Spotify returned an error (${firstResponse.status}). Please try again.`);
     }
 
     const firstData = await firstResponse.json() as {

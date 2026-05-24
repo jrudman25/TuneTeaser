@@ -149,6 +149,10 @@ code {
   box-shadow: 4px 4px 0 var(--ink);
 }
 
+.eyebrow {
+  margin-bottom: 10px;
+}
+
 .title {
   margin: 18px 0 14px;
   font-family: var(--display);

@@ -10,6 +10,8 @@ import Footer from './components/Footer';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import NavBar from './components/NavBar';
+import PlaylistCreateCustom from './pages/PlaylistCreateCustom';
+import PlaylistImportSpotify from './pages/PlaylistImportSpotify';
 import Playlists from './pages/Playlists';
 
 function App() {
@@ -22,6 +24,8 @@ function App() {
                     <Route path="/" element={<Login />} />
                     <Route path="/home" element={<Home />} />
                     <Route path="/playlists" element={<Playlists />} />
+                    <Route path="/playlists/import" element={<PlaylistImportSpotify />} />
+                    <Route path="/playlists/custom" element={<PlaylistCreateCustom />} />
                     <Route path="*" element={<Error />} />
                 </Routes>
                 <Footer />

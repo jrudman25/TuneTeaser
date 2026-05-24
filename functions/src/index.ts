@@ -83,6 +83,13 @@ export const importSpotifyPlaylist = onCall({
         const accessToken = await getSpotifyAccessToken(spotifyClientId.value(), spotifyClientSecret.value());
         return await fetchPlaylistTracks(playlistId, accessToken);
     } catch (error: any) {
-        throw new HttpsError('internal', error.message || 'Could not import playlist.');
+        const message = error.message || 'Could not import playlist.';
+        if (message.includes('not found')) {
+            throw new HttpsError('not-found', message);
+        }
+        if (message.includes('private')) {
+            throw new HttpsError('permission-denied', message);
+        }
+        throw new HttpsError('internal', message);
     }
 });
