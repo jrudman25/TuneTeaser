@@ -1,6 +1,6 @@
 {
-  "name": "tuneteaster",
-  "version": "0.7.0",
+  "name": "tuneteaser",
+  "version": "0.7.1",
   "private": true,
   "dependencies": {
     "@emotion/react": "^11.11.1",
@@ -30,18 +30,6 @@
       "react-app",
       "react-app/jest",
       "plugin:storybook/recommended"
-    ]
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
     ]
   },
   "devDependencies": {

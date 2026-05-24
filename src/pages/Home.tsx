@@ -4,9 +4,14 @@
  * @version 2026.05.14
  */
 import React, { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { signOut } from 'firebase/auth';
+import { auth } from '../backend/FirebaseConfig';
 import { refreshAccessToken } from '../utils/auth';
 import { usePlaylists } from '../hooks/usePlaylists';
 import { useGameLogic } from '../hooks/useGameLogic';
+import { useManualPlaylists } from '../hooks/useManualPlaylists';
+import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
 import PlaylistMenu from '../components/PlaylistMenu';
 import ActiveGame from '../components/ActiveGame';
 import GameResult from '../components/GameResult';
@@ -14,6 +19,14 @@ import GameResult from '../components/GameResult';
 const Home = () => {
     const searchParams = new URLSearchParams(window.location.search);
     const isGuest = searchParams.get('mode') === 'guest';
+    const navigate = useNavigate();
+    const { user, isLoadingUser } = useTuneTeaserAuth();
+    const {
+        manualPlaylists,
+        isLoadingManualPlaylists,
+        manualPlaylistError
+    } = useManualPlaylists(user);
+    const isManualMode = !isGuest && !!user;
     const [accessToken, setAccessToken] = useState(localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken'));
 
     useEffect(() => {
@@ -52,7 +65,14 @@ const Home = () => {
         checkToken();
     }, [isGuest]);
 
-    const { playlists, isLoadingPlaylists } = usePlaylists(accessToken, isGuest);
+    useEffect(() => {
+        if (isLoadingUser || isLoadingManualPlaylists || !isManualMode) return;
+        if (manualPlaylists.length === 0) {
+            navigate('/playlists?onboarding=1');
+        }
+    }, [isLoadingManualPlaylists, isLoadingUser, isManualMode, manualPlaylists.length, navigate]);
+
+    const { playlists, isLoadingPlaylists } = usePlaylists(accessToken, isGuest, manualPlaylists, isManualMode);
     const {
         gameState,
         targetSong,
@@ -73,7 +93,7 @@ const Home = () => {
         currentTracks,
         volume,
         setVolume
-    } = useGameLogic(accessToken, isGuest);
+    } = useGameLogic(accessToken, isGuest, manualPlaylists, isManualMode);
 
     const onSelectPlaylist = (playlistId: string) => {
         let name = '';
@@ -86,7 +106,13 @@ const Home = () => {
         loadPlaylist(playlistId, name);
     };
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
+        if (isManualMode) {
+            await signOut(auth);
+            window.location.href = '/';
+            return;
+        }
+
         if (isGuest) {
             window.location.href = '/';
             return;
@@ -103,12 +129,25 @@ const Home = () => {
         <main className="page home-page">
             <section className="top-strip">
                 <span className="status-badge">
-                    {isGuest ? 'Guest mode' : 'Logged in with Spotify'}
+                    {isGuest ? 'Guest mode' : isManualMode ? 'Logged in with TuneTeaser' : 'Logged in with Spotify'}
                 </span>
-                <button className="button button-danger" onClick={handleLogout}>
-                    {isGuest ? 'Exit Guest Mode' : 'Logout / Reset Token'}
-                </button>
+                <div className="action-row">
+                    {isManualMode && (
+                        <Link className="button button-secondary" to="/playlists">
+                            Manage Playlists
+                        </Link>
+                    )}
+                    <button className="button button-danger" onClick={handleLogout}>
+                        {isGuest ? 'Exit Guest Mode' : isManualMode ? 'Logout' : 'Logout / Reset Token'}
+                    </button>
+                </div>
             </section>
+
+            {manualPlaylistError && (
+                <div className="error-banner">
+                    <strong>Error:</strong> {manualPlaylistError}
+                </div>
+            )}
 
             {playerError && (
                 <div className="error-banner">
@@ -121,9 +160,9 @@ const Home = () => {
             {gameState === 'idle' && (
                 <PlaylistMenu
                     playlists={playlists}
-                    isLoading={isLoadingPlaylists || isLoadingGame}
+                    isLoading={isLoadingPlaylists || isLoadingManualPlaylists || isLoadingGame || isLoadingUser}
                     onSelectPlaylist={onSelectPlaylist}
-                    isGuest={isGuest}
+                    isGuest={isGuest || isManualMode}
                 />
             )}
 

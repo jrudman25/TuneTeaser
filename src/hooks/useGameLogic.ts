@@ -8,8 +8,14 @@ import usePreviewPlayer from './usePreviewPlayer';
 import { getItunesPreview } from '../utils/itunes';
 import { normalizeString } from '../utils/stringUtils';
 import { GUEST_TRACKS } from '../utils/guestData';
+import { ManualPlaylist, manualTracksToGameItems } from '../utils/manualPlaylists';
 
-export const useGameLogic = (accessToken: string | null, isGuest: boolean) => {
+export const useGameLogic = (
+    accessToken: string | null,
+    isGuest: boolean,
+    manualPlaylists: ManualPlaylist[] = [],
+    isManualMode: boolean = false
+) => {
     const { playPreview, pause, isPlaying, error: playerError, volume, setVolume } = usePreviewPlayer();
     const [currentTracks, setCurrentTracks] = useState<any[]>([]);
     const [recentTracks, setRecentTracks] = useState<string[]>([]);
@@ -179,6 +185,19 @@ export const useGameLogic = (accessToken: string | null, isGuest: boolean) => {
             // Guest Mode Loading
             const tracks = GUEST_TRACKS[playlistId];
             if (tracks) {
+                setCurrentTracks(tracks);
+                await startGame(tracks);
+            } else {
+                setFeedbackMessage("Error: Playlist not found.");
+                setIsLoadingGame(false);
+            }
+            return;
+        }
+
+        if (isManualMode) {
+            const playlist = manualPlaylists.find((manualPlaylist) => manualPlaylist.id === playlistId);
+            if (playlist) {
+                const tracks = manualTracksToGameItems(playlist.tracks);
                 setCurrentTracks(tracks);
                 await startGame(tracks);
             } else {

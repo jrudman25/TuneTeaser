@@ -5,12 +5,23 @@
  */
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import { auth } from '../backend/FirebaseConfig';
 import { redirectToAuthCodeFlow, getAccessToken } from '../utils/auth';
 
 const Login = () => {
 
     const [accountName, setAccountName] = useState('');
     const [isLoading, setIsLoading] = useState(true);
+    const [authMode, setAuthMode] = useState<'login' | 'signup' | null>(null);
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [showSignupPassword, setShowSignupPassword] = useState(false);
+    const [tuneTeaserAuthError, setTuneTeaserAuthError] = useState('');
+    const [isTuneTeaserSubmitting, setIsTuneTeaserSubmitting] = useState(false);
 
     const clientId = `${import.meta.env.VITE_SPOTIFY_CLIENT_ID}`;
     // Use environment variable if set, otherwise default to current origin + slash
@@ -25,6 +36,8 @@ const Login = () => {
             window.location.href = window.location.href.replace('localhost', '127.0.0.1');
             return;
         }
+
+        let unsubscribeTuneTeaserAuth: (() => void) | undefined;
 
         const handleAuthCallback = async () => {
             const params = new URLSearchParams(window.location.search);
@@ -65,12 +78,24 @@ const Login = () => {
                 if (existingToken) {
                     navigate('/home');
                 } else {
-                    setIsLoading(false);
+                    unsubscribeTuneTeaserAuth = onAuthStateChanged(auth, currentUser => {
+                        if (currentUser) {
+                            navigate('/home');
+                        } else {
+                            setIsLoading(false);
+                        }
+                    });
                 }
             }
         };
 
         handleAuthCallback();
+
+        return () => {
+            if (unsubscribeTuneTeaserAuth) {
+                unsubscribeTuneTeaserAuth();
+            }
+        };
     }, [clientId, navigate, redirectUri]);
 
     const handleLogin = async () => {
@@ -79,6 +104,39 @@ const Login = () => {
 
     const handleGuestLogin = () => {
         navigate('/home?mode=guest');
+    };
+
+    const handleAuthModeChange = (mode: 'login' | 'signup') => {
+        setAuthMode(mode);
+        setTuneTeaserAuthError('');
+        setConfirmPassword('');
+        setShowSignupPassword(false);
+    };
+
+    const handleTuneTeaserAuth = async (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        setTuneTeaserAuthError('');
+        setIsTuneTeaserSubmitting(true);
+
+        try {
+            if (authMode === 'signup') {
+                if (password !== confirmPassword) {
+                    setTuneTeaserAuthError('Passwords do not match.');
+                    setIsTuneTeaserSubmitting(false);
+                    return;
+                }
+
+                await createUserWithEmailAndPassword(auth, email, password);
+                navigate('/playlists?onboarding=1');
+            } else {
+                await signInWithEmailAndPassword(auth, email, password);
+                navigate('/home');
+            }
+        } catch (error: any) {
+            setTuneTeaserAuthError(error.message || 'TuneTeaser authentication failed.');
+        } finally {
+            setIsTuneTeaserSubmitting(false);
+        }
     };
 
     return (
@@ -107,6 +165,78 @@ const Login = () => {
                                     <p className="lede">Welcome, {accountName}!</p>
                                 ) : (
                                     <>
+                                        <div className="auth-panel">
+                                            <div className="auth-toggle-row">
+                                                <button
+                                                    type="button"
+                                                    className={`button ${authMode === 'login' ? 'button-tertiary' : 'button-secondary'}`}
+                                                    onClick={() => handleAuthModeChange('login')}
+                                                >
+                                                    Login with TuneTeaser
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className={`button ${authMode === 'signup' ? 'button-tertiary' : 'button-secondary'}`}
+                                                    onClick={() => handleAuthModeChange('signup')}
+                                                >
+                                                    Sign up with TuneTeaser
+                                                </button>
+                                            </div>
+                                            {authMode && (
+                                                <form className="auth-form" onSubmit={handleTuneTeaserAuth}>
+                                                    <label className="form-label">
+                                                        Email
+                                                        <input
+                                                            className="text-input"
+                                                            type="email"
+                                                            value={email}
+                                                            onChange={(event) => setEmail(event.target.value)}
+                                                            required
+                                                        />
+                                                    </label>
+                                                    <label className="form-label">
+                                                        Password
+                                                        <span className="password-field">
+                                                            <input
+                                                                className="text-input"
+                                                                type={authMode === 'signup' && showSignupPassword ? 'text' : 'password'}
+                                                                value={password}
+                                                                onChange={(event) => setPassword(event.target.value)}
+                                                                required
+                                                                minLength={6}
+                                                            />
+                                                            {authMode === 'signup' && (
+                                                                <button
+                                                                    className="icon-button"
+                                                                    type="button"
+                                                                    onClick={() => setShowSignupPassword((isShowing) => !isShowing)}
+                                                                    aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
+                                                                >
+                                                                    {showSignupPassword ? <VisibilityOff /> : <Visibility />}
+                                                                </button>
+                                                            )}
+                                                        </span>
+                                                    </label>
+                                                    {authMode === 'signup' && (
+                                                        <label className="form-label">
+                                                            Confirm password
+                                                            <input
+                                                                className="text-input"
+                                                                type={showSignupPassword ? 'text' : 'password'}
+                                                                value={confirmPassword}
+                                                                onChange={(event) => setConfirmPassword(event.target.value)}
+                                                                required
+                                                                minLength={6}
+                                                            />
+                                                        </label>
+                                                    )}
+                                                    {tuneTeaserAuthError && <div className="error-banner">{tuneTeaserAuthError}</div>}
+                                                    <button className="button button-large" type="submit" disabled={isTuneTeaserSubmitting}>
+                                                        {isTuneTeaserSubmitting ? 'Working...' : authMode === 'signup' ? 'Create Account' : 'Login'}
+                                                    </button>
+                                                </form>
+                                            )}
+                                        </div>
                                         <button className="button button-large" onClick={handleLogin}>Login with Spotify</button>
                                         <button className="button button-secondary button-large" onClick={handleGuestLogin}>
                                             Play as Guest

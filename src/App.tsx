@@ -10,6 +10,7 @@ import Footer from './components/Footer';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import NavBar from './components/NavBar';
+import Playlists from './pages/Playlists';
 
 function App() {
 
@@ -20,6 +21,7 @@ function App() {
                 <Routes>
                     <Route path="/" element={<Login />} />
                     <Route path="/home" element={<Home />} />
+                    <Route path="/playlists" element={<Playlists />} />
                     <Route path="*" element={<Error />} />
                 </Routes>
                 <Footer />

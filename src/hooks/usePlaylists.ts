@@ -5,12 +5,27 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { GUEST_PLAYLISTS } from '../utils/guestData';
+import { ManualPlaylist } from '../utils/manualPlaylists';
 
-export const usePlaylists = (accessToken: string | null, isGuest: boolean = false) => {
+export const usePlaylists = (
+    accessToken: string | null,
+    isGuest: boolean = false,
+    manualPlaylists: ManualPlaylist[] = [],
+    isManualMode: boolean = false
+) => {
     const [playlists, setPlaylists] = useState<any[]>([]);
     const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(true);
 
     const fetchPlaylists = useCallback(async () => {
+        if (isManualMode) {
+            setPlaylists(manualPlaylists.map(playlist => ({
+                ...playlist,
+                tracks: { total: playlist.tracks.length }
+            })));
+            setIsLoadingPlaylists(false);
+            return;
+        }
+
         if (isGuest) {
             setPlaylists(GUEST_PLAYLISTS);
             setIsLoadingPlaylists(false);
@@ -55,7 +70,7 @@ export const usePlaylists = (accessToken: string | null, isGuest: boolean = fals
         } finally {
             setIsLoadingPlaylists(false);
         }
-    }, [accessToken, isGuest]);
+    }, [accessToken, isGuest, isManualMode, manualPlaylists]);
 
     useEffect(() => {
         fetchPlaylists();
