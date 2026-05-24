@@ -15,7 +15,7 @@ const Login = () => {
 
     const [accountName, setAccountName] = useState('');
     const [isLoading, setIsLoading] = useState(true);
-    const [authMode, setAuthMode] = useState<'login' | 'signup' | null>(null);
+    const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -172,75 +172,78 @@ const Login = () => {
                                                     className={`button ${authMode === 'login' ? 'button-tertiary' : 'button-secondary'}`}
                                                     onClick={() => handleAuthModeChange('login')}
                                                 >
-                                                    Login with TuneTeaser
+                                                    Login
                                                 </button>
                                                 <button
                                                     type="button"
                                                     className={`button ${authMode === 'signup' ? 'button-tertiary' : 'button-secondary'}`}
                                                     onClick={() => handleAuthModeChange('signup')}
                                                 >
-                                                    Sign up with TuneTeaser
+                                                    Sign Up
                                                 </button>
                                             </div>
-                                            {authMode && (
-                                                <form className="auth-form" onSubmit={handleTuneTeaserAuth}>
-                                                    <label className="form-label">
-                                                        Email
+                                            <form className="auth-form" onSubmit={handleTuneTeaserAuth}>
+                                                <label className="form-label">
+                                                    Email
+                                                    <input
+                                                        className="text-input"
+                                                        type="email"
+                                                        value={email}
+                                                        onChange={(event) => setEmail(event.target.value)}
+                                                        required
+                                                    />
+                                                </label>
+                                                <label className="form-label">
+                                                    Password
+                                                    <span className="password-field">
                                                         <input
                                                             className="text-input"
-                                                            type="email"
-                                                            value={email}
-                                                            onChange={(event) => setEmail(event.target.value)}
+                                                            type={authMode === 'signup' && showSignupPassword ? 'text' : 'password'}
+                                                            value={password}
+                                                            onChange={(event) => setPassword(event.target.value)}
                                                             required
+                                                            minLength={6}
+                                                        />
+                                                        {authMode === 'signup' && (
+                                                            <button
+                                                                className="icon-button"
+                                                                type="button"
+                                                                onClick={() => setShowSignupPassword((isShowing) => !isShowing)}
+                                                                aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
+                                                            >
+                                                                {showSignupPassword ? <VisibilityOff /> : <Visibility />}
+                                                            </button>
+                                                        )}
+                                                    </span>
+                                                </label>
+                                                {authMode === 'signup' && (
+                                                    <label className="form-label">
+                                                        Confirm password
+                                                        <input
+                                                            className="text-input"
+                                                            type={showSignupPassword ? 'text' : 'password'}
+                                                            value={confirmPassword}
+                                                            onChange={(event) => setConfirmPassword(event.target.value)}
+                                                            required
+                                                            minLength={6}
                                                         />
                                                     </label>
-                                                    <label className="form-label">
-                                                        Password
-                                                        <span className="password-field">
-                                                            <input
-                                                                className="text-input"
-                                                                type={authMode === 'signup' && showSignupPassword ? 'text' : 'password'}
-                                                                value={password}
-                                                                onChange={(event) => setPassword(event.target.value)}
-                                                                required
-                                                                minLength={6}
-                                                            />
-                                                            {authMode === 'signup' && (
-                                                                <button
-                                                                    className="icon-button"
-                                                                    type="button"
-                                                                    onClick={() => setShowSignupPassword((isShowing) => !isShowing)}
-                                                                    aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
-                                                                >
-                                                                    {showSignupPassword ? <VisibilityOff /> : <Visibility />}
-                                                                </button>
-                                                            )}
-                                                        </span>
-                                                    </label>
-                                                    {authMode === 'signup' && (
-                                                        <label className="form-label">
-                                                            Confirm password
-                                                            <input
-                                                                className="text-input"
-                                                                type={showSignupPassword ? 'text' : 'password'}
-                                                                value={confirmPassword}
-                                                                onChange={(event) => setConfirmPassword(event.target.value)}
-                                                                required
-                                                                minLength={6}
-                                                            />
-                                                        </label>
-                                                    )}
-                                                    {tuneTeaserAuthError && <div className="error-banner">{tuneTeaserAuthError}</div>}
-                                                    <button className="button button-large" type="submit" disabled={isTuneTeaserSubmitting}>
-                                                        {isTuneTeaserSubmitting ? 'Working...' : authMode === 'signup' ? 'Create Account' : 'Login'}
-                                                    </button>
-                                                </form>
-                                            )}
+                                                )}
+                                                {tuneTeaserAuthError && <div className="error-banner">{tuneTeaserAuthError}</div>}
+                                                <button className="button button-large" type="submit" disabled={isTuneTeaserSubmitting}>
+                                                    {isTuneTeaserSubmitting ? 'Working...' : authMode === 'signup' ? 'Create Account' : 'Login'}
+                                                </button>
+                                            </form>
                                         </div>
-                                        <button className="button button-large" onClick={handleLogin}>Login with Spotify (Invite only)</button>
-                                        <button className="button button-secondary button-large" onClick={handleGuestLogin}>
-                                            Play as Guest
-                                        </button>
+                                        <div className="auth-alt-links">
+                                            <button className="text-link" type="button" onClick={handleGuestLogin}>
+                                                Play as Guest
+                                            </button>
+                                            <span className="auth-alt-sep">{'\u00B7'}</span>
+                                            <button className="text-link" type="button" onClick={handleLogin}>
+                                                Login with Spotify (invite only)
+                                            </button>
+                                        </div>
                                     </>
                                 )}
                             </>

@@ -25,6 +25,7 @@
 
 html {
   min-height: 100%;
+  overflow-y: scroll;
   background: var(--paper);
 }
 
@@ -39,6 +40,7 @@ body {
     linear-gradient(135deg, rgba(215, 67, 50, 0.08) 0 25%, transparent 25% 50%, rgba(215, 67, 50, 0.08) 50% 75%, transparent 75%),
     var(--paper);
   background-size: auto, auto, 34px 34px, auto;
+  background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -96,8 +98,9 @@ code {
 
 .hero-page {
   min-height: calc(100vh - 86px);
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .hero-card,
@@ -215,6 +218,47 @@ code {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--ink-soft);
+  font-weight: 900;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  flex: 1;
+  height: 2px;
+  content: "";
+  background: var(--ink);
+  opacity: 0.18;
+}
+
+.auth-alt-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.auth-alt-links button {
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.auth-alt-sep {
+  color: var(--ink-soft);
+  font-weight: 900;
 }
 
 .form-label {
@@ -366,8 +410,9 @@ code {
 }
 
 .record-visual {
-  position: relative;
-  align-self: center;
+  position: sticky;
+  top: 140px;
+  align-self: start;
   justify-self: center;
   width: min(360px, 72vw);
   aspect-ratio: 1;
@@ -520,6 +565,7 @@ code {
 .playlist-library-card {
   display: grid;
   gap: 12px;
+  height: 100%;
   min-height: 230px;
 }
 

@@ -56,6 +56,13 @@ export const useManualPlaylists = (user: User | null) => {
         const trimmedName = name.trim();
         const trimmedSourceUrl = sourceUrl.trim();
 
+        // Check for duplicate playlist names
+        const snapshot = await getDocs(collectionRef);
+        const existingNames = snapshot.docs.map(d => (d.data().name || '').toLowerCase());
+        if (existingNames.includes(trimmedName.toLowerCase())) {
+            throw new Error(`A playlist named "${trimmedName}" already exists.`);
+        }
+
         await addDoc(collectionRef, {
             name: trimmedName,
             sourceUrl: trimmedSourceUrl,

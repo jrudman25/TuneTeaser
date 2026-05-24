@@ -167,7 +167,7 @@ export const fetchPlaylistTracks = async (
 
     if (!firstResponse.ok) {
         if (firstResponse.status === 404) {
-            throw new Error('This playlist was not found. Check the URL and try again.');
+            throw new Error('This playlist was not found. It may be private -- make it public on Spotify, then try again.');
         }
         if (firstResponse.status === 403) {
             throw new Error('This playlist is private. Make it public on Spotify, then try again.');

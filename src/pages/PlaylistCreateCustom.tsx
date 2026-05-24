@@ -13,7 +13,6 @@ const PlaylistCreateCustom = () => {
     const { addManualPlaylist } = useManualPlaylists(user);
 
     const [playlistName, setPlaylistName] = useState('');
-    const [sourceUrl, setSourceUrl] = useState('');
     const [trackLines, setTrackLines] = useState('');
     const [formError, setFormError] = useState('');
     const [isSaving, setIsSaving] = useState(false);
@@ -98,7 +97,7 @@ const PlaylistCreateCustom = () => {
 
         setIsSaving(true);
         try {
-            await addManualPlaylist(playlistName, sourceUrl || '', tracksToSave);
+            await addManualPlaylist(playlistName, '', tracksToSave);
             navigate(isOnboarding ? '/home' : '/playlists');
         } catch (error: any) {
             setFormError(error.message || 'Could not save playlist.');
@@ -142,15 +141,6 @@ const PlaylistCreateCustom = () => {
                             onChange={(event) => setPlaylistName(event.target.value)}
                             placeholder="Road Trip Mix"
                             required
-                        />
-                    </label>
-                    <label className="form-label">
-                        Source URL (optional)
-                        <input
-                            className="text-input"
-                            value={sourceUrl}
-                            onChange={(event) => setSourceUrl(event.target.value)}
-                            placeholder="https://open.spotify.com/playlist/..."
                         />
                     </label>
                     <label className="form-label">
