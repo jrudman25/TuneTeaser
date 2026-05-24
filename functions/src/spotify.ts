@@ -143,3 +143,66 @@ export const fetchPlaylistName = async (playlistId: string, accessToken: string)
 
     return data.name;
 };
+
+interface SpotifyPlaylistTracksPage {
+    items?: Array<{ track: SpotifyTrackApiResponse | null }>;
+    next: string | null;
+    total: number;
+}
+
+const MAX_PLAYLIST_TRACKS = 200;
+const PLAYLIST_TRACKS_FIELDS = 'items(track(id,name,artists(name),album(name,images(url)),external_urls(spotify))),next,total';
+
+export const fetchPlaylistTracks = async (
+    playlistId: string,
+    accessToken: string
+): Promise<{ name: string; tracks: ResolvedSpotifyTrack[]; errors: string[] }> => {
+    const headers = { Authorization: `Bearer ${accessToken}` };
+    const tracks: ResolvedSpotifyTrack[] = [];
+    const errors: string[] = [];
+
+    // First request includes playlist name
+    const firstUrl = `${SPOTIFY_PLAYLISTS_URL}/${playlistId}?fields=name,tracks(${PLAYLIST_TRACKS_FIELDS})`;
+    const firstResponse = await fetch(firstUrl, { headers });
+
+    if (!firstResponse.ok) {
+        throw new Error(`Spotify playlist lookup failed with ${firstResponse.status}.`);
+    }
+
+    const firstData = await firstResponse.json() as {
+        name?: string;
+        tracks?: SpotifyPlaylistTracksPage;
+    };
+
+    const playlistName = firstData.name || '';
+    const totalTracks = firstData.tracks?.total || 0;
+
+    if (totalTracks > MAX_PLAYLIST_TRACKS) {
+        errors.push(`This playlist has ${totalTracks} tracks. Only the first ${MAX_PLAYLIST_TRACKS} will be imported.`);
+    }
+
+    // Process first page
+    for (const item of firstData.tracks?.items || []) {
+        if (!item.track) continue;
+        tracks.push(mapSpotifyTrack(item.track));
+        if (tracks.length >= MAX_PLAYLIST_TRACKS) break;
+    }
+
+    // Paginate through remaining tracks
+    let nextUrl = firstData.tracks?.next || null;
+    while (nextUrl && tracks.length < MAX_PLAYLIST_TRACKS) {
+        const pageResponse = await fetch(nextUrl, { headers });
+        if (!pageResponse.ok) break;
+
+        const pageData = await pageResponse.json() as SpotifyPlaylistTracksPage;
+        for (const item of pageData.items || []) {
+            if (!item.track) continue;
+            tracks.push(mapSpotifyTrack(item.track));
+            if (tracks.length >= MAX_PLAYLIST_TRACKS) break;
+        }
+
+        nextUrl = pageData.next;
+    }
+
+    return { name: playlistName, tracks, errors };
+};

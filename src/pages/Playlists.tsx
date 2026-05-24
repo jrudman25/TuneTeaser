@@ -4,7 +4,8 @@ import { ManualTrack, parseTrackImportInput } from '../utils/manualPlaylists';
 import { useManualPlaylists } from '../hooks/useManualPlaylists';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
 import { resolveSpotifyTracks } from '../utils/spotifyTrackResolver';
-import { fetchSpotifyPlaylistName } from '../utils/spotifyPlaylistName';
+import { fetchSpotifyPlaylistName, extractSpotifyPlaylistId } from '../utils/spotifyPlaylistName';
+import { importSpotifyPlaylist } from '../utils/spotifyPlaylistImporter';
 
 const Playlists = () => {
     const navigate = useNavigate();
@@ -30,12 +31,18 @@ const Playlists = () => {
     const [resolvedSpotifyTracks, setResolvedSpotifyTracks] = useState<ManualTrack[]>([]);
     const [resolvedSpotifyTrackIdsKey, setResolvedSpotifyTrackIdsKey] = useState('');
     const [resolverErrors, setResolverErrors] = useState<string[]>([]);
+    const [isImportingPlaylist, setIsImportingPlaylist] = useState(false);
+    const [importedPlaylistTracks, setImportedPlaylistTracks] = useState<ManualTrack[]>([]);
+    const [importedForUrl, setImportedForUrl] = useState('');
 
     const parsedImport = useMemo(() => parseTrackImportInput(trackLines), [trackLines]);
     const spotifyTrackIdsKey = parsedImport.spotifyTrackIds.join(',');
     const resolvedTracksAreCurrent = spotifyTrackIdsKey === resolvedSpotifyTrackIdsKey;
     const resolvedCurrentSpotifyTracks = resolvedTracksAreCurrent ? resolvedSpotifyTracks : [];
-    const tracksToSave = [...parsedImport.manualTracks, ...resolvedCurrentSpotifyTracks];
+    const playlistImportIsCurrent = importedForUrl === sourceUrl.trim();
+    const currentImportedTracks = playlistImportIsCurrent ? importedPlaylistTracks : [];
+    const tracksToSave = [...currentImportedTracks, ...parsedImport.manualTracks, ...resolvedCurrentSpotifyTracks];
+    const sourcePlaylistId = extractSpotifyPlaylistId(sourceUrl);
     const hasPlaylists = manualPlaylists.length > 0;
 
     React.useEffect(() => {
@@ -52,6 +59,8 @@ const Playlists = () => {
         setResolverErrors([]);
         setResolvedSpotifyTracks([]);
         setResolvedSpotifyTrackIdsKey('');
+        setImportedPlaylistTracks([]);
+        setImportedForUrl('');
         nameWasAutoFilled.current = false;
     };
 
@@ -111,6 +120,33 @@ const Playlists = () => {
         }
     };
 
+    const handleImportPlaylist = async () => {
+        if (!sourcePlaylistId) {
+            setFormError('Enter a valid Spotify playlist URL first.');
+            return;
+        }
+
+        setFormError('');
+        setResolverErrors([]);
+        setIsImportingPlaylist(true);
+        try {
+            const result = await importSpotifyPlaylist(sourcePlaylistId);
+            setImportedPlaylistTracks(result.tracks);
+            setImportedForUrl(sourceUrl.trim());
+            setResolverErrors(result.errors || []);
+
+            // Auto-fill name if empty or was auto-filled
+            if (result.name && (!playlistName.trim() || nameWasAutoFilled.current)) {
+                setPlaylistName(result.name);
+                nameWasAutoFilled.current = true;
+            }
+        } catch (error: any) {
+            setFormError(error.message || 'Could not import playlist.');
+        } finally {
+            setIsImportingPlaylist(false);
+        }
+    };
+
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         setFormError('');
@@ -132,6 +168,11 @@ const Playlists = () => {
 
         if (parsedImport.spotifyTrackIds.length > 0 && !resolvedTracksAreCurrent) {
             setFormError('Resolve the Spotify track links before saving.');
+            return;
+        }
+
+        if (sourcePlaylistId && !playlistImportIsCurrent && currentImportedTracks.length === 0 && tracksToSave.length < 2) {
+            setFormError('Import tracks from the playlist or add them manually.');
             return;
         }
 
@@ -225,15 +266,29 @@ const Playlists = () => {
                                 required
                             />
                         </label>
+                        {sourcePlaylistId && (
+                            <div className="action-row">
+                                <button
+                                    className="button button-tertiary"
+                                    type="button"
+                                    onClick={handleImportPlaylist}
+                                    disabled={isImportingPlaylist}
+                                >
+                                    {isImportingPlaylist ? 'Importing...' : 'Import Tracks from Playlist'}
+                                </button>
+                                {playlistImportIsCurrent && currentImportedTracks.length > 0 && (
+                                    <span className="snippet-meter">{currentImportedTracks.length} tracks imported</span>
+                                )}
+                            </div>
+                        )}
                         <label className="form-label">
-                            Tracks
+                            Additional tracks (optional)
                             <textarea
                                 className="text-area"
                                 value={trackLines}
                                 onChange={(event) => handleTrackLinesChange(event.target.value)}
                                 placeholder={"https://open.spotify.com/track/76GlO5H5RT6g7y0gev86Nk\nspotify:track:4PTG3Z6ehGkBFwjybzWkR8\nSong Two - Artist Two"}
-                                rows={9}
-                                required
+                                rows={6}
                             />
                         </label>
                         <div className="import-summary">

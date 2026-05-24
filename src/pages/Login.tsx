@@ -237,7 +237,7 @@ const Login = () => {
                                                 </form>
                                             )}
                                         </div>
-                                        <button className="button button-large" onClick={handleLogin}>Login with Spotify</button>
+                                        <button className="button button-large" onClick={handleLogin}>Login with Spotify (Invite only)</button>
                                         <button className="button button-secondary button-large" onClick={handleGuestLogin}>
                                             Play as Guest
                                         </button>

@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase-admin/app';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
-import { fetchPlaylistName, fetchSpotifyTracks, getSpotifyAccessToken, normalizeTrackIds } from './spotify';
+import { fetchPlaylistName, fetchPlaylistTracks, fetchSpotifyTracks, getSpotifyAccessToken, normalizeTrackIds } from './spotify';
 
 initializeApp();
 
@@ -58,5 +58,31 @@ export const getPlaylistName = onCall({
         return { name };
     } catch (error: any) {
         throw new HttpsError('internal', error.message || 'Could not fetch playlist name.');
+    }
+});
+
+export const importSpotifyPlaylist = onCall({
+    secrets: [spotifyClientId, spotifyClientSecret],
+    timeoutSeconds: 60,
+    memory: '256MiB',
+    invoker: 'public'
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'You must be logged in.');
+    }
+
+    const playlistId = typeof request.data?.playlistId === 'string'
+        ? request.data.playlistId.trim()
+        : '';
+
+    if (!PLAYLIST_ID_PATTERN.test(playlistId)) {
+        throw new HttpsError('invalid-argument', 'Invalid Spotify playlist ID.');
+    }
+
+    try {
+        const accessToken = await getSpotifyAccessToken(spotifyClientId.value(), spotifyClientSecret.value());
+        return await fetchPlaylistTracks(playlistId, accessToken);
+    } catch (error: any) {
+        throw new HttpsError('internal', error.message || 'Could not import playlist.');
     }
 });
