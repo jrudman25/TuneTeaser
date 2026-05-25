@@ -64,6 +64,39 @@ const PlaylistImportSpotify = () => {
         }
     }, [isLoadingUser, navigate, user]);
 
+    const validatePlaylistUrl = (url: string): string | null => {
+        if (!url.trim()) return 'Enter a Spotify playlist URL.';
+        try {
+            const parsed = new URL(url.trim());
+            if (!parsed.hostname.endsWith('spotify.com')) return 'This must be a spotify.com link.';
+            const pathParts = parsed.pathname.split('/').filter(Boolean);
+            if (pathParts[0] === 'user') return 'You entered a user profile link. Please use the "Import from profile" section above.';
+            if (pathParts[0] === 'track') return 'This is a single track link. Please enter a playlist URL.';
+            if (pathParts[0] === 'album') return 'This is an album link. Only playlists are supported.';
+            if (pathParts[0] !== 'playlist') return 'This link doesn\'t look like a valid Spotify playlist.';
+            if (!pathParts[1] || !/^[A-Za-z0-9]{22}$/.test(pathParts[1])) return 'The playlist ID in this URL is invalid or malformed.';
+        } catch {
+            return 'This doesn\'t look like a valid URL. Did you forget https://?';
+        }
+        return null;
+    };
+
+    const validateProfileUrl = (url: string): string | null => {
+        if (!url.trim()) return 'Enter a Spotify profile URL.';
+        try {
+            const parsed = new URL(url.trim());
+            if (!parsed.hostname.endsWith('spotify.com')) return 'This must be a spotify.com link.';
+            const pathParts = parsed.pathname.split('/').filter(Boolean);
+            if (pathParts[0] === 'playlist') return 'You entered a playlist link. Please use the "Import one playlist" section below.';
+            if (pathParts[0] === 'track' || pathParts[0] === 'album') return 'Please enter a Spotify user profile URL, not a track or album.';
+            if (pathParts[0] !== 'user') return 'This link doesn\'t look like a valid Spotify user profile.';
+            if (!pathParts[1]) return 'The user ID in this URL is missing.';
+        } catch {
+            return 'This doesn\'t look like a valid URL. Did you forget https://?';
+        }
+        return null;
+    };
+
     const handlePlaylistUrlChange = (value: string) => {
         setPlaylistUrl(value);
         setFormError('');
@@ -82,8 +115,9 @@ const PlaylistImportSpotify = () => {
     };
 
     const handleImport = async () => {
-        if (!sourcePlaylistId) {
-            setFormError('Enter a valid Spotify playlist URL first.');
+        const urlError = validatePlaylistUrl(playlistUrl);
+        if (urlError || !sourcePlaylistId) {
+            setFormError(urlError || 'Enter a valid Spotify playlist URL first.');
             return;
         }
 
@@ -109,8 +143,9 @@ const PlaylistImportSpotify = () => {
     };
 
     const handleLoadProfilePlaylists = async () => {
-        if (!sourceUserId) {
-            setFormError('Enter a valid Spotify profile URL first.');
+        const urlError = validateProfileUrl(profileUrl);
+        if (urlError || !sourceUserId) {
+            setFormError(urlError || 'Enter a valid Spotify profile URL first.');
             return;
         }
 
@@ -205,6 +240,12 @@ const PlaylistImportSpotify = () => {
 
         if (!playlistUrl.trim()) {
             setFormError('Spotify playlist URL is required.');
+            return;
+        }
+
+        const urlError = validatePlaylistUrl(playlistUrl);
+        if (urlError) {
+            setFormError(urlError);
             return;
         }
 

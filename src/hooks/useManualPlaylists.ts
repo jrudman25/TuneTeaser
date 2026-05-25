@@ -17,6 +17,7 @@ export const useManualPlaylists = (user: User | null) => {
     const [manualPlaylists, setManualPlaylists] = useState<ManualPlaylist[]>([]);
     const [isLoadingManualPlaylists, setIsLoadingManualPlaylists] = useState(true);
     const [manualPlaylistError, setManualPlaylistError] = useState('');
+    const [fetchedForUserId, setFetchedForUserId] = useState<string | null>(null);
 
     const getCollectionRef = useCallback(() => {
         if (!user) return null;
@@ -29,6 +30,7 @@ export const useManualPlaylists = (user: User | null) => {
         if (!collectionRef) {
             setManualPlaylists([]);
             setIsLoadingManualPlaylists(false);
+            setFetchedForUserId(null);
             return;
         }
 
@@ -41,13 +43,16 @@ export const useManualPlaylists = (user: User | null) => {
                 id: playlistDoc.id,
                 ...(playlistDoc.data() as Omit<ManualPlaylist, 'id'>)
             })));
+            if (user) {
+                setFetchedForUserId(user.uid);
+            }
         } catch (error) {
             console.error('Failed to fetch manual playlists:', error);
             setManualPlaylistError('Could not load your playlists.');
         } finally {
             setIsLoadingManualPlaylists(false);
         }
-    }, [getCollectionRef]);
+    }, [getCollectionRef, user]);
 
     const addManualPlaylist = useCallback(async (name: string, sourceUrl: string, tracks: ManualTrack[]) => {
         const collectionRef = getCollectionRef();
@@ -86,9 +91,11 @@ export const useManualPlaylists = (user: User | null) => {
         fetchManualPlaylists();
     }, [fetchManualPlaylists]);
 
+    const isEffectivelyLoading = isLoadingManualPlaylists || (user ? fetchedForUserId !== user.uid : false);
+
     return {
         manualPlaylists,
-        isLoadingManualPlaylists,
+        isLoadingManualPlaylists: isEffectivelyLoading,
         manualPlaylistError,
         fetchManualPlaylists,
         addManualPlaylist,

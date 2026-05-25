@@ -119,8 +119,15 @@ export const useGameLogic = (
 
         const checkGuess = normalizeString(guessToCheck);
         const checkTitle = normalizeString(targetSong.name);
+        
+        const targetArtist = targetSong.artists?.[0]?.name;
+        const targetOption = targetArtist ? `${targetSong.name} - ${targetArtist}` : targetSong.name;
+        const checkTargetOption = normalizeString(targetOption);
 
-        const isCorrect = (checkTitle.includes(checkGuess) && checkGuess.length > 2) || (checkTitle === checkGuess && checkGuess.length > 0);
+        const isExactOptionMatch = checkTargetOption === checkGuess && checkGuess.length > 0;
+        const isTitleMatch = (checkTitle.includes(checkGuess) && checkGuess.length > 2) || (checkTitle === checkGuess && checkGuess.length > 0);
+
+        const isCorrect = isExactOptionMatch || isTitleMatch;
 
         if (isCorrect) {
             setGameState('end');

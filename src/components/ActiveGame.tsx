@@ -40,7 +40,10 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
     setVolume
 }) => {
     const songOptions = React.useMemo(() => {
-        return Array.from(new Set(songs.map((s: any) => s.track.name)));
+        return Array.from(new Set(songs.map((s: any) => {
+            const artist = s.track.artists?.[0]?.name;
+            return artist ? `${s.track.name} - ${artist}` : s.track.name;
+        })));
     }, [songs]);
 
     const [inputValue, setInputValue] = React.useState('');
