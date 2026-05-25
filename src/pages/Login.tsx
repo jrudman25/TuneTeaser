@@ -1,7 +1,7 @@
 /**
  * Login.tsx
  * Handles users logging in with a Spotify account.
- * @version 2026.05.14
+ * @version 2026.05.24
  */
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -151,9 +151,9 @@ const Login = () => {
                     <div className="how-to-card">
                         <span className="kicker">How it works</span>
                         <ol className="how-to-list">
-                            <li><span className="number-chip">1</span><span>Choose Spotify or jump into featured guest playlists.</span></li>
-                            <li><span className="number-chip">2</span><span>Pick a playlist from the record bin.</span></li>
-                            <li><span className="number-chip">3</span><span>Hear a short snippet and guess the track title.</span></li>
+                            <li><span className="number-chip">1</span><span>Sign in, or jump into featured guest playlists.</span></li>
+                            <li><span className="number-chip">2</span><span>Import playlists from Spotify URLs, a Spotify profile, or a custom track list.</span></li>
+                            <li><span className="number-chip">3</span><span>Pick a crate, hear a short snippet, and guess the track title.</span></li>
                         </ol>
                     </div>
                     <div className="hero-actions">

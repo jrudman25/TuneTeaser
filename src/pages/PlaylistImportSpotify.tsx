@@ -6,6 +6,7 @@ import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
 import { extractSpotifyPlaylistId } from '../utils/spotifyPlaylistName';
 import { importSpotifyPlaylist } from '../utils/spotifyPlaylistImporter';
 import { extractSpotifyUserId, fetchSpotifyUserPlaylists, SpotifyUserPlaylist } from '../utils/spotifyUserPlaylists';
+import SignedInBadge from '../components/SignedInBadge';
 
 type BatchImportResult = {
     playlistId: string;
@@ -13,7 +14,7 @@ type BatchImportResult = {
     status: 'success' | 'error';
 };
 
-const PROFILE_PLAYLISTS_PER_PAGE = 10;
+const PROFILE_PLAYLISTS_PER_PAGE = 8;
 
 const PlaylistImportSpotify = () => {
     const navigate = useNavigate();
@@ -240,7 +241,10 @@ const PlaylistImportSpotify = () => {
     return (
         <main className="page home-page">
             <section className="top-strip">
-                <span className="status-badge">Import from Spotify</span>
+                <div className="status-stack">
+                    <span className="status-badge">Import from Spotify</span>
+                    <SignedInBadge user={user} />
+                </div>
                 <Link className="button button-secondary" to={playlistsPath}>
                     Back to Playlists
                 </Link>
@@ -256,78 +260,6 @@ const PlaylistImportSpotify = () => {
                 </div>
 
                 <form className="playlist-form" onSubmit={handleSubmit}>
-                    <section className="import-flow-card">
-                        <div>
-                            <h3 className="subsection-title">Import one playlist</h3>
-                            <p className="helper-text">Paste a public Spotify playlist URL to import its tracks.</p>
-                        </div>
-                        <label className="form-label">
-                            Spotify playlist URL
-                            <input
-                                className="text-input"
-                                value={playlistUrl}
-                                onChange={(event) => handlePlaylistUrlChange(event.target.value)}
-                                placeholder="https://open.spotify.com/playlist/..."
-                            />
-                        </label>
-
-                        {sourcePlaylistId && (
-                            <div className="action-row">
-                                <button
-                                    className="button button-tertiary"
-                                    type="button"
-                                    onClick={handleImport}
-                                    disabled={isImporting}
-                                >
-                                    {isImporting ? 'Importing...' : 'Import Tracks from Playlist'}
-                                </button>
-                                {importIsCurrent && currentTracks.length > 0 && (
-                                    <span className="snippet-meter">{currentTracks.length} tracks imported</span>
-                                )}
-                            </div>
-                        )}
-
-                        {importIsCurrent && currentTracks.length > 0 && (
-                            <label className="form-label">
-                                Playlist name
-                                <input
-                                    className="text-input"
-                                    value={playlistName}
-                                    onChange={(event) => {
-                                        setPlaylistName(event.target.value);
-                                        nameWasAutoFilled.current = false;
-                                    }}
-                                    placeholder="Road Trip Mix"
-                                    required
-                                />
-                            </label>
-                        )}
-
-                        {importErrors.length > 0 && (
-                            <ul className="error-list compact-list">
-                                {importErrors.map(error => <li key={error}>{error}</li>)}
-                            </ul>
-                        )}
-
-                        {currentTracks.length > 0 && (
-                            <ul className="resolved-track-list">
-                                {currentTracks.slice(0, 12).map(track => (
-                                    <li key={track.id}>
-                                        <span>{track.name}</span>
-                                        <span>{track.artists.map(artist => artist.name).join(', ')}</span>
-                                    </li>
-                                ))}
-                                {currentTracks.length > 12 && <li>+ {currentTracks.length - 12} more tracks</li>}
-                            </ul>
-                        )}
-
-                        {importIsCurrent && currentTracks.length >= 2 && (
-                            <button className="button button-large" type="submit" disabled={isSaving}>
-                                {isSaving ? 'Saving...' : 'Save Playlist'}
-                            </button>
-                        )}
-                    </section>
-
                     <section className="import-flow-card">
                         <div>
                             <h3 className="subsection-title">Import from profile</h3>
@@ -438,6 +370,78 @@ const PlaylistImportSpotify = () => {
                                     </li>
                                 ))}
                             </ul>
+                        )}
+                    </section>
+                    
+                    <section className="import-flow-card">
+                        <div>
+                            <h3 className="subsection-title">Import one playlist</h3>
+                            <p className="helper-text">Paste a public Spotify playlist URL to import its tracks.</p>
+                        </div>
+                        <label className="form-label">
+                            Spotify playlist URL
+                            <input
+                                className="text-input"
+                                value={playlistUrl}
+                                onChange={(event) => handlePlaylistUrlChange(event.target.value)}
+                                placeholder="https://open.spotify.com/playlist/..."
+                            />
+                        </label>
+
+                        {sourcePlaylistId && (
+                            <div className="action-row">
+                                <button
+                                    className="button button-tertiary"
+                                    type="button"
+                                    onClick={handleImport}
+                                    disabled={isImporting}
+                                >
+                                    {isImporting ? 'Importing...' : 'Import Tracks from Playlist'}
+                                </button>
+                                {importIsCurrent && currentTracks.length > 0 && (
+                                    <span className="snippet-meter">{currentTracks.length} tracks imported</span>
+                                )}
+                            </div>
+                        )}
+
+                        {importIsCurrent && currentTracks.length > 0 && (
+                            <label className="form-label">
+                                Playlist name
+                                <input
+                                    className="text-input"
+                                    value={playlistName}
+                                    onChange={(event) => {
+                                        setPlaylistName(event.target.value);
+                                        nameWasAutoFilled.current = false;
+                                    }}
+                                    placeholder="Road Trip Mix"
+                                    required
+                                />
+                            </label>
+                        )}
+
+                        {importErrors.length > 0 && (
+                            <ul className="error-list compact-list">
+                                {importErrors.map(error => <li key={error}>{error}</li>)}
+                            </ul>
+                        )}
+
+                        {currentTracks.length > 0 && (
+                            <ul className="resolved-track-list">
+                                {currentTracks.slice(0, 12).map(track => (
+                                    <li key={track.id}>
+                                        <span>{track.name}</span>
+                                        <span>{track.artists.map(artist => artist.name).join(', ')}</span>
+                                    </li>
+                                ))}
+                                {currentTracks.length > 12 && <li>+ {currentTracks.length - 12} more tracks</li>}
+                            </ul>
+                        )}
+
+                        {importIsCurrent && currentTracks.length >= 2 && (
+                            <button className="button button-large" type="submit" disabled={isSaving}>
+                                {isSaving ? 'Saving...' : 'Save Playlist'}
+                            </button>
                         )}
                     </section>
 

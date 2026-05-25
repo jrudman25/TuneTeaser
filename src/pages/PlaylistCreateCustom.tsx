@@ -4,6 +4,7 @@ import { ManualTrack, parseTrackImportInput } from '../utils/manualPlaylists';
 import { useManualPlaylists } from '../hooks/useManualPlaylists';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
 import { resolveSpotifyTracks } from '../utils/spotifyTrackResolver';
+import SignedInBadge from '../components/SignedInBadge';
 
 const PlaylistCreateCustom = () => {
     const navigate = useNavigate();
@@ -117,7 +118,10 @@ const PlaylistCreateCustom = () => {
     return (
         <main className="page home-page">
             <section className="top-strip">
-                <span className="status-badge">Build custom playlist</span>
+                <div className="status-stack">
+                    <span className="status-badge">Build custom playlist</span>
+                    <SignedInBadge user={user} />
+                </div>
                 <Link className="button button-secondary" to="/playlists">
                     Back to Playlists
                 </Link>

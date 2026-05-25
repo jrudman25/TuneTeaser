@@ -1,7 +1,7 @@
 /**
  * PlaylistMenu.tsx
  * Displays user playlists for selection.
- * @version 2026.05.14
+ * @version 2026.05.24
  */
 import React, { useState } from 'react';
 
@@ -14,7 +14,7 @@ interface PlaylistMenuProps {
 
 const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist, isLoading, isGuest = false }) => {
     const [playlistPage, setPlaylistPage] = useState(0);
-    const PLAYLISTS_PER_PAGE = 10;
+    const PLAYLISTS_PER_PAGE = 8;
 
     return (
         <section className="record-bin">

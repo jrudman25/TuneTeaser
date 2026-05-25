@@ -1,7 +1,7 @@
 /**
  * Home.tsx
  * The main page of the site.
- * @version 2026.05.14
+ * @version 2026.05.24
  */
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -15,6 +15,7 @@ import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
 import PlaylistMenu from '../components/PlaylistMenu';
 import ActiveGame from '../components/ActiveGame';
 import GameResult from '../components/GameResult';
+import SignedInBadge from '../components/SignedInBadge';
 
 const Home = () => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -128,9 +129,12 @@ const Home = () => {
     return (
         <main className="page home-page">
             <section className="top-strip">
-                <span className="status-badge">
-                    {isGuest ? 'Guest mode' : isManualMode ? 'Logged in with TuneTeaser' : 'Logged in with Spotify'}
-                </span>
+                <div className="status-stack">
+                    <span className="status-badge">
+                        {isGuest ? 'Guest mode' : isManualMode ? 'Logged in with TuneTeaser' : 'Logged in with Spotify'}
+                    </span>
+                    {isManualMode ? <SignedInBadge user={user} /> : !isGuest && <span className="account-badge">Signed in with Spotify</span>}
+                </div>
                 <div className="action-row">
                     {isManualMode && (
                         <Link className="button button-secondary" to="/playlists">

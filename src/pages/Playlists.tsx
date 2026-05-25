@@ -2,8 +2,9 @@ import React from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useManualPlaylists } from '../hooks/useManualPlaylists';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
+import SignedInBadge from '../components/SignedInBadge';
 
-const MANUAL_PLAYLISTS_PER_PAGE = 10;
+const MANUAL_PLAYLISTS_PER_PAGE = 8;
 
 const Playlists = () => {
     const navigate = useNavigate();
@@ -49,6 +50,10 @@ const Playlists = () => {
         return date ? date.toLocaleDateString() : 'Just now';
     };
 
+    const getPlaylistSourceLabel = (sourceUrl: string) => {
+        return sourceUrl ? 'Spotify import' : 'Custom mix';
+    };
+
     const onboardingParam = isOnboarding ? '?onboarding=1' : '';
 
     if (isLoadingUser) {
@@ -62,7 +67,10 @@ const Playlists = () => {
     return (
         <main className="page home-page">
             <section className="top-strip">
-                <span className="status-badge">{isOnboarding && !hasPlaylists ? 'Add your first playlist' : 'TuneTeaser playlists'}</span>
+                <div className="status-stack">
+                    <span className="status-badge">{isOnboarding && !hasPlaylists ? 'Add your first playlist' : 'TuneTeaser playlists'}</span>
+                    <SignedInBadge user={user} />
+                </div>
                 {hasPlaylists && (
                     <Link className="button button-secondary" to="/home">
                         Back to Game
@@ -98,13 +106,15 @@ const Playlists = () => {
                             {paginatedManualPlaylists.map(playlist => (
                                 <li key={playlist.id}>
                                     <article className="playlist-card playlist-library-card">
-                                        <span className="playlist-label">Manual</span>
+                                        <span className="playlist-label">{getPlaylistSourceLabel(playlist.sourceUrl)}</span>
                                         <h3 className="playlist-name">{playlist.name}</h3>
                                         <p className="playlist-meta">{playlist.tracks.length} tracks</p>
                                         <p className="playlist-meta">Added {formatPlaylistDate(playlist.createdAt)}</p>
-                                        <a className="text-link" href={playlist.sourceUrl} target="_blank" rel="noreferrer">
-                                            Spotify source
-                                        </a>
+                                        {playlist.sourceUrl && (
+                                            <a className="text-link" href={playlist.sourceUrl} target="_blank" rel="noreferrer">
+                                                Spotify source
+                                            </a>
+                                        )}
                                         <button
                                             className="button button-danger"
                                             type="button"

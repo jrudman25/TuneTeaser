@@ -1,7 +1,7 @@
 /**
  * FirebaseConfig.ts
  * Connects the app to Firebase for hosting, storage, and user auth.
- * @version 2026.02.01
+ * @version 2026.02.23
  */
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
