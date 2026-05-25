@@ -22,10 +22,18 @@ export interface SpotifyTrackApiResponse {
     };
 }
 
+export interface SpotifyUserPlaylist {
+    id: string;
+    name: string;
+    trackCount: number;
+    externalUrl: string;
+}
+
 const SPOTIFY_TRACK_ID_PATTERN = /^[A-Za-z0-9]{22}$/;
 const SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token';
 const SPOTIFY_TRACKS_URL = 'https://api.spotify.com/v1/tracks';
 const SPOTIFY_PLAYLISTS_URL = 'https://api.spotify.com/v1/playlists';
+const SPOTIFY_USERS_URL = 'https://api.spotify.com/v1/users';
 
 let cachedAccessToken = '';
 let cachedAccessTokenExpiresAt = 0;
@@ -142,6 +150,75 @@ export const fetchPlaylistName = async (playlistId: string, accessToken: string)
     }
 
     return data.name;
+};
+
+export const extractSpotifyUserId = (profileUrl: string): string | null => {
+    try {
+        const url = new URL(profileUrl.trim());
+        if (!url.hostname.endsWith('spotify.com')) return null;
+
+        const pathParts = url.pathname.split('/').filter(Boolean);
+        if (pathParts[0] !== 'user' || !pathParts[1]) return null;
+
+        const userId = decodeURIComponent(pathParts[1]).trim();
+        if (!userId || userId.includes('/') || userId.length > 128) return null;
+
+        return userId;
+    } catch {
+        return null;
+    }
+};
+
+interface SpotifyUserPlaylistsPage {
+    items?: Array<{
+        id?: string;
+        name?: string;
+        tracks?: { total?: number };
+        external_urls?: { spotify?: string };
+    }>;
+    next: string | null;
+}
+
+export const fetchUserPlaylists = async (
+    profileUrl: string,
+    accessToken: string
+): Promise<{ userId: string; playlists: SpotifyUserPlaylist[] }> => {
+    const userId = extractSpotifyUserId(profileUrl);
+    if (!userId) {
+        throw new Error('Enter a valid Spotify profile URL.');
+    }
+
+    const headers = { Authorization: `Bearer ${accessToken}` };
+    const playlists: SpotifyUserPlaylist[] = [];
+    let nextUrl: string | null = `${SPOTIFY_USERS_URL}/${encodeURIComponent(userId)}/playlists?limit=50&fields=items(id,name,tracks(total),external_urls(spotify)),next`;
+
+    while (nextUrl) {
+        const response = await fetch(nextUrl, { headers });
+
+        if (!response.ok) {
+            if (response.status === 404) {
+                throw new Error('This Spotify user was not found.');
+            }
+
+            throw new Error(`Spotify returned an error (${response.status}). Please try again.`);
+        }
+
+        const data = await response.json() as SpotifyUserPlaylistsPage;
+        for (const playlist of data.items || []) {
+            if (!playlist.id || !playlist.name) continue;
+
+            playlists.push({
+                id: playlist.id,
+                name: playlist.name,
+                trackCount: playlist.tracks?.total || 0,
+                externalUrl: playlist.external_urls?.spotify || `https://open.spotify.com/playlist/${playlist.id}`
+            });
+        }
+
+        nextUrl = data.next;
+    }
+
+    return { userId, playlists };
 };
 
 interface SpotifyPlaylistTracksPage {
