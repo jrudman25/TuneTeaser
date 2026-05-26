@@ -249,22 +249,51 @@ export const useGameLogic = (
                     }
 
                     setCurrentTracks(validInitialTracks);
-                    await startGame(validInitialTracks);
-                    setIsLoadingGame(false);
+
+                    const limit = playlistId === 'LIKED_SONGS' ? 50 : 100;
 
                     if (total > fetchedTracks.length) {
+                        const numPages = Math.ceil(total / limit);
+                        const randomPage = Math.floor(Math.random() * numPages);
 
-                        const limit = playlistId === 'LIKED_SONGS' ? 50 : 100;
+                        let startingTracks = validInitialTracks;
+
+                        if (randomPage > 0) {
+                            setFeedbackMessage(`Loading random page (${randomPage + 1}/${numPages}) for better variety...`);
+                            const offset = randomPage * limit;
+                            const url = playlistId === 'LIKED_SONGS'
+                                ? `https://api.spotify.com/v1/me/tracks?market=from_token&limit=${limit}&offset=${offset}`
+                                : `https://api.spotify.com/v1/playlists/${playlistId}/tracks?market=from_token&limit=${limit}&offset=${offset}`;
+
+                            try {
+                                const randomPageResponse = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+                                if (randomPageResponse.ok) {
+                                    const randomPageData = await randomPageResponse.json();
+                                    const validRandomTracks = randomPageData.items.filter((item: any) =>
+                                        item.track && item.track.id && !item.is_local
+                                    );
+                                    if (validRandomTracks.length > 0) {
+                                        startingTracks = validRandomTracks;
+                                        setCurrentTracks(prev => [...prev, ...validRandomTracks]);
+                                    }
+                                }
+                            } catch (e) {
+                                console.error('Failed to fetch random starting page', e);
+                            }
+                        }
+
+                        await startGame(startingTracks);
+                        setIsLoadingGame(false);
+
                         const BATCH_SIZE = 3;
                         const requests = [];
 
-                        for (let offset = fetchedTracks.length; offset < total; offset += limit) {
-                            let url = '';
-                            if (playlistId === 'LIKED_SONGS') {
-                                url = `https://api.spotify.com/v1/me/tracks?market=from_token&limit=${limit}&offset=${offset}`;
-                            } else {
-                                url = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?market=from_token&limit=${limit}&offset=${offset}`;
-                            }
+                        for (let offset = 0; offset < total; offset += limit) {
+                            if (offset === 0 || offset === randomPage * limit) continue;
+
+                            const url = playlistId === 'LIKED_SONGS'
+                                ? `https://api.spotify.com/v1/me/tracks?market=from_token&limit=${limit}&offset=${offset}`
+                                : `https://api.spotify.com/v1/playlists/${playlistId}/tracks?market=from_token&limit=${limit}&offset=${offset}`;
                             requests.push(url);
                         }
 
@@ -290,6 +319,9 @@ export const useGameLogic = (
                             setCurrentTracks(prev => [...prev, ...validNewTracks]);
 
                         }
+                    } else {
+                        await startGame(validInitialTracks);
+                        setIsLoadingGame(false);
                     }
 
                 } else {

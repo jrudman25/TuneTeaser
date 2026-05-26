@@ -18,7 +18,7 @@ export async function redirectToAuthCodeFlow(clientId: string, redirectUri: stri
 
     const scopeString = "playlist-read-private user-read-private user-read-email user-library-read";
 
-    document.location = `https://accounts.spotify.com/authorize?${params.toString()}&scope=${encodeURIComponent(scopeString)}`;
+    window.location.assign(`https://accounts.spotify.com/authorize?${params.toString()}&scope=${encodeURIComponent(scopeString)}`);
 }
 
 export async function getAccessToken(clientId: string, code: string, redirectUri: string) {
@@ -59,10 +59,13 @@ export async function refreshAccessToken(clientId: string, refreshToken: string)
 
 function generateCodeVerifier(length: number) {
     let text = '';
-    let possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+
+    const randomValues = new Uint8Array(length);
+    window.crypto.getRandomValues(randomValues);
 
     for (let i = 0; i < length; i++) {
-        text += possible.charAt(Math.floor(Math.random() * possible.length));
+        text += possible.charAt(randomValues[i] % possible.length);
     }
     return text;
 }
