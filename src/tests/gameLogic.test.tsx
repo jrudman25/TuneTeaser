@@ -26,9 +26,7 @@ vi.mock('../hooks/usePreviewPlayer', () => ({
 
 describe('useGameLogic - Auto Skip', () => {
     beforeEach(() => {
-        vi.clearAllMocks();
-        // Restore console to avoid polluting output, but maybe spy on it if needed
-        vi.spyOn(console, 'log').mockImplementation(() => { });
+        vi.resetAllMocks();
         vi.spyOn(console, 'warn').mockImplementation(() => { });
         vi.spyOn(console, 'error').mockImplementation(() => { });
     });
@@ -53,12 +51,7 @@ describe('useGameLogic - Auto Skip', () => {
         const { result } = renderHook(() => useGameLogic('fake-token', false));
 
         await act(async () => {
-            // Since startGame shuffles, we might hit Good Song first. 
-            // To ensure we test skipping, we can force the shuffle or just check that *eventually* we get a valid song and NO invalid song is set as target.
-            vi.spyOn(Math, 'random').mockReturnValue(0.1); // Ensure predictable shuffle/random index?
-            // The shuffle uses .sort(() => 0.5 - Math.random()). 
-            // If Math.random() < 0.5, it returns positive (swap).
-
+            vi.spyOn(Math, 'random').mockReturnValue(0.1); 
             await result.current.startGame(mockTracks);
         });
 
@@ -85,5 +78,25 @@ describe('useGameLogic - Auto Skip', () => {
 
         expect(result.current.targetSong).toBeNull();
         expect(result.current.feedbackMessage).toContain('No playable tracks');
+    });
+
+    it('loads playlist from manualPlaylists if isManualMode is true', async () => {
+        const mockManualPlaylists = [{
+            id: 'playlist1',
+            tracks: [{ id: 'guest1', name: 'Guest Song', artists: [{ name: 'Guest Artist' }] }]
+        }];
+
+        (getItunesPreview as any).mockResolvedValue({ previewUrl: 'url', artworkUrl: 'art' });
+
+        const { result } = renderHook(() => useGameLogic('fake-token', false, mockManualPlaylists as any, true));
+
+        await act(async () => {
+            await result.current.loadPlaylist('playlist1', 'Playlist 1');
+        });
+
+        expect(result.current.feedbackMessage).toBe('');
+        expect(getItunesPreview).toHaveBeenCalled();
+        expect(result.current.targetSong?.id).toBe('guest1');
+        expect(result.current.isLoadingGame).toBe(false);
     });
 });
