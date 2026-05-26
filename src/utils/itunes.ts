@@ -89,7 +89,6 @@ export const getItunesPreview = async (trackName: string, artistName: string, al
 
                     if (normAlbumRes === normAlbumTarget) {
                         score += 5;
-                        console.log(`Album match found: ${res.collectionName}`);
                     } else if (normAlbumRes.includes(normAlbumTarget) || normAlbumTarget.includes(normAlbumRes)) {
                         score += 2;
                     }
@@ -103,7 +102,6 @@ export const getItunesPreview = async (trackName: string, artistName: string, al
                 .sort((a, b) => b.score - a.score)[0]?.res;
 
             if (bestMatch && bestMatch.previewUrl) {
-                console.log("Found preview via iTunes:", bestMatch.trackName, `(Album: ${bestMatch.collectionName})`);
                 const highResArtwork = bestMatch.artworkUrl100 ? bestMatch.artworkUrl100.replace('100x100', '600x600') : '';
                 return {
                     previewUrl: bestMatch.previewUrl,

@@ -3,7 +3,7 @@
  * Handles the core game logic, including track selection, scoring, and state management.
  * @version 2026.02.11
  */
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import usePreviewPlayer from './usePreviewPlayer';
 import { getItunesPreview } from '../utils/itunes';
 import { normalizeString } from '../utils/stringUtils';
@@ -16,6 +16,11 @@ export const useGameLogic = (
     manualPlaylists: ManualPlaylist[] = [],
     isManualMode: boolean = false
 ) => {
+    const manualPlaylistsRef = useRef(manualPlaylists);
+    useEffect(() => {
+        manualPlaylistsRef.current = manualPlaylists;
+    }, [manualPlaylists]);
+
     const { playPreview, pause, isPlaying, error: playerError, volume, setVolume } = usePreviewPlayer();
     const [currentTracks, setCurrentTracks] = useState<any[]>([]);
     const [recentTracks, setRecentTracks] = useState<string[]>([]);
@@ -202,7 +207,7 @@ export const useGameLogic = (
         }
 
         if (isManualMode) {
-            const playlist = manualPlaylists.find((manualPlaylist) => manualPlaylist.id === playlistId);
+            const playlist = manualPlaylistsRef.current.find((manualPlaylist) => manualPlaylist.id === playlistId);
             if (playlist) {
                 const tracks = manualTracksToGameItems(playlist.tracks);
                 setCurrentTracks(tracks);

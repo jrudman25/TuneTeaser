@@ -3,7 +3,7 @@
  * Handles fetching user playlists from Spotify.
  * @version 2026.02.10
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { GUEST_PLAYLISTS } from '../utils/guestData';
 import { ManualPlaylist } from '../utils/manualPlaylists';
 
@@ -13,31 +13,35 @@ export const usePlaylists = (
     manualPlaylists: ManualPlaylist[] = [],
     isManualMode: boolean = false
 ) => {
-    const [playlists, setPlaylists] = useState<any[]>([]);
-    const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(true);
+    const [fetchedPlaylists, setFetchedPlaylists] = useState<any[]>([]);
+    const [isFetchingPlaylists, setIsFetchingPlaylists] = useState(true);
 
-    const fetchPlaylists = useCallback(async () => {
+    const derivedPlaylists = useMemo(() => {
         if (isManualMode) {
-            setPlaylists(manualPlaylists.map(playlist => ({
+            return manualPlaylists.map(playlist => ({
                 ...playlist,
                 tracks: { total: playlist.tracks.length }
-            })));
-            setIsLoadingPlaylists(false);
-            return;
+            }));
         }
-
         if (isGuest) {
-            setPlaylists(GUEST_PLAYLISTS);
-            setIsLoadingPlaylists(false);
+            return GUEST_PLAYLISTS;
+        }
+        return fetchedPlaylists;
+    }, [isManualMode, manualPlaylists, isGuest, fetchedPlaylists]);
+
+    const fetchPlaylists = useCallback(async () => {
+        if (isManualMode || isGuest) {
+            // No fetching needed for these modes
+            setIsFetchingPlaylists(false);
             return;
         }
 
         if (!accessToken) {
-            setIsLoadingPlaylists(false);
+            setIsFetchingPlaylists(false);
             return;
         }
 
-        setIsLoadingPlaylists(true);
+        setIsFetchingPlaylists(true);
         try {
             let allPlaylists: any[] = [];
             let nextUrl = 'https://api.spotify.com/v1/me/playlists?limit=50';
@@ -64,17 +68,19 @@ export const usePlaylists = (
                 nextUrl = data.next;
             }
 
-            setPlaylists(allPlaylists);
+            setFetchedPlaylists(allPlaylists);
         } catch (error) {
             console.error('Error fetching playlists:', error);
         } finally {
-            setIsLoadingPlaylists(false);
+            setIsFetchingPlaylists(false);
         }
-    }, [accessToken, isGuest, isManualMode, manualPlaylists]);
+    }, [accessToken, isGuest, isManualMode]);
 
     useEffect(() => {
         fetchPlaylists();
     }, [fetchPlaylists]);
 
-    return { playlists, isLoadingPlaylists, fetchPlaylists };
+    const isLoadingPlaylists = (isManualMode || isGuest) ? false : isFetchingPlaylists;
+
+    return { playlists: derivedPlaylists, isLoadingPlaylists, fetchPlaylists };
 };
