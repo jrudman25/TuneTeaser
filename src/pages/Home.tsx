@@ -73,7 +73,7 @@ const Home = () => {
         }
     }, [isLoadingManualPlaylists, isLoadingUser, isManualMode, manualPlaylists.length, navigate]);
 
-    const { playlists, isLoadingPlaylists } = usePlaylists(accessToken, isGuest, manualPlaylists, isManualMode);
+    const { playlists, isLoadingPlaylists, playlistError } = usePlaylists(accessToken, isGuest, manualPlaylists, isManualMode);
     const {
         gameState,
         targetSong,
@@ -153,6 +153,12 @@ const Home = () => {
                     <strong>Error:</strong> {playerError}
                     <br />
                     <small>Please try logging out and logging in again.</small>
+                </div>
+            )}
+
+            {playlistError && (
+                <div className="error-banner">
+                    <strong>Error:</strong> {playlistError}
                 </div>
             )}
 

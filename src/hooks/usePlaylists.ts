@@ -15,6 +15,7 @@ export const usePlaylists = (
 ) => {
     const [fetchedPlaylists, setFetchedPlaylists] = useState<any[]>([]);
     const [isFetchingPlaylists, setIsFetchingPlaylists] = useState(true);
+    const [playlistError, setPlaylistError] = useState<string | null>(null);
 
     const derivedPlaylists = useMemo(() => {
         if (isManualMode) {
@@ -42,6 +43,7 @@ export const usePlaylists = (
         }
 
         setIsFetchingPlaylists(true);
+        setPlaylistError(null);
         try {
             let allPlaylists: any[] = [];
             let nextUrl = 'https://api.spotify.com/v1/me/playlists?limit=50';
@@ -54,12 +56,12 @@ export const usePlaylists = (
                 });
 
                 if (response.status === 401) {
-                    console.error("401 Unauthorized during playlist fetch");
+                    setPlaylistError('Your Spotify session has expired. Please log in again.');
                     break;
                 }
 
                 if (!response.ok) {
-                    console.error('Failed to fetch playlists:', response.statusText);
+                    setPlaylistError(`Failed to load playlists (${response.status}). Please try again.`);
                     break;
                 }
 
@@ -70,7 +72,7 @@ export const usePlaylists = (
 
             setFetchedPlaylists(allPlaylists);
         } catch (error) {
-            console.error('Error fetching playlists:', error);
+            setPlaylistError('Could not connect to Spotify. Check your network and try again.');
         } finally {
             setIsFetchingPlaylists(false);
         }
@@ -82,5 +84,5 @@ export const usePlaylists = (
 
     const isLoadingPlaylists = (isManualMode || isGuest) ? false : isFetchingPlaylists;
 
-    return { playlists: derivedPlaylists, isLoadingPlaylists, fetchPlaylists };
+    return { playlists: derivedPlaylists, isLoadingPlaylists, fetchPlaylists, playlistError };
 };

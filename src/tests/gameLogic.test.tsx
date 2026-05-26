@@ -1,7 +1,7 @@
 /**
  * gameLogic.test.tsx
- * Tests the useGameLogic hook.
- * @version 2026.02.11
+ * Tests the useGameLogic hook: guess matching, auto-skip, and playlist loading.
+ * @version 2026.05.26
  */
 import { renderHook, act } from '@testing-library/react';
 import { useGameLogic } from '../hooks/useGameLogic';
@@ -24,6 +24,141 @@ vi.mock('../hooks/usePreviewPlayer', () => ({
     })
 }));
 
+describe('useGameLogic - Guess Matching', () => {
+    beforeEach(() => {
+        vi.resetAllMocks();
+        vi.spyOn(console, 'warn').mockImplementation(() => { });
+        vi.spyOn(console, 'error').mockImplementation(() => { });
+        (getItunesPreview as ReturnType<typeof vi.fn>).mockResolvedValue({
+            previewUrl: 'http://test-preview-url.com',
+            artworkUrl: 'http://test-art.com'
+        });
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    it('initializes with idle state', () => {
+        const { result } = renderHook(() => useGameLogic('fake-token', false));
+        expect(result.current.gameState).toBe('idle');
+    });
+
+    it('correctly identifies a correct guess (exact match)', async () => {
+        const { result } = renderHook(() => useGameLogic('fake-token', false));
+        const mockTracks = [{ track: { id: '1', name: 'Paranoid Android', uri: 'spotify:track:1', artists: [{ name: 'Radiohead' }] } }];
+
+        await act(async () => {
+            await result.current.startGame(mockTracks);
+        });
+
+        expect(result.current.gameState).toBe('playing');
+        expect(result.current.targetSong?.name).toBe('Paranoid Android');
+
+        act(() => { result.current.setUserGuess('paranoid android'); });
+        act(() => { result.current.handleGuessSubmit(); });
+
+        expect(result.current.gameState).toBe('end');
+        expect(result.current.feedbackMessage).toContain('Correct');
+    });
+
+    it('correctly identifies a correct guess (partial match)', async () => {
+        const { result } = renderHook(() => useGameLogic('fake-token', false));
+        const mockTracks = [{ track: { id: '1', name: 'Paranoid Android (Remastered)', uri: 'spotify:track:1', artists: [{ name: 'Radiohead' }] } }];
+
+        await act(async () => {
+            await result.current.startGame(mockTracks);
+        });
+
+        expect(result.current.gameState).toBe('playing');
+        expect(result.current.targetSong?.name).toBe('Paranoid Android (Remastered)');
+
+        act(() => { result.current.setUserGuess('paranoid android'); });
+        act(() => { result.current.handleGuessSubmit(); });
+
+        expect(result.current.gameState).toBe('end');
+        expect(result.current.feedbackMessage).toContain('Correct');
+    });
+
+    it('correctly identifies a correct guess (no punctuation)', async () => {
+        const { result } = renderHook(() => useGameLogic('fake-token', false));
+        const mockTracks = [{ track: { id: '1', name: 'Why Can\'t We Be Friends?', uri: 'spotify:track:1', artists: [{ name: 'War' }] } }];
+
+        await act(async () => {
+            await result.current.startGame(mockTracks);
+        });
+
+        expect(result.current.gameState).toBe('playing');
+        expect(result.current.targetSong?.name).toBe('Why Can\'t We Be Friends?');
+
+        act(() => { result.current.setUserGuess('why cant we be friends'); });
+        act(() => { result.current.handleGuessSubmit(); });
+
+        expect(result.current.gameState).toBe('end');
+        expect(result.current.feedbackMessage).toContain('Correct');
+    });
+
+    it('correctly identifies a wrong guess', async () => {
+        const { result } = renderHook(() => useGameLogic('fake-token', false));
+        const mockTracks = [{ track: { id: '1', name: 'Some Girls Are Bigger Than Others', uri: 'spotify:track:1', artists: [{ name: 'The Smiths' }] } }];
+
+        await act(async () => {
+            await result.current.startGame(mockTracks);
+        });
+
+        expect(result.current.gameState).toBe('playing');
+        expect(result.current.targetSong?.name).toBe('Some Girls Are Bigger Than Others');
+
+        act(() => { result.current.setUserGuess('There Is a Light That Never Goes Out'); });
+        act(() => { result.current.handleGuessSubmit(); });
+
+        expect(result.current.gameState).toBe('playing');
+        expect(result.current.feedbackMessage).toContain('Incorrect');
+    });
+
+    it('correctly identifies two wrong guesses', async () => {
+        const { result } = renderHook(() => useGameLogic('fake-token', false));
+        const mockTracks = [{ track: { id: '1', name: 'Some Girls Are Bigger Than Others', uri: 'spotify:track:1', artists: [{ name: 'The Smiths' }] } }];
+
+        await act(async () => {
+            await result.current.startGame(mockTracks);
+        });
+
+        expect(result.current.gameState).toBe('playing');
+
+        act(() => { result.current.setUserGuess('There Is a Light That Never Goes Out'); });
+        act(() => { result.current.handleGuessSubmit(); });
+        expect(result.current.gameState).toBe('playing');
+        expect(result.current.feedbackMessage).toContain('Incorrect');
+
+        act(() => { result.current.setUserGuess('The Queen Is Dead'); });
+        act(() => { result.current.handleGuessSubmit(); });
+        expect(result.current.gameState).toBe('playing');
+        expect(result.current.feedbackMessage).toContain('Incorrect');
+    });
+
+    it('correctly identifies a right guess after a wrong guess', async () => {
+        const { result } = renderHook(() => useGameLogic('fake-token', false));
+        const mockTracks = [{ track: { id: '1', name: 'Some Girls Are Bigger Than Others', uri: 'spotify:track:1', artists: [{ name: 'The Smiths' }] } }];
+
+        await act(async () => {
+            await result.current.startGame(mockTracks);
+        });
+
+        expect(result.current.gameState).toBe('playing');
+
+        act(() => { result.current.setUserGuess('There Is a Light That Never Goes Out'); });
+        act(() => { result.current.handleGuessSubmit(); });
+        expect(result.current.gameState).toBe('playing');
+        expect(result.current.feedbackMessage).toContain('Incorrect');
+
+        act(() => { result.current.setUserGuess('Some Girls Are Bigger Than Others'); });
+        act(() => { result.current.handleGuessSubmit(); });
+        expect(result.current.gameState).toBe('end');
+        expect(result.current.feedbackMessage).toContain('Correct');
+    });
+});
+
 describe('useGameLogic - Auto Skip', () => {
     beforeEach(() => {
         vi.resetAllMocks();
@@ -41,8 +176,7 @@ describe('useGameLogic - Auto Skip', () => {
             { track: { id: '2', name: 'Good Song', artists: [{ name: 'Artist 2' }], uri: 'uri2' } }
         ];
 
-        // Mock getItunesPreview implementation to return null for Bad Song, URL for Good Song
-        (getItunesPreview as any).mockImplementation(async (name: string) => {
+        (getItunesPreview as ReturnType<typeof vi.fn>).mockImplementation(async (name: string) => {
             if (name === 'Bad Song') return null;
             if (name === 'Good Song') return { previewUrl: 'http://preview.url/good', artworkUrl: 'http://art.url' };
             return null;
@@ -51,15 +185,12 @@ describe('useGameLogic - Auto Skip', () => {
         const { result } = renderHook(() => useGameLogic('fake-token', false));
 
         await act(async () => {
-            vi.spyOn(Math, 'random').mockReturnValue(0.1); 
+            vi.spyOn(Math, 'random').mockReturnValue(0.1);
             await result.current.startGame(mockTracks);
         });
 
-        // Should have selected Good Song (id: 2) eventually
         expect(result.current.targetSong?.id).toBe('2');
         expect(getItunesPreview).toHaveBeenCalled();
-
-        // Verify we didn't end up with Bad Song
         expect(result.current.targetSong?.name).not.toBe('Bad Song');
     });
 
@@ -68,7 +199,7 @@ describe('useGameLogic - Auto Skip', () => {
             { track: { id: '1', name: 'Bad Song 1', artists: [{ name: 'Artist 1' }], uri: 'uri1' } }
         ];
 
-        (getItunesPreview as any).mockResolvedValue(null);
+        (getItunesPreview as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
         const { result } = renderHook(() => useGameLogic('fake-token', false));
 
@@ -86,7 +217,7 @@ describe('useGameLogic - Auto Skip', () => {
             tracks: [{ id: 'guest1', name: 'Guest Song', artists: [{ name: 'Guest Artist' }] }]
         }];
 
-        (getItunesPreview as any).mockResolvedValue({ previewUrl: 'url', artworkUrl: 'art' });
+        (getItunesPreview as ReturnType<typeof vi.fn>).mockResolvedValue({ previewUrl: 'url', artworkUrl: 'art' });
 
         const { result } = renderHook(() => useGameLogic('fake-token', false, mockManualPlaylists as any, true));
 

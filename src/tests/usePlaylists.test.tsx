@@ -72,6 +72,7 @@ describe('usePlaylists hook', () => {
         });
 
         expect(result.current.playlists).toEqual([]);
+        expect(result.current.playlistError).toContain('Failed to load playlists');
     });
 
     it('handles 401 Unauthorized gracefully', async () => {
@@ -88,5 +89,6 @@ describe('usePlaylists hook', () => {
         });
 
         expect(result.current.playlists).toEqual([]);
+        expect(result.current.playlistError).toContain('session has expired');
     });
 });
