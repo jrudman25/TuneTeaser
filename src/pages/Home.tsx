@@ -108,21 +108,16 @@ const Home = () => {
     };
 
     const handleLogout = async () => {
-        if (isManualMode) {
-            await signOut(auth);
-            window.location.href = '/';
-            return;
-        }
-
-        if (isGuest) {
-            window.location.href = '/';
-            return;
-        }
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('tokenExpiry');
         localStorage.removeItem('verifier');
         sessionStorage.removeItem('accessToken');
+
+        if (isManualMode) {
+            await signOut(auth);
+        }
+
         window.location.href = '/';
     };
 
