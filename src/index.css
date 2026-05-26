@@ -662,6 +662,13 @@ code {
   box-shadow: 6px 6px 0 rgba(29, 122, 58, 0.22);
 }
 
+.inline-error {
+  color: #9e2e24;
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-top: -4px;
+}
+
 .record-bin,
 .stage-card,
 .result-card,

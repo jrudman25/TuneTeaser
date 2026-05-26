@@ -316,6 +316,10 @@ const PlaylistImportSpotify = () => {
                             />
                         </label>
 
+                        {profileUrl.trim() && !sourceUserId && (
+                            <div className="inline-error">{validateProfileUrl(profileUrl) || 'This link does not contain a valid Spotify user ID.'}</div>
+                        )}
+
                         {sourceUserId && (
                             <div className="action-row">
                                 <button
@@ -428,6 +432,10 @@ const PlaylistImportSpotify = () => {
                                 placeholder="https://open.spotify.com/playlist/..."
                             />
                         </label>
+
+                        {playlistUrl.trim() && !sourcePlaylistId && (
+                            <div className="inline-error">{validatePlaylistUrl(playlistUrl) || 'This link does not contain a valid Spotify playlist ID.'}</div>
+                        )}
 
                         {sourcePlaylistId && (
                             <div className="action-row">
