@@ -985,6 +985,58 @@ code {
   }
 }
 
+.filter-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.filter-controls .text-input {
+  width: auto;
+  min-width: 180px;
+  padding: 8px 14px;
+  font-size: 0.95rem;
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  background: var(--cream);
+  font-weight: 800;
+  box-shadow: 3px 3px 0 var(--ink);
+  height: 40px;
+}
+
+.filter-controls select.text-input {
+  cursor: pointer;
+  padding-right: 32px;
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2321170f' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px;
+}
+
+.filter-controls select.text-input:hover:not(:disabled),
+.filter-controls .text-input:focus {
+  background-color: #fffdec;
+  outline: none;
+}
+
+.filter-controls .button-quiet {
+  min-height: auto;
+  height: 40px;
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  padding: 0 14px;
+  font-size: 0.95rem;
+  font-weight: 900;
+  box-shadow: 3px 3px 0 var(--ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--cream);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

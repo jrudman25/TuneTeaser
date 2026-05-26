@@ -19,12 +19,51 @@ const Playlists = () => {
         deleteManualPlaylist
     } = useManualPlaylists(user);
 
+    const [searchQuery, setSearchQuery] = React.useState('');
+    const [sortBy, setSortBy] = React.useState<'default' | 'name' | 'tracks'>('default');
+    const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('desc'); // Default to newest for added date
+
+    const filteredAndSortedPlaylists = React.useMemo(() => {
+        let result = manualPlaylists.map((p, index) => ({ ...p, originalIndex: index }));
+
+        if (searchQuery.trim()) {
+            const lowerQuery = searchQuery.toLowerCase();
+            result = result.filter(p => p.name?.toLowerCase().includes(lowerQuery));
+        }
+
+        result.sort((a, b) => {
+            let cmp = 0;
+            if (sortBy === 'name') {
+                cmp = (a.name || '').localeCompare(b.name || '');
+            } else if (sortBy === 'tracks') {
+                const aCount = a.tracks?.length || 0;
+                const bCount = b.tracks?.length || 0;
+                cmp = aCount - bCount;
+            } else {
+                // For 'default' (add date), rely on the original index (or createdAt if available)
+                // Assuming original index represents order fetched, typically chronological or reverse
+                const aTime = a.createdAt?.seconds || a.originalIndex;
+                const bTime = b.createdAt?.seconds || b.originalIndex;
+                cmp = aTime - bTime;
+            }
+
+            return sortDir === 'asc' ? cmp : -cmp;
+        });
+
+        return result;
+    }, [manualPlaylists, searchQuery, sortBy, sortDir]);
+
     const hasPlaylists = manualPlaylists.length > 0;
-    const playlistPageCount = Math.ceil(manualPlaylists.length / MANUAL_PLAYLISTS_PER_PAGE);
-    const paginatedManualPlaylists = manualPlaylists.slice(
+    const playlistPageCount = Math.ceil(filteredAndSortedPlaylists.length / MANUAL_PLAYLISTS_PER_PAGE);
+    const paginatedManualPlaylists = filteredAndSortedPlaylists.slice(
         playlistPage * MANUAL_PLAYLISTS_PER_PAGE,
         (playlistPage + 1) * MANUAL_PLAYLISTS_PER_PAGE
     );
+
+    // Reset pagination when filter/sort changes
+    React.useEffect(() => {
+        setPlaylistPage(0);
+    }, [searchQuery, sortBy, sortDir]);
 
     React.useEffect(() => {
         if (!isLoadingUser && !user) {
@@ -98,6 +137,35 @@ const Playlists = () => {
                     </Link>
                 </div>
 
+                {hasPlaylists && (
+                    <div className="filter-controls">
+                        <input
+                            type="text"
+                            className="text-input"
+                            placeholder="Search playlists..."
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                        />
+                        <select
+                            className="text-input"
+                            value={sortBy}
+                            onChange={e => setSortBy(e.target.value as any)}
+                        >
+                            <option value="default">Date Added</option>
+                            <option value="name">Name</option>
+                            <option value="tracks">Track Count</option>
+                        </select>
+                        <button
+                            className="button button-quiet"
+                            onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+                            title="Toggle Sort Direction"
+                            type="button"
+                        >
+                            {sortDir === 'asc' ? '↑' : '↓'}
+                        </button>
+                    </div>
+                )}
+
                 {isLoadingManualPlaylists ? (
                     <div className="loading-card">Loading playlists...</div>
                 ) : hasPlaylists ? (
@@ -126,6 +194,11 @@ const Playlists = () => {
                                 </li>
                             ))}
                         </ul>
+                        {filteredAndSortedPlaylists.length === 0 && searchQuery && (
+                            <div style={{ padding: '2rem', textAlign: 'center', opacity: 0.7 }}>
+                                No playlists found matching "{searchQuery}"
+                            </div>
+                        )}
                         {playlistPageCount > 1 && (
                             <div className="pagination-row">
                                 <button

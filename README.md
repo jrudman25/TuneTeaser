@@ -15,6 +15,7 @@
 *   **Smart Matching**: Guesses don't need to be perfect (ignores case and punctuation).
 *   **Dynamic Difficulty**: Snippets start short (2s) and grow longer if you're stumped.
 *   **Play Your Way**: Import multiple public playlists one at a time, or page through and select public playlists from a Spotify profile.
+*   **Crate Sorting & Filtering**: Find the perfect playlist in your library quickly with title-based searching and sorting by Name, Track Count, and Date Added (including reverse sorting).
 *   **Account Clarity**: Signed-in pages show which TuneTeaser account is active.
 *   **Retro Arcade Design**: A record-shop inspired interface with arcade-style game panels, responsive layouts, and accessible focus states.
 
