@@ -40,8 +40,8 @@ const Playlists = () => {
             if (sortBy === 'name') {
                 cmp = (a.name || '').localeCompare(b.name || '');
             } else if (sortBy === 'tracks') {
-                const aCount = a.tracks?.length || 0;
-                const bCount = b.tracks?.length || 0;
+                const aCount = a.importedCount !== undefined ? a.importedCount : (a.tracks?.length || 0);
+                const bCount = b.importedCount !== undefined ? b.importedCount : (b.tracks?.length || 0);
                 cmp = aCount - bCount;
             } else {
                 // For 'default' (add date), rely on the original index (or createdAt if available)
@@ -205,28 +205,40 @@ const Playlists = () => {
                 ) : hasPlaylists ? (
                     <>
                         <ul className="record-grid">
-                            {paginatedManualPlaylists.map(playlist => (
-                                <li key={playlist.id}>
-                                    <article className="playlist-card playlist-library-card">
-                                        <span className="playlist-label">{getPlaylistSourceLabel(playlist.sourceUrl)}</span>
-                                        <h3 className="playlist-name">{playlist.name}</h3>
-                                        <p className="playlist-meta">{playlist.tracks.length} tracks</p>
-                                        <p className="playlist-meta">Added {formatPlaylistDate(playlist.createdAt)}</p>
-                                        {playlist.sourceUrl && (
-                                            <a className="text-link" href={playlist.sourceUrl} target="_blank" rel="noreferrer">
-                                                Spotify source
-                                            </a>
-                                        )}
-                                        <button
-                                            className="button button-danger"
-                                            type="button"
-                                            onClick={() => handleDelete(playlist.id, playlist.name)}
-                                        >
-                                            Delete
-                                        </button>
-                                    </article>
-                                </li>
-                            ))}
+                            {paginatedManualPlaylists.map(playlist => {
+                                const isImporting = playlist.status === 'importing';
+                                return (
+                                    <li key={playlist.id}>
+                                        <article className="playlist-card playlist-library-card" style={{ position: 'relative', overflow: 'hidden' }}>
+                                            {isImporting && (
+                                                <div className="playlist-card-importing-overlay">
+                                                    <span>Importing</span>
+                                                    <span style={{ fontSize: '0.85rem', fontFamily: 'var(--body)', fontWeight: 900, color: 'var(--cream)' }}>
+                                                        {playlist.importedCount || 0} / {playlist.totalCount || 100} tracks
+                                                    </span>
+                                                </div>
+                                            )}
+                                            <span className="playlist-label">{getPlaylistSourceLabel(playlist.sourceUrl)}</span>
+                                            <h3 className="playlist-name">{playlist.name}</h3>
+                                            <p className="playlist-meta">{playlist.importedCount !== undefined ? playlist.importedCount : playlist.tracks.length} tracks</p>
+                                            <p className="playlist-meta">Added {formatPlaylistDate(playlist.createdAt)}</p>
+                                            {playlist.sourceUrl && (
+                                                <a className="text-link" href={playlist.sourceUrl} target="_blank" rel="noreferrer">
+                                                    Spotify source
+                                                </a>
+                                            )}
+                                            <button
+                                                className="button button-danger"
+                                                type="button"
+                                                onClick={() => handleDelete(playlist.id, playlist.name)}
+                                                disabled={isImporting}
+                                            >
+                                                Delete
+                                            </button>
+                                        </article>
+                                    </li>
+                                );
+                            })}
                         </ul>
                         {filteredAndSortedPlaylists.length === 0 && searchQuery && (
                             <div style={{ padding: '2rem', textAlign: 'center', opacity: 0.7 }}>

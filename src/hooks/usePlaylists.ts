@@ -22,7 +22,7 @@ export const usePlaylists = (
             return [
                 ...manualPlaylists.map(playlist => ({
                     ...playlist,
-                    tracks: { total: playlist.tracks.length }
+                    tracks: { total: playlist.importedCount !== undefined ? playlist.importedCount : playlist.tracks.length }
                 })),
                 ...GUEST_PLAYLISTS
             ];

@@ -17,6 +17,10 @@ export interface ManualPlaylist {
     tracks: ManualTrack[];
     createdAt?: any;
     updatedAt?: any;
+    status?: 'ready' | 'importing';
+    importedCount?: number;
+    totalCount?: number;
+    tracksUrl?: string;
 }
 
 export interface ParsedPlaylistLines {

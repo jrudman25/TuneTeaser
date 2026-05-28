@@ -1,4 +1,5 @@
 import { initializeApp } from 'firebase-admin/app';
+import { getStorage } from 'firebase-admin/storage';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import { fetchPlaylistName, fetchPlaylistTracks, fetchSpotifyTracks, fetchUserPlaylists, getSpotifyAccessToken, normalizeTrackIds } from './spotify';
@@ -107,6 +108,8 @@ export const importSpotifyPlaylist = onCall({
     const playlistId = typeof request.data?.playlistId === 'string'
         ? request.data.playlistId.trim()
         : '';
+    const offset = typeof request.data?.offset === 'number' ? request.data.offset : 0;
+    const limit = typeof request.data?.limit === 'number' ? request.data.limit : 100;
 
     if (!PLAYLIST_ID_PATTERN.test(playlistId)) {
         throw new HttpsError('invalid-argument', 'Invalid Spotify playlist ID.');
@@ -114,7 +117,7 @@ export const importSpotifyPlaylist = onCall({
 
     try {
         const accessToken = await getSpotifyAccessToken(spotifyClientId.value(), spotifyClientSecret.value());
-        return await fetchPlaylistTracks(playlistId, accessToken);
+        return await fetchPlaylistTracks(playlistId, accessToken, offset, limit);
     } catch (error: any) {
         const message = error.message || 'Could not import playlist.';
         if (message.includes('not found')) {
@@ -124,5 +127,39 @@ export const importSpotifyPlaylist = onCall({
             throw new HttpsError('permission-denied', message);
         }
         throw new HttpsError('internal', message);
+    }
+});
+
+export const getManualPlaylistTracks = onCall({
+    timeoutSeconds: 30,
+    memory: '256MiB',
+    invoker: 'public'
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'You must be logged in.');
+    }
+
+    const playlistId = typeof request.data?.playlistId === 'string'
+        ? request.data.playlistId.trim()
+        : '';
+
+    if (!playlistId) {
+        throw new HttpsError('invalid-argument', 'Playlist ID is required.');
+    }
+
+    const userId = request.auth.uid;
+    const bucket = getStorage().bucket();
+    const file = bucket.file(`users/${userId}/playlists/${playlistId}.json`);
+
+    try {
+        const [exists] = await file.exists();
+        if (!exists) {
+            return { tracks: [] };
+        }
+        const [content] = await file.download();
+        const tracks = JSON.parse(content.toString('utf-8'));
+        return { tracks };
+    } catch (error: any) {
+        throw new HttpsError('internal', error.message || 'Could not fetch tracks from Storage.');
     }
 });

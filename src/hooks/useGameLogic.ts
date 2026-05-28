@@ -8,8 +8,9 @@ import usePreviewPlayer from './usePreviewPlayer';
 import { getItunesPreview } from '../utils/itunes';
 import { normalizeString } from '../utils/stringUtils';
 import { GUEST_TRACKS } from '../utils/guestData';
-import { ManualPlaylist, manualTracksToGameItems } from '../utils/manualPlaylists';
+import { ManualPlaylist, ManualTrack, manualTracksToGameItems } from '../utils/manualPlaylists';
 import { calculatePoints } from '../utils/scoreUtils';
+import { getManualPlaylistTracks } from '../utils/spotifyPlaylistImporter';
 
 export const useGameLogic = (
     accessToken: string | null,
@@ -201,8 +202,7 @@ export const useGameLogic = (
 
         setFeedbackMessage("Loading tracks... Game will start soon.");
 
-        if (isGuest) {
-            // Guest Mode Loading
+        if (isGuest || isManualMode) {
             const tracks = GUEST_TRACKS[playlistId];
             if (tracks) {
                 setCurrentTracks(tracks);
@@ -210,26 +210,18 @@ export const useGameLogic = (
             } else {
                 const playlist = manualPlaylistsRef.current.find((manualPlaylist) => manualPlaylist.id === playlistId);
                 if (playlist) {
-                    const tracks = manualTracksToGameItems(playlist.tracks);
-                    setCurrentTracks(tracks);
-                    await startGame(tracks);
-                } else {
-                    setFeedbackMessage("Error: Playlist not found.");
-                    setIsLoadingGame(false);
-                }
-            }
-            return;
-        }
-
-        if (isManualMode) {
-            const tracks = GUEST_TRACKS[playlistId];
-            if (tracks) {
-                setCurrentTracks(tracks);
-                await startGame(tracks);
-            } else {
-                const playlist = manualPlaylistsRef.current.find((manualPlaylist) => manualPlaylist.id === playlistId);
-                if (playlist) {
-                    const tracks = manualTracksToGameItems(playlist.tracks);
+                    let rawTracks: ManualTrack[] = [];
+                    if (playlist.tracksUrl) {
+                        try {
+                            rawTracks = await getManualPlaylistTracks(playlist.id);
+                        } catch (e) {
+                            console.error("Failed to load tracks from Storage URL:", e);
+                            rawTracks = playlist.tracks || [];
+                        }
+                    } else {
+                        rawTracks = playlist.tracks || [];
+                    }
+                    const tracks = manualTracksToGameItems(rawTracks);
                     setCurrentTracks(tracks);
                     await startGame(tracks);
                 } else {

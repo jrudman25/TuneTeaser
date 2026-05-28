@@ -28,6 +28,16 @@ describe('usePlaylists hook', () => {
         expect(result.current.playlists[0].tracks.total).toBe(1);
     });
 
+    it('sets tracks.total from importedCount when defined (Cloud Storage offload)', () => {
+        const mockManualPlaylists = [
+            { id: '1', name: 'Manual 1', tracks: [], importedCount: 42 } as any
+        ];
+        
+        const { result } = renderHook(() => usePlaylists(null, false, mockManualPlaylists, true));
+
+        expect(result.current.playlists[0].tracks.total).toBe(42);
+    });
+
     it('fetches Spotify playlists when token is provided', async () => {
         const mockSpotifyResponse = {
             items: [{ id: 'spotify1', name: 'Spotify Playlist 1' }],

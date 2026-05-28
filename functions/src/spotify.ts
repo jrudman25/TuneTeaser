@@ -226,66 +226,64 @@ interface SpotifyPlaylistTracksPage {
     next: string | null;
     total: number;
 }
-
-const MAX_PLAYLIST_TRACKS = 200;
 const PLAYLIST_TRACKS_FIELDS = 'items(track(id,name,artists(name),album(name,images(url)),external_urls(spotify))),next,total';
 
 export const fetchPlaylistTracks = async (
     playlistId: string,
-    accessToken: string
-): Promise<{ name: string; tracks: ResolvedSpotifyTrack[]; errors: string[] }> => {
+    accessToken: string,
+    offset = 0,
+    limit = 100
+): Promise<{ name: string; tracks: ResolvedSpotifyTrack[]; total: number; errors: string[] }> => {
     const headers = { Authorization: `Bearer ${accessToken}` };
     const tracks: ResolvedSpotifyTrack[] = [];
     const errors: string[] = [];
 
-    // First request includes playlist name
-    const firstUrl = `${SPOTIFY_PLAYLISTS_URL}/${playlistId}?fields=name,tracks(${PLAYLIST_TRACKS_FIELDS})`;
-    const firstResponse = await fetch(firstUrl, { headers });
+    if (offset === 0) {
+        // Fetch playlist name and the first page of tracks
+        const url = `${SPOTIFY_PLAYLISTS_URL}/${playlistId}?fields=name,tracks(${PLAYLIST_TRACKS_FIELDS})`;
+        const response = await fetch(url, { headers });
 
-    if (!firstResponse.ok) {
-        if (firstResponse.status === 404) {
-            throw new Error('This playlist was not found. It may be private -- make it public on Spotify, then try again.');
+        if (!response.ok) {
+            if (response.status === 404) {
+                throw new Error('This playlist was not found. It may be private -- make it public on Spotify, then try again.');
+            }
+            if (response.status === 403) {
+                throw new Error('This playlist is private. Make it public on Spotify, then try again.');
+            }
+            throw new Error(`Spotify returned an error (${response.status}). Please try again.`);
         }
-        if (firstResponse.status === 403) {
-            throw new Error('This playlist is private. Make it public on Spotify, then try again.');
-        }
-        throw new Error(`Spotify returned an error (${firstResponse.status}). Please try again.`);
-    }
 
-    const firstData = await firstResponse.json() as {
-        name?: string;
-        tracks?: SpotifyPlaylistTracksPage;
-    };
+        const data = await response.json() as {
+            name?: string;
+            tracks?: SpotifyPlaylistTracksPage;
+        };
 
-    const playlistName = firstData.name || '';
-    const totalTracks = firstData.tracks?.total || 0;
+        const playlistName = data.name || 'Untitled Playlist';
+        const total = data.tracks?.total || 0;
 
-    if (totalTracks > MAX_PLAYLIST_TRACKS) {
-        errors.push(`This playlist has ${totalTracks} tracks. Only the first ${MAX_PLAYLIST_TRACKS} will be imported.`);
-    }
-
-    // Process first page
-    for (const item of firstData.tracks?.items || []) {
-        if (!item.track) continue;
-        tracks.push(mapSpotifyTrack(item.track));
-        if (tracks.length >= MAX_PLAYLIST_TRACKS) break;
-    }
-
-    // Paginate through remaining tracks
-    let nextUrl = firstData.tracks?.next || null;
-    while (nextUrl && tracks.length < MAX_PLAYLIST_TRACKS) {
-        const pageResponse = await fetch(nextUrl, { headers });
-        if (!pageResponse.ok) break;
-
-        const pageData = await pageResponse.json() as SpotifyPlaylistTracksPage;
-        for (const item of pageData.items || []) {
+        for (const item of data.tracks?.items || []) {
             if (!item.track) continue;
             tracks.push(mapSpotifyTrack(item.track));
-            if (tracks.length >= MAX_PLAYLIST_TRACKS) break;
         }
 
-        nextUrl = pageData.next;
-    }
+        return { name: playlistName, tracks, total, errors };
+    } else {
+        // Fetch a specific page of tracks
+        const url = `${SPOTIFY_PLAYLISTS_URL}/${playlistId}/tracks?offset=${offset}&limit=${limit}&fields=${PLAYLIST_TRACKS_FIELDS}`;
+        const response = await fetch(url, { headers });
 
-    return { name: playlistName, tracks, errors };
+        if (!response.ok) {
+            throw new Error(`Spotify returned an error (${response.status}) for offset ${offset}.`);
+        }
+
+        const data = await response.json() as SpotifyPlaylistTracksPage;
+        const total = data.total || 0;
+
+        for (const item of data.items || []) {
+            if (!item.track) continue;
+            tracks.push(mapSpotifyTrack(item.track));
+        }
+
+        return { name: '', tracks, total, errors };
+    }
 };

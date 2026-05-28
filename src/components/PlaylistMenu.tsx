@@ -143,32 +143,46 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
                                 </button>
                             </li>
                         )}
-                        {filteredAndSortedPlaylists.slice(clampedPage * PLAYLISTS_PER_PAGE, (clampedPage + 1) * PLAYLISTS_PER_PAGE).map((playlist: any) => (
-                            <li key={playlist.id}>
-                                <button
-                                    className="playlist-card"
-                                    onClick={() => onSelectPlaylist(playlist.id)}
-                                    disabled={isLoading}
-                                >
-                                    <span className="playlist-label">Playlist</span>
-                                    <span className="playlist-name">{playlist.name}</span>
-                                    <span className="playlist-meta" style={{ fontSize: '0.85rem' }}>
-                                        {playlist.tracks?.total ?? playlist.tracks?.length ?? 0} tracks
-                                    </span>
-                                    {playlist.id.startsWith('guest_') && !playlist.id.startsWith('guest_manual_') ? (
+                        {filteredAndSortedPlaylists.slice(clampedPage * PLAYLISTS_PER_PAGE, (clampedPage + 1) * PLAYLISTS_PER_PAGE).map((playlist: any) => {
+                            const isImporting = playlist.status === 'importing';
+                            return (
+                                <li key={playlist.id}>
+                                    <button
+                                        className="playlist-card"
+                                        onClick={() => {
+                                            if (isImporting) return;
+                                            onSelectPlaylist(playlist.id);
+                                        }}
+                                        disabled={isLoading || isImporting}
+                                    >
+                                        {isImporting && (
+                                            <div className="playlist-card-importing-overlay">
+                                                <span>Importing</span>
+                                                <span style={{ fontSize: '0.85rem', fontFamily: 'var(--body)', fontWeight: 900, color: 'var(--cream)' }}>
+                                                    {playlist.importedCount || 0} / {playlist.totalCount || 100} tracks
+                                                </span>
+                                            </div>
+                                        )}
+                                        <span className="playlist-label">Playlist</span>
+                                        <span className="playlist-name">{playlist.name}</span>
                                         <span className="playlist-meta" style={{ fontSize: '0.85rem' }}>
-                                            Premade
+                                            {playlist.tracks?.total ?? playlist.tracks?.length ?? 0} tracks
                                         </span>
-                                    ) : (
-                                        playlist.createdAt && (
+                                        {playlist.id.startsWith('guest_') && !playlist.id.startsWith('guest_manual_') ? (
                                             <span className="playlist-meta" style={{ fontSize: '0.85rem' }}>
-                                                Added {formatPlaylistDate(playlist.createdAt)}
+                                                Premade
                                             </span>
-                                        )
-                                    )}
-                                </button>
-                            </li>
-                        ))}
+                                        ) : (
+                                            playlist.createdAt && (
+                                                <span className="playlist-meta" style={{ fontSize: '0.85rem' }}>
+                                                    Added {formatPlaylistDate(playlist.createdAt)}
+                                                </span>
+                                            )
+                                        )}
+                                    </button>
+                                </li>
+                            );
+                        })}
                     </ul>
                     {filteredAndSortedPlaylists.length === 0 && searchQuery && (
                         <div style={{ padding: '2rem', textAlign: 'center', opacity: 0.7 }}>

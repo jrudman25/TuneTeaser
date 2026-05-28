@@ -32,6 +32,7 @@ const PlaylistImportSpotify = () => {
     const nameWasAutoFilled = useRef(false);
     const [isImporting, setIsImporting] = useState(false);
     const [importedTracks, setImportedTracks] = useState<ManualTrack[]>([]);
+    const [importedTotal, setImportedTotal] = useState(0);
     const [importedForUrl, setImportedForUrl] = useState('');
     const [formError, setFormError] = useState('');
     const [importErrors, setImportErrors] = useState<string[]>([]);
@@ -139,8 +140,9 @@ const PlaylistImportSpotify = () => {
         setSaveSuccessMessage('');
         setIsImporting(true);
         try {
-            const result = await importSpotifyPlaylist(sourcePlaylistId);
+            const result = await importSpotifyPlaylist(sourcePlaylistId, 0, 100);
             setImportedTracks(result.tracks);
+            setImportedTotal(result.total || result.tracks.length);
             setImportedForUrl(playlistUrl.trim());
             setImportErrors(result.errors || []);
 
@@ -209,12 +211,22 @@ const PlaylistImportSpotify = () => {
         const results: BatchImportResult[] = [];
         for (const playlist of selectedProfilePlaylists) {
             try {
-                const importedPlaylist = await importSpotifyPlaylist(playlist.id);
+                const importedPlaylist = await importSpotifyPlaylist(playlist.id, 0, 100);
                 if (importedPlaylist.tracks.length < 2) {
                     throw new Error('At least 2 tracks are required.');
                 }
 
-                await addManualPlaylist(importedPlaylist.name || playlist.name, playlist.externalUrl, importedPlaylist.tracks);
+                const total = importedPlaylist.total || importedPlaylist.tracks.length;
+                const status = total > importedPlaylist.tracks.length ? 'importing' : 'ready';
+
+                await addManualPlaylist(
+                    importedPlaylist.name || playlist.name,
+                    playlist.externalUrl,
+                    importedPlaylist.tracks,
+                    status,
+                    importedPlaylist.tracks.length,
+                    total
+                );
                 const warningSuffix = importedPlaylist.errors?.length ? ` ${importedPlaylist.errors.join(' ')}` : '';
                 results.push({
                     playlistId: playlist.id,
@@ -269,11 +281,22 @@ const PlaylistImportSpotify = () => {
 
         setIsSaving(true);
         try {
-            await addManualPlaylist(playlistName, playlistUrl, currentTracks);
+            const total = importedTotal || currentTracks.length;
+            const status = total > currentTracks.length ? 'importing' : 'ready';
+
+            await addManualPlaylist(
+                playlistName,
+                playlistUrl,
+                currentTracks,
+                status,
+                currentTracks.length,
+                total
+            );
             setSaveSuccessMessage(`Saved "${playlistName.trim()}". Paste another playlist URL to import another.`);
             setPlaylistUrl('');
             setPlaylistName('');
             setImportedTracks([]);
+            setImportedTotal(0);
             setImportedForUrl('');
             setImportErrors([]);
             nameWasAutoFilled.current = false;
@@ -467,7 +490,11 @@ const PlaylistImportSpotify = () => {
                                     {isImporting ? 'Importing...' : 'Import Tracks from Playlist'}
                                 </button>
                                 {importIsCurrent && currentTracks.length > 0 && (
-                                    <span className="snippet-meter">{currentTracks.length} tracks imported</span>
+                                    <span className="snippet-meter">
+                                        {importedTotal > currentTracks.length
+                                            ? `${importedTotal.toLocaleString()} tracks found (first 100 loaded, remainder will import in background)`
+                                            : `${currentTracks.length} tracks imported`}
+                                    </span>
                                 )}
                             </div>
                         )}

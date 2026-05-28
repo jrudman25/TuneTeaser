@@ -698,6 +698,8 @@ code {
 }
 
 .playlist-card {
+  position: relative;
+  overflow: hidden;
   display: grid;
   grid-template-rows: auto 1fr;
   align-content: start;
@@ -716,6 +718,24 @@ code {
     linear-gradient(135deg, var(--cream), #f1d680);
   box-shadow: 6px 6px 0 var(--ink);
   transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.playlist-card-importing-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(33, 23, 15, 0.92);
+  color: var(--gold);
+  font-family: var(--display);
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  z-index: 2;
+  gap: 6px;
+  text-align: center;
 }
 
 .playlist-card:hover:not(:disabled) {
