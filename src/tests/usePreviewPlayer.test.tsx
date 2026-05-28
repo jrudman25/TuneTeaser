@@ -20,7 +20,7 @@ describe('usePreviewPlayer hook', () => {
             currentTime = 0;
             src = '';
             addEventListener = vi.fn((event, cb) => {
-                if (event === 'canplay') {
+                if (event === 'canplay' || event === 'playing') {
                     cb(); // trigger immediately
                 }
             });

@@ -19,6 +19,7 @@ import PlaylistMenu from '../components/PlaylistMenu';
 import ActiveGame from '../components/ActiveGame';
 import GameResult from '../components/GameResult';
 import SignedInBadge from '../components/SignedInBadge';
+import NavBar from '../components/NavBar';
 
 const Home = () => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -172,91 +173,100 @@ const Home = () => {
 
     if (isLoggingOut) {
         return (
-            <main className="page home-page">
-                <div className="loading-card">Logging out...</div>
-            </main>
+            <>
+                <NavBar />
+                <main className="page home-page">
+                    <div className="loading-card">Logging out...</div>
+                </main>
+            </>
         );
     }
 
+    const statusBadge = (
+        <div className="status-stack">
+            <span className="status-badge">
+                {isGuest ? 'Guest mode' : isManualMode ? 'Logged in with TuneTeaser' : 'Logged in with Spotify'}
+            </span>
+            {isManualMode ? <SignedInBadge user={user} /> : !isGuest && <span className="account-badge">Signed in with Spotify</span>}
+        </div>
+    );
+
+    const actionButtons = (
+        <div className="action-row">
+            {(isManualMode || isGuest) && (
+                <Link className="button button-secondary" to={isGuest ? "/playlists?mode=guest" : "/playlists"}>
+                    Manage Playlists
+                </Link>
+            )}
+            <button className="button button-danger" onClick={handleLogout}>
+                {isGuest ? 'Exit Guest Mode' : isManualMode ? 'Logout' : 'Logout / Reset Token'}
+            </button>
+        </div>
+    );
+
     return (
-        <main className="page home-page">
-            <section className="top-strip">
-                <div className="status-stack">
-                    <span className="status-badge">
-                        {isGuest ? 'Guest mode' : isManualMode ? 'Logged in with TuneTeaser' : 'Logged in with Spotify'}
-                    </span>
-                    {isManualMode ? <SignedInBadge user={user} /> : !isGuest && <span className="account-badge">Signed in with Spotify</span>}
-                </div>
-                <div className="action-row">
-                    {(isManualMode || isGuest) && (
-                        <Link className="button button-secondary" to={isGuest ? "/playlists?mode=guest" : "/playlists"}>
-                            Manage Playlists
-                        </Link>
-                    )}
-                    <button className="button button-danger" onClick={handleLogout}>
-                        {isGuest ? 'Exit Guest Mode' : isManualMode ? 'Logout' : 'Logout / Reset Token'}
-                    </button>
-                </div>
-            </section>
+        <>
+            <NavBar statusBadge={statusBadge} actionButtons={actionButtons} />
+            <main className="page home-page">
+                {manualPlaylistError && (
+                    <div className="error-banner">
+                        <strong>Error:</strong> {manualPlaylistError}
+                    </div>
+                )}
 
-            {manualPlaylistError && (
-                <div className="error-banner">
-                    <strong>Error:</strong> {manualPlaylistError}
-                </div>
-            )}
+                {playerError && (
+                    <div className="error-banner">
+                        <strong>Error:</strong> {playerError}
+                        <br />
+                        <small>Please try logging out and logging in again.</small>
+                    </div>
+                )}
 
-            {playerError && (
-                <div className="error-banner">
-                    <strong>Error:</strong> {playerError}
-                    <br />
-                    <small>Please try logging out and logging in again.</small>
-                </div>
-            )}
+                {playlistError && (
+                    <div className="error-banner">
+                        <strong>Error:</strong> {playlistError}
+                    </div>
+                )}
 
-            {playlistError && (
-                <div className="error-banner">
-                    <strong>Error:</strong> {playlistError}
-                </div>
-            )}
+                {gameState === 'idle' && (
+                    <PlaylistMenu
+                        playlists={playlists}
+                        isLoading={isLoadingPlaylists || isLoadingManualPlaylists || isLoadingGame || isLoadingUser}
+                        onSelectPlaylist={onSelectPlaylist}
+                        isGuest={isGuest || isManualMode}
+                    />
+                )}
 
-            {gameState === 'idle' && (
-                <PlaylistMenu
-                    playlists={playlists}
-                    isLoading={isLoadingPlaylists || isLoadingManualPlaylists || isLoadingGame || isLoadingUser}
-                    onSelectPlaylist={onSelectPlaylist}
-                    isGuest={isGuest || isManualMode}
-                />
-            )}
+                {gameState === 'playing' && (
+                    <ActiveGame
+                        targetSong={targetSong}
+                        snippetDuration={snippetDuration}
+                        userGuess={userGuess}
+                        setUserGuess={setUserGuess}
+                        onGuessSubmit={handleGuessWithScoring}
+                        onPlaySnippet={playSnippet}
+                        onGiveUp={handleGiveUp}
+                        feedbackMessage={feedbackMessage}
+                        isPlaying={isPlaying}
+                        selectedPlaylistName={selectedPlaylistName}
+                        songs={currentTracks}
+                        volume={volume}
+                        setVolume={setVolume}
+                    />
+                )}
 
-            {gameState === 'playing' && (
-                <ActiveGame
-                    targetSong={targetSong}
-                    snippetDuration={snippetDuration}
-                    userGuess={userGuess}
-                    setUserGuess={setUserGuess}
-                    onGuessSubmit={handleGuessWithScoring}
-                    onPlaySnippet={playSnippet}
-                    onGiveUp={handleGiveUp}
-                    feedbackMessage={feedbackMessage}
-                    isPlaying={isPlaying}
-                    selectedPlaylistName={selectedPlaylistName}
-                    songs={currentTracks}
-                    volume={volume}
-                    setVolume={setVolume}
-                />
-            )}
-
-            {gameState === 'end' && (
-                <GameResult
-                    targetSong={targetSong}
-                    feedbackMessage={feedbackMessage}
-                    onPlayAgain={handlePlayAgain}
-                    onSelectNewPlaylist={handleSelectNewPlaylist}
-                    isLoading={isLoadingGame}
-                    earnedPoints={displayedPoints}
-                />
-            )}
-        </main>
+                {gameState === 'end' && (
+                    <GameResult
+                        targetSong={targetSong}
+                        feedbackMessage={feedbackMessage}
+                        onPlayAgain={handlePlayAgain}
+                        onSelectNewPlaylist={handleSelectNewPlaylist}
+                        isLoading={isLoadingGame}
+                        earnedPoints={displayedPoints}
+                    />
+                )}
+            </main>
+        </>
     );
 };
 

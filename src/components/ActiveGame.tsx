@@ -94,7 +94,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
                     freeSolo
                     open={open}
                     onOpen={() => {
-                        if (inputValue.length > 0) {
+                        if (inputValue.length >= 3) {
                             setOpen(true);
                         }
                     }}
@@ -108,7 +108,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
                     }}
                     options={songOptions}
                     filterOptions={(options, state) => {
-                        if (state.inputValue.length === 0) return [];
+                        if (state.inputValue.length < 3) return [];
                         return options.filter(option =>
                             option.toLowerCase().includes(state.inputValue.toLowerCase())
                         );
@@ -119,7 +119,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
                         setInputValue(newInputValue);
                         setUserGuess(newInputValue);
                         setHighlightedOption(null);
-                        if (newInputValue.length > 0) {
+                        if (newInputValue.length >= 3) {
                             setOpen(true);
                         } else {
                             setOpen(false);

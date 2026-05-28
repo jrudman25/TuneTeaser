@@ -5,6 +5,7 @@ import { useManualPlaylists } from '../hooks/useManualPlaylists';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
 import { resolveSpotifyTracks } from '../utils/spotifyTrackResolver';
 import SignedInBadge from '../components/SignedInBadge';
+import NavBar from '../components/NavBar';
 
 const PlaylistCreateCustom = () => {
     const navigate = useNavigate();
@@ -109,23 +110,34 @@ const PlaylistCreateCustom = () => {
 
     if (isLoadingUser) {
         return (
-            <main className="page home-page">
-                <div className="loading-card">Checking account...</div>
-            </main>
+            <>
+                <NavBar />
+                <main className="page home-page">
+                    <div className="loading-card">Checking account...</div>
+                </main>
+            </>
         );
     }
 
+    const statusBadge = (
+        <div className="status-stack">
+            <span className="status-badge">Build custom playlist</span>
+            <SignedInBadge user={user} />
+        </div>
+    );
+
+    const actionButtons = (
+        <div className="action-row">
+            <Link className="button button-secondary" to="/playlists">
+                Back to Playlists
+            </Link>
+        </div>
+    );
+
     return (
-        <main className="page home-page">
-            <section className="top-strip">
-                <div className="status-stack">
-                    <span className="status-badge">Build custom playlist</span>
-                    <SignedInBadge user={user} />
-                </div>
-                <Link className="button button-secondary" to="/playlists">
-                    Back to Playlists
-                </Link>
-            </section>
+        <>
+            <NavBar statusBadge={statusBadge} actionButtons={actionButtons} />
+            <main className="page home-page">
 
             <section className="record-bin">
                 <div>
@@ -207,6 +219,7 @@ const PlaylistCreateCustom = () => {
                 </form>
             </section>
         </main>
+        </>
     );
 };
 

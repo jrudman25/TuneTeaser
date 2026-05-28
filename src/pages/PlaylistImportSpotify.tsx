@@ -9,6 +9,7 @@ import { extractSpotifyPlaylistId } from '../utils/spotifyPlaylistName';
 import { importSpotifyPlaylist } from '../utils/spotifyPlaylistImporter';
 import { extractSpotifyUserId, fetchSpotifyUserPlaylists, SpotifyUserPlaylist } from '../utils/spotifyUserPlaylists';
 import SignedInBadge from '../components/SignedInBadge';
+import NavBar from '../components/NavBar';
 
 type BatchImportResult = {
     playlistId: string;
@@ -309,23 +310,34 @@ const PlaylistImportSpotify = () => {
 
     if (isLoadingUser) {
         return (
-            <main className="page home-page">
-                <div className="loading-card">Checking account...</div>
-            </main>
+            <>
+                <NavBar />
+                <main className="page home-page">
+                    <div className="loading-card">Checking account...</div>
+                </main>
+            </>
         );
     }
 
+    const statusBadge = (
+        <div className="status-stack">
+            <span className="status-badge">Import from Spotify</span>
+            <SignedInBadge user={isGuest ? null : user} />
+        </div>
+    );
+
+    const actionButtons = (
+        <div className="action-row">
+            <Link className="button button-secondary" to={playlistsPath}>
+                Back to Playlists
+            </Link>
+        </div>
+    );
+
     return (
-        <main className="page home-page">
-            <section className="top-strip">
-                <div className="status-stack">
-                    <span className="status-badge">Import from Spotify</span>
-                    <SignedInBadge user={isGuest ? null : user} />
-                </div>
-                <Link className="button button-secondary" to={playlistsPath}>
-                    Back to Playlists
-                </Link>
-            </section>
+        <>
+            <NavBar statusBadge={statusBadge} actionButtons={actionButtons} />
+            <main className="page home-page">
 
             {authError && (
                 <div className="error-banner">
@@ -545,6 +557,7 @@ const PlaylistImportSpotify = () => {
                 </form>
             </section>
         </main>
+        </>
     );
 };
 

@@ -5,6 +5,7 @@ import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
 import { signInAnonymously } from 'firebase/auth';
 import { auth } from '../backend/FirebaseConfig';
 import SignedInBadge from '../components/SignedInBadge';
+import NavBar from '../components/NavBar';
 
 const MANUAL_PLAYLISTS_PER_PAGE = 8;
 
@@ -80,198 +81,174 @@ const Playlists = () => {
         }
     }, [isGuest, isLoadingUser, user]);
 
-    const handleDelete = async (playlistId: string, name: string) => {
-        const confirmed = window.confirm(`Delete "${name}" from TuneTeaser?`);
-        if (!confirmed) return;
-
-        await deleteManualPlaylist(playlistId);
-    };
-
-    const formatPlaylistDate = (value: any) => {
-        const date = value?.toDate ? value.toDate() : null;
-        return date ? date.toLocaleDateString() : 'Just now';
-    };
-
-    const getPlaylistSourceLabel = (sourceUrl: string) => {
-        return sourceUrl ? 'Spotify import' : 'Custom mix';
-    };
-
-    const onboardingParam = isOnboarding ? '?onboarding=1' : '';
-
     if (isLoadingUser) {
         return (
-            <main className="page home-page">
-                <div className="loading-card">Checking account...</div>
-            </main>
+            <>
+                <NavBar />
+                <main className="page home-page">
+                    <div className="loading-card">Checking account...</div>
+                </main>
+            </>
         );
     }
 
+    const statusBadge = (
+        <div className="status-stack">
+            <span className="status-badge">
+                {isGuest ? 'Guest playlists' : isOnboarding && !hasPlaylists ? 'Add your first playlist' : 'TuneTeaser playlists'}
+            </span>
+            <SignedInBadge user={isGuest ? null : user} />
+        </div>
+    );
+
+    const actionButtons = (hasPlaylists || isGuest || localStorage.getItem('skipPlaylistOnboarding') === 'true') ? (
+        <div className="action-row">
+            <Link className="button button-secondary" to={isGuest ? "/home?mode=guest" : "/home"}>
+                Back to Game
+            </Link>
+        </div>
+    ) : undefined;
+
     return (
-        <main className="page home-page">
-            <section className="top-strip">
-                <div className="status-stack">
-                    <span className="status-badge">
-                        {isGuest ? 'Guest playlists' : isOnboarding && !hasPlaylists ? 'Add your first playlist' : 'TuneTeaser playlists'}
-                    </span>
-                    <SignedInBadge user={isGuest ? null : user} />
-                </div>
-                {(hasPlaylists || isGuest || localStorage.getItem('skipPlaylistOnboarding') === 'true') && (
-                    <Link className="button button-secondary" to={isGuest ? "/home?mode=guest" : "/home"}>
-                        Back to Game
-                    </Link>
-                )}
-            </section>
-
-            {authError && (
-                <div className="error-banner">
-                    <strong>Authentication Error:</strong> {authError}
-                </div>
-            )}
-
-            {manualPlaylistError && <div className="error-banner">{manualPlaylistError}</div>}
-
-            <section className="record-bin">
-                <div>
-                    <span className="eyebrow">Your library</span>
-                    <h2 className="section-title">Playlists</h2>
-                    <p className="body-copy">
-                        Import a Spotify playlist or build one from scratch so TuneTeaser can quiz you on your music.
-                    </p>
-                </div>
-
-                <div className="action-row">
-                    <Link className="button button-large" to={isGuest ? "/playlists/import?mode=guest" : `/playlists/import${onboardingParam}`}>
-                        Import Spotify Playlist
-                    </Link>
-                    {!isGuest && (
-                        <Link className="button button-large button-secondary" to={`/playlists/custom${onboardingParam}`}>
-                            Build Custom Playlist
-                        </Link>
-                    )}
-                    {isOnboarding && (
-                        <button
-                            className="button button-large button-tertiary"
-                            type="button"
-                            onClick={() => {
-                                localStorage.setItem('skipPlaylistOnboarding', 'true');
-                                navigate('/home');
-                            }}
-                        >
-                            Skip for Now (Use Premade Playlists)
-                        </button>
-                    )}
-                </div>
-
-                {hasPlaylists && (
-                    <div className="filter-controls">
-                        <input
-                            type="text"
-                            className="text-input"
-                            placeholder="Search playlists..."
-                            value={searchQuery}
-                            onChange={e => {
-                                setSearchQuery(e.target.value);
-                                setPlaylistPage(0);
-                            }}
-                        />
-                        <select
-                            className="text-input"
-                            value={sortBy}
-                            onChange={e => {
-                                setSortBy(e.target.value as any);
-                                setPlaylistPage(0);
-                            }}
-                        >
-                            <option value="default">Date Added</option>
-                            <option value="name">Name</option>
-                            <option value="tracks">Track Count</option>
-                        </select>
-                        <button
-                            className="button button-quiet"
-                            onClick={() => {
-                                setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-                                setPlaylistPage(0);
-                            }}
-                            title="Toggle Sort Direction"
-                            type="button"
-                        >
-                            {sortDir === 'asc' ? '↑' : '↓'}
-                        </button>
+        <>
+            <NavBar statusBadge={statusBadge} actionButtons={actionButtons} />
+            <main className="page home-page">
+                {authError && (
+                    <div className="error-banner">
+                        <strong>Authentication Error:</strong> {authError}
                     </div>
                 )}
 
-                {isLoadingManualPlaylists ? (
-                    <div className="loading-card">Loading playlists...</div>
-                ) : hasPlaylists ? (
-                    <>
-                        <ul className="record-grid">
-                            {paginatedManualPlaylists.map(playlist => {
-                                const isImporting = playlist.status === 'importing';
-                                return (
-                                    <li key={playlist.id}>
-                                        <article className="playlist-card playlist-library-card" style={{ position: 'relative', overflow: 'hidden' }}>
-                                            {isImporting && (
-                                                <div className="playlist-card-importing-overlay">
-                                                    <span>Importing</span>
-                                                    <span style={{ fontSize: '0.85rem', fontFamily: 'var(--body)', fontWeight: 900, color: 'var(--cream)' }}>
-                                                        {playlist.importedCount || 0} / {playlist.totalCount || 100} tracks
+                {manualPlaylistError && (
+                    <div className="error-banner">
+                        <strong>Error:</strong> {manualPlaylistError}
+                    </div>
+                )}
+
+                <section className="record-bin">
+                    <div>
+                        <span className="eyebrow">{isGuest ? 'Guest crates' : 'Your crates'}</span>
+                        <div className="header-with-actions">
+                            <h2 className="section-title">Music Library</h2>
+                            <div className="library-actions">
+                                <Link className="button button-primary" to={isGuest ? "/playlists/import?mode=guest" : "/playlists/import"}>
+                                    Import Spotify Playlist
+                                </Link>
+                                {!isGuest && (
+                                    <Link className="button button-secondary" to="/playlists/custom">
+                                        Build Custom Playlist
+                                    </Link>
+                                )}
+                            </div>
+                        </div>
+
+                        {manualPlaylists.length > 0 && (
+                            <div className="filter-row">
+                                <input
+                                    type="text"
+                                    placeholder="Search playlists..."
+                                    className="text-input search-input"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                />
+                                <div className="sort-controls">
+                                    <select
+                                        className="text-input sort-select"
+                                        value={sortBy}
+                                        onChange={(e) => setSortBy(e.target.value as any)}
+                                    >
+                                        <option value="default">Sort by Date Added</option>
+                                        <option value="name">Sort by Name</option>
+                                        <option value="tracks">Sort by Track Count</option>
+                                    </select>
+                                    <button
+                                        type="button"
+                                        className="button button-quiet"
+                                        onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+                                        title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
+                                    >
+                                        {sortDir === 'asc' ? '↑' : '↓'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {isLoadingManualPlaylists ? (
+                        <div className="loading-card">Loading playlists...</div>
+                    ) : filteredAndSortedPlaylists.length > 0 ? (
+                        <>
+                            <div className="record-grid">
+                                {paginatedManualPlaylists.map((playlist: any) => (
+                                    <div key={playlist.id} className="record-card-container">
+                                        {playlist.importStatus === 'importing' && (
+                                            <div className="playlist-card-importing-overlay">
+                                                <div className="spinner" />
+                                                <div className="overlay-text">Importing Tracks...</div>
+                                                <div className="overlay-progress">{playlist.tracks?.length || 0} tracks loaded</div>
+                                            </div>
+                                        )}
+                                        <div className="record-card">
+                                            <div className="record-sleeve">
+                                                <div className="record-vinyl" />
+                                                <div className="record-center">
+                                                    <span className="record-label-text">
+                                                        {playlist.tracks?.length || 0} tracks
                                                     </span>
                                                 </div>
-                                            )}
-                                            <span className="playlist-label">{getPlaylistSourceLabel(playlist.sourceUrl)}</span>
-                                            <h3 className="playlist-name">{playlist.name}</h3>
-                                            <p className="playlist-meta">{playlist.importedCount !== undefined ? playlist.importedCount : playlist.tracks.length} tracks</p>
-                                            <p className="playlist-meta">Added {formatPlaylistDate(playlist.createdAt)}</p>
-                                            {playlist.sourceUrl && (
-                                                <a className="text-link" href={playlist.sourceUrl} target="_blank" rel="noreferrer">
-                                                    Spotify source
-                                                </a>
-                                            )}
-                                            <button
-                                                className="button button-danger"
-                                                type="button"
-                                                onClick={() => handleDelete(playlist.id, playlist.name)}
-                                                disabled={isImporting}
-                                            >
-                                                Delete
-                                            </button>
-                                        </article>
-                                    </li>
-                                );
-                            })}
-                        </ul>
-                        {filteredAndSortedPlaylists.length === 0 && searchQuery && (
-                            <div style={{ padding: '2rem', textAlign: 'center', opacity: 0.7 }}>
-                                No playlists found matching "{searchQuery}"
+                                            </div>
+                                            <div className="record-info">
+                                                <h3 className="record-title">{playlist.name}</h3>
+                                                <p className="record-artist">
+                                                    {playlist.importStatus === 'importing' ? (
+                                                        <span className="importing-status-label">Importing...</span>
+                                                    ) : (
+                                                        <>Added {playlist.formattedCreatedAt || 'Just now'}</>
+                                                    )}
+                                                </p>
+                                                <div className="record-actions">
+                                                    <button
+                                                        type="button"
+                                                        className="button button-quiet button-danger"
+                                                        onClick={() => deleteManualPlaylist(playlist.id)}
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                        )}
-                        {playlistPageCount > 1 && (
-                            <div className="pagination-row">
-                                <button
-                                    className="button button-quiet"
-                                    type="button"
-                                    disabled={clampedPage === 0}
-                                    onClick={() => setPlaylistPage(clampedPage - 1)}
-                                >
-                                    Previous
-                                </button>
-                                <span className="snippet-meter">Page {clampedPage + 1} of {playlistPageCount}</span>
-                                <button
-                                    className="button button-quiet"
-                                    type="button"
-                                    disabled={clampedPage + 1 >= playlistPageCount}
-                                    onClick={() => setPlaylistPage(clampedPage + 1)}
-                                >
-                                    Next
-                                </button>
-                            </div>
-                        )}
-                    </>
-                ) : (
-                    <div className="loading-card">Add a playlist to unlock your TuneTeaser library.</div>
-                )}
-            </section>
-        </main>
+
+                            {playlistPageCount > 1 && (
+                                <div className="pagination-row">
+                                    <button
+                                        className="button button-quiet"
+                                        type="button"
+                                        disabled={clampedPage === 0}
+                                        onClick={() => setPlaylistPage(clampedPage - 1)}
+                                    >
+                                        Previous
+                                    </button>
+                                    <span className="snippet-meter">Page {clampedPage + 1} of {playlistPageCount}</span>
+                                    <button
+                                        className="button button-quiet"
+                                        type="button"
+                                        disabled={clampedPage + 1 >= playlistPageCount}
+                                        onClick={() => setPlaylistPage(clampedPage + 1)}
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <div className="loading-card">Add a playlist to unlock your TuneTeaser library.</div>
+                    )}
+                </section>
+            </main>
+        </>
     );
 };
 

@@ -15,15 +15,38 @@
 
 .site-nav {
     position: fixed;
-    top: 18px;
-    left: 50%;
+    top: 0;
+    left: 0;
+    right: 0;
     z-index: 9999;
+    height: 84px;
+    background: rgba(255, 248, 232, 0.76);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-bottom: 3px solid var(--ink);
+    box-shadow: 0 4px 20px var(--shadow);
+    transition: height 0.2s ease, padding 0.2s ease;
+}
+
+.site-nav-inner {
     width: min(1120px, calc(100% - 32px));
+    margin: 0 auto;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    pointer-events: none;
-    transform: translateX(-50%);
+    height: 100%;
+}
+
+.site-nav-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.site-nav-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
 }
 
 .logo-link {
@@ -100,13 +123,32 @@
 
 @media (max-width: 780px) {
     .site-nav {
-        top: 12px;
+        height: auto;
+        padding: 12px 0;
+    }
+    .site-nav-inner {
         width: min(100% - 22px, 1120px);
+        flex-direction: column;
+        gap: 12px;
+        align-items: stretch;
+    }
+
+    .site-nav-left {
+        justify-content: space-between;
+        width: 100%;
+        gap: 12px;
+    }
+
+    .site-nav-right {
+        justify-content: space-between;
+        width: 100%;
+        gap: 12px;
     }
 
     .logo-link {
         width: 54px;
         height: 54px;
+        flex-shrink: 0;
     }
 
     .logo-mark {

@@ -9,6 +9,7 @@ import { signOut } from 'firebase/auth';
 import { auth } from '../backend/FirebaseConfig';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
 import { useLeaderboard } from '../hooks/useLeaderboard';
+import NavBar from '../components/NavBar';
 
 const RANK_LABELS = ['\u{1F947}', '\u{1F948}', '\u{1F949}'];
 
@@ -38,27 +39,36 @@ const Leaderboard = () => {
 
     if (isLoadingUser || isLoading) {
         return (
-            <main className="page home-page">
-                <div className="loading-card">Loading leaderboard...</div>
-            </main>
+            <>
+                <NavBar />
+                <main className="page home-page">
+                    <div className="loading-card">Loading leaderboard...</div>
+                </main>
+            </>
         );
     }
 
     const backPath = user ? '/home' : '/';
     const backLabel = user ? 'Back to Home' : 'Back to Login';
 
+    const statusBadge = (
+        <div className="status-stack">
+            <span className="status-badge">Leaderboard</span>
+        </div>
+    );
+
+    const actionButtons = (
+        <div className="action-row">
+            <Link className="button button-secondary" to={backPath}>
+                {backLabel}
+            </Link>
+        </div>
+    );
+
     return (
-        <main className="page home-page">
-            <section className="top-strip">
-                <div className="status-stack">
-                    <span className="status-badge">Leaderboard</span>
-                </div>
-                <div className="action-row">
-                    <Link className="button button-secondary" to={backPath}>
-                        {backLabel}
-                    </Link>
-                </div>
-            </section>
+        <>
+            <NavBar statusBadge={statusBadge} actionButtons={actionButtons} />
+            <main className="page home-page">
 
             <section className="leaderboard-card">
                 <div>
@@ -177,6 +187,7 @@ const Leaderboard = () => {
                 </div>
             </section>
         </main>
+        </>
     );
 };
 

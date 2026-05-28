@@ -5,11 +5,12 @@
  */
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
+import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signInAnonymously, updateProfile } from 'firebase/auth';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { auth } from '../backend/FirebaseConfig';
 import { redirectToAuthCodeFlow, getAccessToken } from '../utils/auth';
+import NavBar from '../components/NavBar';
 
 const getGracefulAuthErrorMessage = (error: any): string => {
     if (!error || !error.code) {
@@ -41,6 +42,7 @@ const Login = () => {
     const [accountName, setAccountName] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+    const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -161,7 +163,10 @@ const Login = () => {
                     return;
                 }
 
-                await createUserWithEmailAndPassword(auth, email, password);
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                if (username.trim()) {
+                    await updateProfile(userCredential.user, { displayName: username.trim() });
+                }
                 navigate('/playlists?onboarding=1');
             } else {
                 await signInWithEmailAndPassword(auth, email, password);
@@ -175,119 +180,136 @@ const Login = () => {
     };
 
     return (
-        <main className="page hero-page">
-            <section className="hero-card">
-                <div className="hero-copy">
-                    <span className="eyebrow">Name that tune from your own crates</span>
-                    <h1 className="title">TuneTeaser</h1>
-                    <p className="lede">
-                        Drop the needle on a tiny song snippet, race the clock in your head, and prove you know your playlists better than anyone.
-                    </p>
-                    <div className="how-to-card">
-                        <span className="kicker">How it works</span>
-                        <ol className="how-to-list">
-                            <li><span className="number-chip">1</span><span>Sign in, or jump into featured guest playlists.</span></li>
-                            <li><span className="number-chip">2</span><span>Import playlists from Spotify URLs, a Spotify profile, or a custom track list.</span></li>
-                            <li><span className="number-chip">3</span><span>Pick a crate, hear a short snippet, and guess the track title.</span></li>
-                        </ol>
-                    </div>
-                    <div className="hero-actions">
-                        {isLoading ? (
-                            <div className="loading-card">Checking authentication...</div>
-                        ) : (
-                            <>
-                                {accountName ? (
-                                    <p className="lede">Welcome, {accountName}!</p>
-                                ) : (
-                                    <>
-                                        <div className="auth-panel">
-                                            <div className="auth-toggle-row">
-                                                <button
-                                                    type="button"
-                                                    className={`button ${authMode === 'login' ? 'button-tertiary' : 'button-secondary'}`}
-                                                    onClick={() => handleAuthModeChange('login')}
-                                                >
-                                                    Login
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    className={`button ${authMode === 'signup' ? 'button-tertiary' : 'button-secondary'}`}
-                                                    onClick={() => handleAuthModeChange('signup')}
-                                                >
-                                                    Sign Up
-                                                </button>
-                                            </div>
-                                            <form className="auth-form" onSubmit={handleTuneTeaserAuth}>
-                                                <label className="form-label">
-                                                    Email
-                                                    <input
-                                                        className="text-input"
-                                                        type="email"
-                                                        value={email}
-                                                        onChange={(event) => setEmail(event.target.value)}
-                                                        required
-                                                    />
-                                                </label>
-                                                <label className="form-label">
-                                                    Password
-                                                    <span className="password-field">
-                                                        <input
-                                                            className="text-input"
-                                                            type={authMode === 'signup' && showSignupPassword ? 'text' : 'password'}
-                                                            value={password}
-                                                            onChange={(event) => setPassword(event.target.value)}
-                                                            required
-                                                            minLength={6}
-                                                        />
-                                                        {authMode === 'signup' && (
-                                                            <button
-                                                                className="icon-button"
-                                                                type="button"
-                                                                onClick={() => setShowSignupPassword((isShowing) => !isShowing)}
-                                                                aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
-                                                            >
-                                                                {showSignupPassword ? <VisibilityOff /> : <Visibility />}
-                                                            </button>
-                                                        )}
-                                                    </span>
-                                                </label>
-                                                {authMode === 'signup' && (
+        <>
+            <NavBar />
+            <main className="page hero-page">
+                <section className="hero-card">
+                    <div className="hero-copy">
+                        <span className="eyebrow">Name that tune from your own crates</span>
+                        <h1 className="title">TuneTeaser</h1>
+                        <p className="lede">
+                            Drop the needle on a tiny song snippet, race the clock in your head, and prove you know your playlists better than anyone.
+                        </p>
+                        <div className="how-to-card">
+                            <span className="kicker">How it works</span>
+                            <ol className="how-to-list">
+                                <li><span className="number-chip">1</span><span>Sign in, or jump into featured guest playlists.</span></li>
+                                <li><span className="number-chip">2</span><span>Import playlists from Spotify URLs, a Spotify profile, or a custom track list.</span></li>
+                                <li><span className="number-chip">3</span><span>Pick a crate, hear a short snippet, and guess the track title.</span></li>
+                            </ol>
+                        </div>
+                        <div className="hero-actions">
+                            {isLoading ? (
+                                <div className="loading-card">Checking authentication...</div>
+                            ) : (
+                                <>
+                                    {accountName ? (
+                                        <p className="lede">Welcome, {accountName}!</p>
+                                    ) : (
+                                        <>
+                                            <div className="auth-panel">
+                                                <div className="auth-toggle-row">
+                                                    <button
+                                                        type="button"
+                                                        className={`button ${authMode === 'login' ? 'button-tertiary' : 'button-secondary'}`}
+                                                        onClick={() => handleAuthModeChange('login')}
+                                                    >
+                                                        Login
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className={`button ${authMode === 'signup' ? 'button-tertiary' : 'button-secondary'}`}
+                                                        onClick={() => handleAuthModeChange('signup')}
+                                                    >
+                                                        Sign Up
+                                                    </button>
+                                                </div>
+                                                <form className="auth-form" onSubmit={handleTuneTeaserAuth}>
+                                                    {authMode === 'signup' && (
+                                                        <label className="form-label">
+                                                            Username (Leaderboard Display Name)
+                                                            <input
+                                                                className="text-input"
+                                                                type="text"
+                                                                value={username}
+                                                                onChange={(event) => setUsername(event.target.value)}
+                                                                placeholder="Username"
+                                                                required
+                                                                maxLength={20}
+                                                            />
+                                                        </label>
+                                                    )}
                                                     <label className="form-label">
-                                                        Confirm password
+                                                        Email
                                                         <input
                                                             className="text-input"
-                                                            type={showSignupPassword ? 'text' : 'password'}
-                                                            value={confirmPassword}
-                                                            onChange={(event) => setConfirmPassword(event.target.value)}
+                                                            type="email"
+                                                            value={email}
+                                                            onChange={(event) => setEmail(event.target.value)}
                                                             required
-                                                            minLength={6}
                                                         />
                                                     </label>
-                                                )}
-                                                {tuneTeaserAuthError && <div className="error-banner">{tuneTeaserAuthError}</div>}
-                                                <button className="button button-large" type="submit" disabled={isTuneTeaserSubmitting}>
-                                                    {isTuneTeaserSubmitting ? 'Working...' : authMode === 'signup' ? 'Create Account' : 'Login'}
+                                                    <label className="form-label">
+                                                        Password
+                                                        <span className="password-field">
+                                                            <input
+                                                                className="text-input"
+                                                                type={authMode === 'signup' && showSignupPassword ? 'text' : 'password'}
+                                                                value={password}
+                                                                onChange={(event) => setPassword(event.target.value)}
+                                                                required
+                                                                minLength={6}
+                                                            />
+                                                            {authMode === 'signup' && (
+                                                                <button
+                                                                    className="icon-button"
+                                                                    type="button"
+                                                                    onClick={() => setShowSignupPassword((isShowing) => !isShowing)}
+                                                                    aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
+                                                                >
+                                                                    {showSignupPassword ? <VisibilityOff /> : <Visibility />}
+                                                                </button>
+                                                            )}
+                                                        </span>
+                                                    </label>
+                                                    {authMode === 'signup' && (
+                                                        <label className="form-label">
+                                                            Confirm password
+                                                            <input
+                                                                className="text-input"
+                                                                type={showSignupPassword ? 'text' : 'password'}
+                                                                value={confirmPassword}
+                                                                onChange={(event) => setConfirmPassword(event.target.value)}
+                                                                required
+                                                                minLength={6}
+                                                            />
+                                                        </label>
+                                                    )}
+                                                    {tuneTeaserAuthError && <div className="error-banner">{tuneTeaserAuthError}</div>}
+                                                    <button className="button button-large" type="submit" disabled={isTuneTeaserSubmitting}>
+                                                        {isTuneTeaserSubmitting ? 'Working...' : authMode === 'signup' ? 'Create Account' : 'Login'}
+                                                    </button>
+                                                </form>
+                                            </div>
+                                            <div className="auth-alt-links">
+                                                <button className="text-link" type="button" onClick={handleGuestLogin}>
+                                                    Play as Guest
                                                 </button>
-                                            </form>
-                                        </div>
-                                        <div className="auth-alt-links">
-                                            <button className="text-link" type="button" onClick={handleGuestLogin}>
-                                                Play as Guest
-                                            </button>
-                                            <span className="auth-alt-sep">{'\u00B7'}</span>
-                                            <button className="text-link" type="button" onClick={handleLogin}>
-                                                Login with Spotify (invite only)
-                                            </button>
-                                        </div>
-                                    </>
-                                )}
-                            </>
-                        )}
+                                                <span className="auth-alt-sep">{'\u00B7'}</span>
+                                                <button className="text-link" type="button" onClick={handleLogin}>
+                                                    Login with Spotify (invite only)
+                                                </button>
+                                            </div>
+                                        </>
+                                    )}
+                                </>
+                            )}
+                        </div>
                     </div>
-                </div>
-                <div className="record-visual" aria-hidden="true" />
-            </section>
-        </main>
+                    <div className="record-visual" aria-hidden="true" />
+                </section>
+            </main>
+        </>
     );
 };
 

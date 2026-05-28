@@ -5,11 +5,14 @@
  */
 import React from 'react';
 import { Link } from 'react-router-dom';
+import NavBar from '../components/NavBar';
 
 const Error = () => {
 
     return (
-        <main className="page">
+        <>
+            <NavBar />
+            <main className="page">
             <section className="error-card">
                 <span className="eyebrow">Lost record</span>
                 <h1 className="section-title">Oops!</h1>
@@ -24,6 +27,7 @@ const Error = () => {
                 </p>
             </section>
         </main>
+        </>
     );
 };
 

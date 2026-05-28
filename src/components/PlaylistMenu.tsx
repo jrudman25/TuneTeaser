@@ -27,7 +27,17 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
     };
 
     const formatPlaylistDate = (value: any) => {
-        const date = value?.toDate ? value.toDate() : null;
+        if (!value) return 'Just now';
+        let date: Date | null = null;
+        if (typeof value.toDate === 'function') {
+            date = value.toDate();
+        } else if (typeof value.seconds === 'number') {
+            date = new Date(value.seconds * 1000);
+        } else if (value instanceof Date) {
+            date = value;
+        } else if (typeof value === 'number') {
+            date = new Date(value);
+        }
         return date ? date.toLocaleDateString() : 'Just now';
     };
 

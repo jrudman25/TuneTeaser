@@ -81,9 +81,6 @@ const usePreviewPlayer = (): UsePreviewPlayerReturn => {
                     audio.play()
                         .then(() => {
                             setIsPlaying(true);
-                            timeoutRef.current = setTimeout(() => {
-                                pause();
-                            }, durationMs);
                         })
                         .catch((err) => {
                             if (isStoppingRef.current) return;
@@ -91,6 +88,14 @@ const usePreviewPlayer = (): UsePreviewPlayerReturn => {
                             setError("Failed to play preview. Please try again.");
                             setIsPlaying(false);
                         });
+                }
+            }, { once: true });
+
+            audio.addEventListener('playing', () => {
+                if (audioRef.current === audio && !timeoutRef.current) {
+                    timeoutRef.current = setTimeout(() => {
+                        pause();
+                    }, durationMs);
                 }
             }, { once: true });
 
