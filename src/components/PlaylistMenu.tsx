@@ -16,6 +16,16 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
     const [playlistPage, setPlaylistPage] = useState(0);
     const PLAYLISTS_PER_PAGE = 8;
 
+    const [showPremadePlaylists, setShowPremadePlaylists] = useState(() => {
+        return localStorage.getItem('showPremadePlaylists') !== 'false';
+    });
+
+    const handleTogglePremade = (checked: boolean) => {
+        setShowPremadePlaylists(checked);
+        localStorage.setItem('showPremadePlaylists', String(checked));
+        setPlaylistPage(0);
+    };
+
     const formatPlaylistDate = (value: any) => {
         const date = value?.toDate ? value.toDate() : null;
         return date ? date.toLocaleDateString() : 'Just now';
@@ -26,7 +36,12 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
     const filteredAndSortedPlaylists = useMemo(() => {
-        let result = playlists.map((p, index) => ({ ...p, originalIndex: index }));
+        let list = playlists;
+        if (!showPremadePlaylists) {
+            list = playlists.filter(p => !(p.id.startsWith('guest_') && !p.id.startsWith('guest_manual_')));
+        }
+
+        let result = list.map((p, index) => ({ ...p, originalIndex: index }));
 
         if (searchQuery.trim()) {
             const lowerQuery = searchQuery.toLowerCase();
@@ -49,12 +64,10 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
         });
 
         return result;
-    }, [playlists, searchQuery, sortBy, sortDir]);
+    }, [playlists, showPremadePlaylists, searchQuery, sortBy, sortDir]);
 
-    // Reset pagination when filter/sort changes
-    React.useEffect(() => {
-        setPlaylistPage(0);
-    }, [searchQuery, sortBy, sortDir]);
+    const playlistPageCount = Math.ceil(filteredAndSortedPlaylists.length / PLAYLISTS_PER_PAGE);
+    const clampedPage = playlistPageCount > 0 ? Math.min(playlistPage, playlistPageCount - 1) : 0;
 
     return (
         <section className="record-bin">
@@ -66,18 +79,33 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
                 </div>
 
                 {!isLoading && playlists.length > 0 && (
-                    <div className="filter-controls">
+                    <div className="filter-controls" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.75rem' }}>
+                        <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginRight: '0.5rem', cursor: 'pointer', fontSize: '0.9rem', opacity: 0.9 }}>
+                            <input
+                                type="checkbox"
+                                checked={showPremadePlaylists}
+                                onChange={e => handleTogglePremade(e.target.checked)}
+                                style={{ cursor: 'pointer' }}
+                            />
+                            <span>Include Premades</span>
+                        </label>
                         <input
                             type="text"
                             className="text-input"
                             placeholder="Search playlists..."
                             value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
+                            onChange={e => {
+                                setSearchQuery(e.target.value);
+                                setPlaylistPage(0);
+                            }}
                         />
                         <select
                             className="text-input"
                             value={sortBy}
-                            onChange={e => setSortBy(e.target.value as any)}
+                            onChange={e => {
+                                setSortBy(e.target.value as any);
+                                setPlaylistPage(0);
+                            }}
                         >
                             <option value="default">Date Added</option>
                             <option value="name">Name</option>
@@ -85,7 +113,10 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
                         </select>
                         <button
                             className="button button-quiet"
-                            onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+                            onClick={() => {
+                                setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+                                setPlaylistPage(0);
+                            }}
                             title="Toggle Sort Direction"
                             type="button"
                         >
@@ -99,7 +130,7 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
             ) : (
                 <>
                     <ul className="record-grid">
-                        {playlistPage === 0 && !isGuest && !searchQuery && sortBy === 'default' && sortDir === 'asc' && (
+                        {clampedPage === 0 && !isGuest && !searchQuery && sortBy === 'default' && sortDir === 'asc' && (
                             <li>
                                 <button
                                     className="playlist-card playlist-card-featured"
@@ -112,7 +143,7 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
                                 </button>
                             </li>
                         )}
-                        {filteredAndSortedPlaylists.slice(playlistPage * PLAYLISTS_PER_PAGE, (playlistPage + 1) * PLAYLISTS_PER_PAGE).map((playlist: any) => (
+                        {filteredAndSortedPlaylists.slice(clampedPage * PLAYLISTS_PER_PAGE, (clampedPage + 1) * PLAYLISTS_PER_PAGE).map((playlist: any) => (
                             <li key={playlist.id}>
                                 <button
                                     className="playlist-card"
@@ -124,10 +155,16 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
                                     <span className="playlist-meta" style={{ fontSize: '0.85rem' }}>
                                         {playlist.tracks?.total ?? playlist.tracks?.length ?? 0} tracks
                                     </span>
-                                    {playlist.createdAt && (
+                                    {playlist.id.startsWith('guest_') && !playlist.id.startsWith('guest_manual_') ? (
                                         <span className="playlist-meta" style={{ fontSize: '0.85rem' }}>
-                                            Added {formatPlaylistDate(playlist.createdAt)}
+                                            Premade
                                         </span>
+                                    ) : (
+                                        playlist.createdAt && (
+                                            <span className="playlist-meta" style={{ fontSize: '0.85rem' }}>
+                                                Added {formatPlaylistDate(playlist.createdAt)}
+                                            </span>
+                                        )
                                     )}
                                 </button>
                             </li>
@@ -142,16 +179,16 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
                         <div className="pagination-row">
                             <button
                                 className="button button-quiet"
-                                disabled={playlistPage === 0}
-                                onClick={() => setPlaylistPage(p => p - 1)}
+                                disabled={clampedPage === 0}
+                                onClick={() => setPlaylistPage(clampedPage - 1)}
                             >
                                 Previous
                             </button>
-                            <span className="snippet-meter">Page {playlistPage + 1} of {Math.ceil(filteredAndSortedPlaylists.length / PLAYLISTS_PER_PAGE)}</span>
+                            <span className="snippet-meter">Page {clampedPage + 1} of {playlistPageCount}</span>
                             <button
                                 className="button button-quiet"
-                                disabled={(playlistPage + 1) * PLAYLISTS_PER_PAGE >= filteredAndSortedPlaylists.length}
-                                onClick={() => setPlaylistPage(p => p + 1)}
+                                disabled={(clampedPage + 1) * PLAYLISTS_PER_PAGE >= filteredAndSortedPlaylists.length}
+                                onClick={() => setPlaylistPage(clampedPage + 1)}
                             >
                                 Next
                             </button>

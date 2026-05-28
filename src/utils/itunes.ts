@@ -30,7 +30,7 @@ interface ItunesTrack {
 export const getItunesPreview = async (trackName: string, artistName: string, albumName?: string): Promise<{ previewUrl: string; artworkUrl: string } | null> => {
     // Cleaning the query allows for better matches
     const cleanQuery = (str: string) => {
-        return str.replace(/ - .*/, '').replace(/[\(\[].*?[\)\]]/g, '').trim();
+        return str.replace(/ - .*/, '').replace(/[([].*?[)\]]/g, '').trim();
     };
 
     try {

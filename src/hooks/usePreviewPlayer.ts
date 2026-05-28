@@ -94,7 +94,7 @@ const usePreviewPlayer = (): UsePreviewPlayerReturn => {
                 }
             }, { once: true });
 
-            audio.addEventListener('error', (e) => {
+            audio.addEventListener('error', () => {
                 if (isStoppingRef.current) return;
                 setError("Failed to load preview audio.");
                 setIsPlaying(false);

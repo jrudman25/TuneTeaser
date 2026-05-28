@@ -5,11 +5,36 @@
  */
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { auth } from '../backend/FirebaseConfig';
 import { redirectToAuthCodeFlow, getAccessToken } from '../utils/auth';
+
+const getGracefulAuthErrorMessage = (error: any): string => {
+    if (!error || !error.code) {
+        return error?.message || 'Authentication failed. Please check your connection and try again.';
+    }
+
+    switch (error.code) {
+        case 'auth/invalid-credential':
+        case 'auth/invalid-login-credentials':
+        case 'auth/wrong-password':
+            return 'Incorrect email or password. Please verify your credentials and try again.';
+        case 'auth/user-not-found':
+            return "No account exists for this email address. Did you mean to Sign Up?";
+        case 'auth/invalid-email':
+            return 'Please enter a valid email address.';
+        case 'auth/email-already-in-use':
+            return 'This email address is already in use. Try logging in instead.';
+        case 'auth/weak-password':
+            return 'Your password is too weak. Please use at least 6 characters.';
+        case 'auth/too-many-requests':
+            return 'Too many failed attempts. This account has been temporarily locked. Please try again in a few minutes.';
+        default:
+            return (error.message || 'Authentication failed.').replace(/^Firebase:\s*/, '');
+    }
+};
 
 const Login = () => {
 
@@ -74,13 +99,17 @@ const Login = () => {
                     setIsLoading(false);
                 }
             } else if (!code) {
-                const existingToken = sessionStorage.getItem('accessToken');
+                const existingToken = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken');
                 if (existingToken) {
                     navigate('/home');
                 } else {
                     unsubscribeTuneTeaserAuth = onAuthStateChanged(auth, currentUser => {
                         if (currentUser) {
-                            navigate('/home');
+                            if (currentUser.isAnonymous) {
+                                navigate('/home?mode=guest');
+                            } else {
+                                navigate('/home');
+                            }
                         } else {
                             setIsLoading(false);
                         }
@@ -102,8 +131,14 @@ const Login = () => {
         await redirectToAuthCodeFlow(clientId, redirectUri);
     };
 
-    const handleGuestLogin = () => {
-        navigate('/home?mode=guest');
+    const handleGuestLogin = async () => {
+        try {
+            await signInAnonymously(auth);
+            navigate('/home?mode=guest');
+        } catch (error) {
+            console.error("Failed to sign in guest anonymously:", error);
+            navigate('/home?mode=guest');
+        }
     };
 
     const handleAuthModeChange = (mode: 'login' | 'signup') => {
@@ -133,7 +168,7 @@ const Login = () => {
                 navigate('/home');
             }
         } catch (error: any) {
-            setTuneTeaserAuthError(error.message || 'TuneTeaser authentication failed.');
+            setTuneTeaserAuthError(getGracefulAuthErrorMessage(error));
         } finally {
             setIsTuneTeaserSubmitting(false);
         }

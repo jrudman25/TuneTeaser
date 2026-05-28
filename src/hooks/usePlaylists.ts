@@ -18,14 +18,14 @@ export const usePlaylists = (
     const [playlistError, setPlaylistError] = useState<string | null>(null);
 
     const derivedPlaylists = useMemo(() => {
-        if (isManualMode) {
-            return manualPlaylists.map(playlist => ({
-                ...playlist,
-                tracks: { total: playlist.tracks.length }
-            }));
-        }
-        if (isGuest) {
-            return GUEST_PLAYLISTS;
+        if (isManualMode || isGuest) {
+            return [
+                ...manualPlaylists.map(playlist => ({
+                    ...playlist,
+                    tracks: { total: playlist.tracks.length }
+                })),
+                ...GUEST_PLAYLISTS
+            ];
         }
         return fetchedPlaylists;
     }, [isManualMode, manualPlaylists, isGuest, fetchedPlaylists]);
@@ -71,7 +71,7 @@ export const usePlaylists = (
             }
 
             setFetchedPlaylists(allPlaylists);
-        } catch (error) {
+        } catch {
             setPlaylistError('Could not connect to Spotify. Check your network and try again.');
         } finally {
             setIsFetchingPlaylists(false);
@@ -79,6 +79,7 @@ export const usePlaylists = (
     }, [accessToken, isGuest, isManualMode]);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         fetchPlaylists();
     }, [fetchPlaylists]);
 

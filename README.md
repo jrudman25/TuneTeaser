@@ -20,7 +20,7 @@
 *   **Retro Arcade Design**: A record-shop inspired interface with arcade-style game panels, responsive layouts, and accessible focus states.
 
 ## Requirements
-*   **TuneTeaser Account**: Required to save imported playlists and custom mixes.
+*   **TuneTeaser Account or Local Storage**: Required to save imported playlists and custom mixes (saved in browser local storage for guests, or persistently in a database for registered accounts).
 *   **Spotify Public Playlists**: Profile linking uses Spotify client credentials and only sees public playlists. Private or collaborative playlists require Spotify OAuth.
 *   **Modern Browser**: Chrome, Edge, or Firefox (with DRM enabled).
 

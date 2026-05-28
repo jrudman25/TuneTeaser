@@ -200,21 +200,34 @@ export const useGameLogic = (
                 setCurrentTracks(tracks);
                 await startGame(tracks);
             } else {
-                setFeedbackMessage("Error: Playlist not found.");
-                setIsLoadingGame(false);
+                const playlist = manualPlaylistsRef.current.find((manualPlaylist) => manualPlaylist.id === playlistId);
+                if (playlist) {
+                    const tracks = manualTracksToGameItems(playlist.tracks);
+                    setCurrentTracks(tracks);
+                    await startGame(tracks);
+                } else {
+                    setFeedbackMessage("Error: Playlist not found.");
+                    setIsLoadingGame(false);
+                }
             }
             return;
         }
 
         if (isManualMode) {
-            const playlist = manualPlaylistsRef.current.find((manualPlaylist) => manualPlaylist.id === playlistId);
-            if (playlist) {
-                const tracks = manualTracksToGameItems(playlist.tracks);
+            const tracks = GUEST_TRACKS[playlistId];
+            if (tracks) {
                 setCurrentTracks(tracks);
                 await startGame(tracks);
             } else {
-                setFeedbackMessage("Error: Playlist not found.");
-                setIsLoadingGame(false);
+                const playlist = manualPlaylistsRef.current.find((manualPlaylist) => manualPlaylist.id === playlistId);
+                if (playlist) {
+                    const tracks = manualTracksToGameItems(playlist.tracks);
+                    setCurrentTracks(tracks);
+                    await startGame(tracks);
+                } else {
+                    setFeedbackMessage("Error: Playlist not found.");
+                    setIsLoadingGame(false);
+                }
             }
             return;
         }
@@ -234,7 +247,7 @@ export const useGameLogic = (
 
                 if (response.ok) {
                     const data = await response.json();
-                    let fetchedTracks = [...data.items];
+                    const fetchedTracks = [...data.items];
                     const total = data.total;
 
 

@@ -5,7 +5,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { signOut } from 'firebase/auth';
+import { signOut, signInAnonymously } from 'firebase/auth';
 import { auth } from '../backend/FirebaseConfig';
 import { refreshAccessToken } from '../utils/auth';
 import { usePlaylists } from '../hooks/usePlaylists';
@@ -26,9 +26,18 @@ const Home = () => {
         manualPlaylists,
         isLoadingManualPlaylists,
         manualPlaylistError
-    } = useManualPlaylists(user);
-    const isManualMode = !isGuest && !!user;
+    } = useManualPlaylists(user, isGuest);
+    const isManualMode = !isGuest && !!user && !user.isAnonymous;
     const [accessToken, setAccessToken] = useState(localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken'));
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+    useEffect(() => {
+        if (isGuest && !isLoadingUser && !user) {
+            signInAnonymously(auth).catch(err => {
+                console.error("Failed to sign in guest anonymously:", err);
+            });
+        }
+    }, [isGuest, isLoadingUser, user]);
 
     useEffect(() => {
         if (isGuest) return;
@@ -67,8 +76,15 @@ const Home = () => {
     }, [isGuest]);
 
     useEffect(() => {
+        if (!isLoadingUser && !isGuest && !isManualMode && !accessToken) {
+            navigate('/');
+        }
+    }, [isLoadingUser, isGuest, isManualMode, accessToken, navigate]);
+
+    useEffect(() => {
         if (isLoadingUser || isLoadingManualPlaylists || !isManualMode) return;
-        if (manualPlaylists.length === 0) {
+        const onboardingSkipped = localStorage.getItem('skipPlaylistOnboarding') === 'true';
+        if (manualPlaylists.length === 0 && !onboardingSkipped) {
             navigate('/playlists?onboarding=1');
         }
     }, [isLoadingManualPlaylists, isLoadingUser, isManualMode, manualPlaylists.length, navigate]);
@@ -108,18 +124,27 @@ const Home = () => {
     };
 
     const handleLogout = async () => {
+        setIsLoggingOut(true);
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('tokenExpiry');
         localStorage.removeItem('verifier');
         sessionStorage.removeItem('accessToken');
 
-        if (isManualMode) {
+        if (isManualMode || (isGuest && user?.isAnonymous)) {
             await signOut(auth);
         }
 
-        window.location.href = '/';
+        navigate('/');
     };
+
+    if (isLoggingOut) {
+        return (
+            <main className="page home-page">
+                <div className="loading-card">Logging out...</div>
+            </main>
+        );
+    }
 
     return (
         <main className="page home-page">
@@ -131,8 +156,8 @@ const Home = () => {
                     {isManualMode ? <SignedInBadge user={user} /> : !isGuest && <span className="account-badge">Signed in with Spotify</span>}
                 </div>
                 <div className="action-row">
-                    {isManualMode && (
-                        <Link className="button button-secondary" to="/playlists">
+                    {(isManualMode || isGuest) && (
+                        <Link className="button button-secondary" to={isGuest ? "/playlists?mode=guest" : "/playlists"}>
                             Manage Playlists
                         </Link>
                     )}

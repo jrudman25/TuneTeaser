@@ -23,7 +23,7 @@ describe('usePlaylists hook', () => {
         const { result } = renderHook(() => usePlaylists(null, false, mockManualPlaylists, true));
 
         expect(result.current.isLoadingPlaylists).toBe(false);
-        expect(result.current.playlists.length).toBe(1);
+        expect(result.current.playlists.length).toBe(1 + GUEST_PLAYLISTS.length);
         expect(result.current.playlists[0].name).toBe('Manual 1');
         expect(result.current.playlists[0].tracks.total).toBe(1);
     });

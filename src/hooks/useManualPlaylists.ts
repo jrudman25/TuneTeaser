@@ -13,18 +13,38 @@ import { User } from 'firebase/auth';
 import { db } from '../backend/FirebaseConfig';
 import { ManualPlaylist, ManualTrack } from '../utils/manualPlaylists';
 
-export const useManualPlaylists = (user: User | null) => {
+export const useManualPlaylists = (user: User | null, isGuest: boolean = false) => {
     const [manualPlaylists, setManualPlaylists] = useState<ManualPlaylist[]>([]);
     const [isLoadingManualPlaylists, setIsLoadingManualPlaylists] = useState(true);
     const [manualPlaylistError, setManualPlaylistError] = useState('');
     const [fetchedForUserId, setFetchedForUserId] = useState<string | null>(null);
 
     const getCollectionRef = useCallback(() => {
-        if (!user) return null;
+        if (!user || isGuest) return null;
         return collection(db, 'users', user.uid, 'playlists');
-    }, [user]);
+    }, [user, isGuest]);
 
     const fetchManualPlaylists = useCallback(async () => {
+        if (isGuest) {
+            setIsLoadingManualPlaylists(true);
+            setManualPlaylistError('');
+            try {
+                const stored = localStorage.getItem('guestPlaylists');
+                if (stored) {
+                    setManualPlaylists(JSON.parse(stored));
+                } else {
+                    setManualPlaylists([]);
+                }
+                setFetchedForUserId('guest');
+            } catch (error) {
+                console.error('Failed to fetch guest manual playlists:', error);
+                setManualPlaylistError('Could not load your guest playlists.');
+            } finally {
+                setIsLoadingManualPlaylists(false);
+            }
+            return;
+        }
+
         const collectionRef = getCollectionRef();
 
         if (!collectionRef) {
@@ -52,14 +72,46 @@ export const useManualPlaylists = (user: User | null) => {
         } finally {
             setIsLoadingManualPlaylists(false);
         }
-    }, [getCollectionRef, user]);
+    }, [getCollectionRef, user, isGuest]);
 
     const addManualPlaylist = useCallback(async (name: string, sourceUrl: string, tracks: ManualTrack[]) => {
-        const collectionRef = getCollectionRef();
-        if (!collectionRef) throw new Error('You must be logged in to add playlists.');
-
         const trimmedName = name.trim();
         const trimmedSourceUrl = sourceUrl.trim();
+
+        if (isGuest) {
+            let existingPlaylists: ManualPlaylist[] = [];
+            try {
+                const stored = localStorage.getItem('guestPlaylists');
+                if (stored) {
+                    existingPlaylists = JSON.parse(stored);
+                }
+            } catch (e) {
+                console.error(e);
+            }
+
+            const existingNames = existingPlaylists.map(d => (d.name || '').toLowerCase());
+            if (existingNames.includes(trimmedName.toLowerCase())) {
+                throw new Error(`A playlist named "${trimmedName}" already exists.`);
+            }
+
+            const newPlaylist: ManualPlaylist = {
+                id: `guest_manual_${Date.now()}`,
+                name: trimmedName,
+                sourceUrl: trimmedSourceUrl,
+                sourceType: 'spotify-url',
+                tracks,
+                createdAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 } as any,
+                updatedAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 } as any
+            };
+
+            const updatedPlaylists = [newPlaylist, ...existingPlaylists];
+            localStorage.setItem('guestPlaylists', JSON.stringify(updatedPlaylists));
+            await fetchManualPlaylists();
+            return;
+        }
+
+        const collectionRef = getCollectionRef();
+        if (!collectionRef) throw new Error('You must be logged in to add playlists.');
 
         // Check for duplicate playlist names
         const snapshot = await getDocs(collectionRef);
@@ -78,20 +130,38 @@ export const useManualPlaylists = (user: User | null) => {
         });
 
         await fetchManualPlaylists();
-    }, [fetchManualPlaylists, getCollectionRef]);
+    }, [fetchManualPlaylists, getCollectionRef, isGuest]);
 
     const deleteManualPlaylist = useCallback(async (playlistId: string) => {
+        if (isGuest) {
+            let existingPlaylists: ManualPlaylist[] = [];
+            try {
+                const stored = localStorage.getItem('guestPlaylists');
+                if (stored) {
+                    existingPlaylists = JSON.parse(stored);
+                }
+            } catch (e) {
+                console.error(e);
+            }
+
+            const updatedPlaylists = existingPlaylists.filter(p => p.id !== playlistId);
+            localStorage.setItem('guestPlaylists', JSON.stringify(updatedPlaylists));
+            await fetchManualPlaylists();
+            return;
+        }
+
         if (!user) throw new Error('You must be logged in to delete playlists.');
 
         await deleteDoc(doc(db, 'users', user.uid, 'playlists', playlistId));
         await fetchManualPlaylists();
-    }, [fetchManualPlaylists, user]);
+    }, [fetchManualPlaylists, user, isGuest]);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         fetchManualPlaylists();
     }, [fetchManualPlaylists]);
 
-    const isEffectivelyLoading = isLoadingManualPlaylists || (user ? fetchedForUserId !== user.uid : false);
+    const isEffectivelyLoading = isLoadingManualPlaylists || (isGuest ? fetchedForUserId !== 'guest' : user ? fetchedForUserId !== user.uid : false);
 
     return {
         manualPlaylists,

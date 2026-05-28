@@ -9,7 +9,6 @@ const mockGetRandomValues = vi.fn((arr: Uint8Array) => {
     return arr;
 });
 
-// @ts-ignore
 global.window = {
     crypto: {
         getRandomValues: mockGetRandomValues,
@@ -74,7 +73,7 @@ describe('Auth Utilities', () => {
             method: 'POST',
             body: expect.any(URLSearchParams)
         }));
-        
+
         // Assert body contains correct params
         const fetchCall = vi.mocked(global.fetch).mock.calls[0];
         const params = fetchCall[1]?.body as URLSearchParams;

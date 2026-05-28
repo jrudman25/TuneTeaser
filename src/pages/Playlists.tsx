@@ -2,6 +2,8 @@ import React from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useManualPlaylists } from '../hooks/useManualPlaylists';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
+import { signInAnonymously } from 'firebase/auth';
+import { auth } from '../backend/FirebaseConfig';
 import SignedInBadge from '../components/SignedInBadge';
 
 const MANUAL_PLAYLISTS_PER_PAGE = 8;
@@ -10,6 +12,7 @@ const Playlists = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const isOnboarding = searchParams.get('onboarding') === '1';
+    const isGuest = searchParams.get('mode') === 'guest';
     const [playlistPage, setPlaylistPage] = React.useState(0);
     const { user, isLoadingUser } = useTuneTeaserAuth();
     const {
@@ -17,11 +20,12 @@ const Playlists = () => {
         isLoadingManualPlaylists,
         manualPlaylistError,
         deleteManualPlaylist
-    } = useManualPlaylists(user);
+    } = useManualPlaylists(user, isGuest);
 
     const [searchQuery, setSearchQuery] = React.useState('');
     const [sortBy, setSortBy] = React.useState<'default' | 'name' | 'tracks'>('default');
     const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('desc'); // Default to newest for added date
+    const [authError, setAuthError] = React.useState('');
 
     const filteredAndSortedPlaylists = React.useMemo(() => {
         let result = manualPlaylists.map((p, index) => ({ ...p, originalIndex: index }));
@@ -55,27 +59,26 @@ const Playlists = () => {
 
     const hasPlaylists = manualPlaylists.length > 0;
     const playlistPageCount = Math.ceil(filteredAndSortedPlaylists.length / MANUAL_PLAYLISTS_PER_PAGE);
+    const clampedPage = playlistPageCount > 0 ? Math.min(playlistPage, playlistPageCount - 1) : 0;
     const paginatedManualPlaylists = filteredAndSortedPlaylists.slice(
-        playlistPage * MANUAL_PLAYLISTS_PER_PAGE,
-        (playlistPage + 1) * MANUAL_PLAYLISTS_PER_PAGE
+        clampedPage * MANUAL_PLAYLISTS_PER_PAGE,
+        (clampedPage + 1) * MANUAL_PLAYLISTS_PER_PAGE
     );
 
-    // Reset pagination when filter/sort changes
     React.useEffect(() => {
-        setPlaylistPage(0);
-    }, [searchQuery, sortBy, sortDir]);
-
-    React.useEffect(() => {
-        if (!isLoadingUser && !user) {
+        if (!isLoadingUser && !user && !isGuest) {
             navigate('/');
         }
-    }, [isLoadingUser, navigate, user]);
+    }, [isLoadingUser, navigate, user, isGuest]);
 
     React.useEffect(() => {
-        if (playlistPageCount > 0 && playlistPage >= playlistPageCount) {
-            setPlaylistPage(playlistPageCount - 1);
+        if (isGuest && !isLoadingUser && !user) {
+            signInAnonymously(auth).catch(err => {
+                console.error("Failed to sign in guest anonymously in Playlists:", err);
+                setAuthError("Guest Mode authentication failed. Please ensure 'Anonymous sign-in' is enabled in your Firebase console.");
+            });
         }
-    }, [playlistPage, playlistPageCount]);
+    }, [isGuest, isLoadingUser, user]);
 
     const handleDelete = async (playlistId: string, name: string) => {
         const confirmed = window.confirm(`Delete "${name}" from TuneTeaser?`);
@@ -107,15 +110,23 @@ const Playlists = () => {
         <main className="page home-page">
             <section className="top-strip">
                 <div className="status-stack">
-                    <span className="status-badge">{isOnboarding && !hasPlaylists ? 'Add your first playlist' : 'TuneTeaser playlists'}</span>
-                    <SignedInBadge user={user} />
+                    <span className="status-badge">
+                        {isGuest ? 'Guest playlists' : isOnboarding && !hasPlaylists ? 'Add your first playlist' : 'TuneTeaser playlists'}
+                    </span>
+                    <SignedInBadge user={isGuest ? null : user} />
                 </div>
-                {hasPlaylists && (
-                    <Link className="button button-secondary" to="/home">
+                {(hasPlaylists || isGuest || localStorage.getItem('skipPlaylistOnboarding') === 'true') && (
+                    <Link className="button button-secondary" to={isGuest ? "/home?mode=guest" : "/home"}>
                         Back to Game
                     </Link>
                 )}
             </section>
+
+            {authError && (
+                <div className="error-banner">
+                    <strong>Authentication Error:</strong> {authError}
+                </div>
+            )}
 
             {manualPlaylistError && <div className="error-banner">{manualPlaylistError}</div>}
 
@@ -129,12 +140,26 @@ const Playlists = () => {
                 </div>
 
                 <div className="action-row">
-                    <Link className="button button-large" to={`/playlists/import${onboardingParam}`}>
+                    <Link className="button button-large" to={isGuest ? "/playlists/import?mode=guest" : `/playlists/import${onboardingParam}`}>
                         Import Spotify Playlist
                     </Link>
-                    <Link className="button button-large button-secondary" to={`/playlists/custom${onboardingParam}`}>
-                        Build Custom Playlist
-                    </Link>
+                    {!isGuest && (
+                        <Link className="button button-large button-secondary" to={`/playlists/custom${onboardingParam}`}>
+                            Build Custom Playlist
+                        </Link>
+                    )}
+                    {isOnboarding && (
+                        <button
+                            className="button button-large button-tertiary"
+                            type="button"
+                            onClick={() => {
+                                localStorage.setItem('skipPlaylistOnboarding', 'true');
+                                navigate('/home');
+                            }}
+                        >
+                            Skip for Now (Use Premade Playlists)
+                        </button>
+                    )}
                 </div>
 
                 {hasPlaylists && (
@@ -144,12 +169,18 @@ const Playlists = () => {
                             className="text-input"
                             placeholder="Search playlists..."
                             value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
+                            onChange={e => {
+                                setSearchQuery(e.target.value);
+                                setPlaylistPage(0);
+                            }}
                         />
                         <select
                             className="text-input"
                             value={sortBy}
-                            onChange={e => setSortBy(e.target.value as any)}
+                            onChange={e => {
+                                setSortBy(e.target.value as any);
+                                setPlaylistPage(0);
+                            }}
                         >
                             <option value="default">Date Added</option>
                             <option value="name">Name</option>
@@ -157,7 +188,10 @@ const Playlists = () => {
                         </select>
                         <button
                             className="button button-quiet"
-                            onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+                            onClick={() => {
+                                setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+                                setPlaylistPage(0);
+                            }}
                             title="Toggle Sort Direction"
                             type="button"
                         >
@@ -204,17 +238,17 @@ const Playlists = () => {
                                 <button
                                     className="button button-quiet"
                                     type="button"
-                                    disabled={playlistPage === 0}
-                                    onClick={() => setPlaylistPage(page => page - 1)}
+                                    disabled={clampedPage === 0}
+                                    onClick={() => setPlaylistPage(clampedPage - 1)}
                                 >
                                     Previous
                                 </button>
-                                <span className="snippet-meter">Page {playlistPage + 1} of {playlistPageCount}</span>
+                                <span className="snippet-meter">Page {clampedPage + 1} of {playlistPageCount}</span>
                                 <button
                                     className="button button-quiet"
                                     type="button"
-                                    disabled={playlistPage + 1 >= playlistPageCount}
-                                    onClick={() => setPlaylistPage(page => page + 1)}
+                                    disabled={clampedPage + 1 >= playlistPageCount}
+                                    onClick={() => setPlaylistPage(clampedPage + 1)}
                                 >
                                     Next
                                 </button>

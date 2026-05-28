@@ -3,6 +3,8 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ManualTrack } from '../utils/manualPlaylists';
 import { useManualPlaylists } from '../hooks/useManualPlaylists';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
+import { signInAnonymously } from 'firebase/auth';
+import { auth } from '../backend/FirebaseConfig';
 import { extractSpotifyPlaylistId } from '../utils/spotifyPlaylistName';
 import { importSpotifyPlaylist } from '../utils/spotifyPlaylistImporter';
 import { extractSpotifyUserId, fetchSpotifyUserPlaylists, SpotifyUserPlaylist } from '../utils/spotifyUserPlaylists';
@@ -20,8 +22,9 @@ const PlaylistImportSpotify = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const isOnboarding = searchParams.get('onboarding') === '1';
+    const isGuest = searchParams.get('mode') === 'guest';
     const { user, isLoadingUser } = useTuneTeaserAuth();
-    const { addManualPlaylist } = useManualPlaylists(user);
+    const { addManualPlaylist } = useManualPlaylists(user, isGuest);
 
     const [playlistUrl, setPlaylistUrl] = useState('');
     const [profileUrl, setProfileUrl] = useState('');
@@ -41,6 +44,7 @@ const PlaylistImportSpotify = () => {
     const [batchImportResults, setBatchImportResults] = useState<BatchImportResult[]>([]);
     const [profilePlaylistPage, setProfilePlaylistPage] = useState(0);
     const [saveSuccessMessage, setSaveSuccessMessage] = useState('');
+    const [authError, setAuthError] = useState('');
 
     const sourcePlaylistId = extractSpotifyPlaylistId(playlistUrl);
     const sourceUserId = extractSpotifyUserId(profileUrl);
@@ -56,13 +60,22 @@ const PlaylistImportSpotify = () => {
         profilePlaylistPage * PROFILE_PLAYLISTS_PER_PAGE,
         (profilePlaylistPage + 1) * PROFILE_PLAYLISTS_PER_PAGE
     );
-    const playlistsPath = `/playlists${isOnboarding ? '?onboarding=1' : ''}`;
+    const playlistsPath = isGuest ? '/playlists?mode=guest' : `/playlists${isOnboarding ? '?onboarding=1' : ''}`;
 
     useEffect(() => {
-        if (!isLoadingUser && !user) {
+        if (!isLoadingUser && !user && !isGuest) {
             navigate('/');
         }
-    }, [isLoadingUser, navigate, user]);
+    }, [isLoadingUser, navigate, user, isGuest]);
+
+    useEffect(() => {
+        if (isGuest && !isLoadingUser && !user) {
+            signInAnonymously(auth).catch(err => {
+                console.error("Failed to sign in guest anonymously in PlaylistImportSpotify:", err);
+                setAuthError("Guest Mode authentication failed. Please ensure 'Anonymous sign-in' is enabled in your Firebase console.");
+            });
+        }
+    }, [isGuest, isLoadingUser, user]);
 
     const validatePlaylistUrl = (url: string): string | null => {
         if (!url.trim()) return 'Enter a Spotify playlist URL.';
@@ -222,8 +235,8 @@ const PlaylistImportSpotify = () => {
         setIsBatchImporting(false);
         if (results.some(result => result.status === 'success')) {
             setSelectedPlaylistIds(currentSelection => currentSelection.filter(id => !results.some(result => result.playlistId === id && result.status === 'success')));
-            if (isOnboarding) {
-                navigate('/home');
+            if (isOnboarding || isGuest) {
+                navigate(isGuest ? '/home?mode=guest' : '/home');
             }
         }
     };
@@ -284,12 +297,18 @@ const PlaylistImportSpotify = () => {
             <section className="top-strip">
                 <div className="status-stack">
                     <span className="status-badge">Import from Spotify</span>
-                    <SignedInBadge user={user} />
+                    <SignedInBadge user={isGuest ? null : user} />
                 </div>
                 <Link className="button button-secondary" to={playlistsPath}>
                     Back to Playlists
                 </Link>
             </section>
+
+            {authError && (
+                <div className="error-banner">
+                    <strong>Authentication Error:</strong> {authError}
+                </div>
+            )}
 
             <section className="record-bin">
                 <div>
@@ -326,7 +345,7 @@ const PlaylistImportSpotify = () => {
                                     className="button button-tertiary"
                                     type="button"
                                     onClick={handleLoadProfilePlaylists}
-                                    disabled={isLoadingProfilePlaylists || isBatchImporting}
+                                    disabled={isLoadingProfilePlaylists || isBatchImporting || (isGuest && !user)}
                                 >
                                     {isLoadingProfilePlaylists ? 'Loading...' : 'Load Public Playlists'}
                                 </button>
@@ -399,7 +418,7 @@ const PlaylistImportSpotify = () => {
                                         className="button button-large"
                                         type="button"
                                         onClick={handleImportSelectedPlaylists}
-                                        disabled={isBatchImporting || selectedProfilePlaylists.length === 0}
+                                        disabled={isBatchImporting || selectedProfilePlaylists.length === 0 || (isGuest && !user)}
                                     >
                                         {isBatchImporting ? 'Importing Selected...' : `Import ${selectedProfilePlaylists.length} Selected`}
                                     </button>
@@ -443,7 +462,7 @@ const PlaylistImportSpotify = () => {
                                     className="button button-tertiary"
                                     type="button"
                                     onClick={handleImport}
-                                    disabled={isImporting}
+                                    disabled={isImporting || (isGuest && !user)}
                                 >
                                     {isImporting ? 'Importing...' : 'Import Tracks from Playlist'}
                                 </button>

@@ -59,7 +59,7 @@ export async function refreshAccessToken(clientId: string, refreshToken: string)
 
 function generateCodeVerifier(length: number) {
     let text = '';
-    let possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
 
     const randomValues = new Uint8Array(length);
     window.crypto.getRandomValues(randomValues);

@@ -25,7 +25,6 @@ interface ActiveGameProps {
 }
 
 const ActiveGame: React.FC<ActiveGameProps> = ({
-    targetSong,
     snippetDuration,
     userGuess,
     setUserGuess,
