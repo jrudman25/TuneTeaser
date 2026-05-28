@@ -9,6 +9,7 @@ import { getItunesPreview } from '../utils/itunes';
 import { normalizeString } from '../utils/stringUtils';
 import { GUEST_TRACKS } from '../utils/guestData';
 import { ManualPlaylist, manualTracksToGameItems } from '../utils/manualPlaylists';
+import { calculatePoints } from '../utils/scoreUtils';
 
 export const useGameLogic = (
     accessToken: string | null,
@@ -33,6 +34,7 @@ export const useGameLogic = (
     const [feedbackMessage, setFeedbackMessage] = useState('');
     const [selectedPlaylistName, setSelectedPlaylistName] = useState('');
     const [isLoadingGame, setIsLoadingGame] = useState(false);
+    const [lastEarnedPoints, setLastEarnedPoints] = useState<number | null>(null);
 
     const startGame = async (tracks: any[], explicitSkipId?: string) => {
         if (isLoadingGame && !explicitSkipId) return;
@@ -99,6 +101,7 @@ export const useGameLogic = (
             setSnippetDuration(2000);
             setFeedbackMessage('');
             setUserGuess('');
+            setLastEarnedPoints(null);
 
             setRecentTracks(prev => {
                 const newRecent = [...prev, selectedTrack.id];
@@ -118,9 +121,9 @@ export const useGameLogic = (
         setIsLoadingGame(false);
     };
 
-    const handleGuessSubmit = (specificGuess?: string) => {
+    const handleGuessSubmit = (specificGuess?: string): number | null => {
         const guessToCheck = specificGuess !== undefined ? specificGuess : userGuess;
-        if (!targetSong) return;
+        if (!targetSong) return null;
 
         const checkGuess = normalizeString(guessToCheck);
         const checkTitle = normalizeString(targetSong.name);
@@ -135,10 +138,14 @@ export const useGameLogic = (
         const isCorrect = isExactOptionMatch || isTitleMatch;
 
         if (isCorrect) {
+            const points = calculatePoints(snippetDuration);
+            setLastEarnedPoints(points);
             setGameState('end');
             setFeedbackMessage(`Correct! You won! Guessed the song in ${snippetDuration / 1000} seconds.`);
+            return points;
         } else {
             if (snippetDuration >= 30000) {
+                setLastEarnedPoints(null);
                 setGameState('end');
                 setFeedbackMessage(`Game Over! You didn't get it. The song was: ${targetSong.name}`);
             } else {
@@ -146,6 +153,7 @@ export const useGameLogic = (
                 setSnippetDuration(prev => Math.min(prev + 2000, 30000));
             }
         }
+        return null;
     };
 
     const playSnippet = async () => {
@@ -376,6 +384,7 @@ export const useGameLogic = (
         isPlaying,
         playerError,
         volume,
-        setVolume
+        setVolume,
+        lastEarnedPoints
     };
 };

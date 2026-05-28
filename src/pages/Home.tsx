@@ -1,17 +1,20 @@
 /**
  * Home.tsx
  * The main page of the site.
- * @version 2026.05.24
+ * @version 2026.05.27
  */
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { signOut, signInAnonymously } from 'firebase/auth';
 import { auth } from '../backend/FirebaseConfig';
 import { refreshAccessToken } from '../utils/auth';
+import { isEligibleForPoints } from '../utils/scoreUtils';
 import { usePlaylists } from '../hooks/usePlaylists';
 import { useGameLogic } from '../hooks/useGameLogic';
 import { useManualPlaylists } from '../hooks/useManualPlaylists';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
+import { useLeaderboard } from '../hooks/useLeaderboard';
+import { useRecentScores } from '../hooks/useRecentScores';
 import PlaylistMenu from '../components/PlaylistMenu';
 import ActiveGame from '../components/ActiveGame';
 import GameResult from '../components/GameResult';
@@ -112,6 +115,35 @@ const Home = () => {
         setVolume
     } = useGameLogic(accessToken, isGuest, manualPlaylists, isManualMode);
 
+    const { submitScore } = useLeaderboard(user);
+    const { canScoreSong, recordScore } = useRecentScores();
+    const [displayedPoints, setDisplayedPoints] = useState<number | null>(null);
+
+    // Wrap handleGuessSubmit to score points inline (event-driven, not effect-driven)
+    const handleGuessWithScoring = (specificGuess?: string) => {
+        const points = handleGuessSubmit(specificGuess);
+
+        if (points == null || points <= 0) {
+            setDisplayedPoints(null);
+            return;
+        }
+
+        const isAnonymous = !user || user.isAnonymous;
+        const trackCount = currentTracks.length;
+        const songId = targetSong?.id;
+        const playlistId = selectedPlaylistName;
+
+        if (!isEligibleForPoints(trackCount, isGuest, isAnonymous)
+            || !canScoreSong(playlistId, songId)) {
+            setDisplayedPoints(null);
+            return;
+        }
+
+        recordScore(playlistId, songId);
+        submitScore(points);
+        setDisplayedPoints(points);
+    };
+
     const onSelectPlaylist = (playlistId: string) => {
         let name = '';
         if (playlistId === 'LIKED_SONGS') {
@@ -202,7 +234,7 @@ const Home = () => {
                     snippetDuration={snippetDuration}
                     userGuess={userGuess}
                     setUserGuess={setUserGuess}
-                    onGuessSubmit={handleGuessSubmit}
+                    onGuessSubmit={handleGuessWithScoring}
                     onPlaySnippet={playSnippet}
                     onGiveUp={handleGiveUp}
                     feedbackMessage={feedbackMessage}
@@ -221,6 +253,7 @@ const Home = () => {
                     onPlayAgain={handlePlayAgain}
                     onSelectNewPlaylist={handleSelectNewPlaylist}
                     isLoading={isLoadingGame}
+                    earnedPoints={displayedPoints}
                 />
             )}
         </main>

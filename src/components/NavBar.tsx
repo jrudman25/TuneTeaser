@@ -1,7 +1,7 @@
 /**
  * NavBar.js
  * The navigation bar at the top of the screen with my logo and links to other pages.
- * @version 2026.05.14
+ * @version 2026.05.27
  */
 import React from 'react';
 import { Nav } from './NavBarElement';
@@ -11,9 +11,10 @@ import './NavBar.css';
 const NavBar = () => {
 
     const location = useLocation();
+    const isLoginPage = location.pathname === '/';
 
     const handleLogoClick = () => {
-        if (location.pathname === '/') {
+        if (isLoginPage) {
             window.location.reload();
         }
     };
@@ -22,10 +23,20 @@ const NavBar = () => {
         <>
             <Nav className="site-nav">
                 <div>
-                    <Link className="logo-link" to={location.pathname === '/' ? '/' : '/home'} onClick={handleLogoClick} aria-label="TuneTeaser home">
+                    <Link className="logo-link" to={isLoginPage ? '/' : '/home'} onClick={handleLogoClick} aria-label="TuneTeaser home">
                         <span className="logo-mark" aria-hidden="true">TT</span>
                     </Link>
                 </div>
+                {!isLoginPage && (
+                    <div className="nav-links">
+                        <Link
+                            className={`nav-link ${location.pathname === '/leaderboard' ? 'nav-link-active' : ''}`}
+                            to="/leaderboard"
+                        >
+                            Leaderboard
+                        </Link>
+                    </div>
+                )}
             </Nav>
         </>
     );

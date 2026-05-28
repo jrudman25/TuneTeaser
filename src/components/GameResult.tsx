@@ -1,7 +1,7 @@
 /**
  * GameResult.tsx
  * Displays the result of the game (correct/incorrect) and options to play again.
- * @version 2026.05.14
+ * @version 2026.05.27
  */
 import React from 'react';
 
@@ -11,6 +11,7 @@ interface GameResultProps {
     onPlayAgain: () => void;
     onSelectNewPlaylist: () => void;
     isLoading?: boolean;
+    earnedPoints?: number | null;
 }
 
 const GameResult: React.FC<GameResultProps> = ({
@@ -18,7 +19,8 @@ const GameResult: React.FC<GameResultProps> = ({
     feedbackMessage,
     onPlayAgain,
     onSelectNewPlaylist,
-    isLoading = false
+    isLoading = false,
+    earnedPoints = null
 }) => {
     return (
         <section className="result-card">
@@ -33,6 +35,9 @@ const GameResult: React.FC<GameResultProps> = ({
             <div>
                 <div className="result-header">
                     <span className="eyebrow">{feedbackMessage}</span>
+                    {earnedPoints != null && earnedPoints > 0 && (
+                        <span className="earned-points-badge">+{earnedPoints} pts</span>
+                    )}
                     <h2 className="song-title">{targetSong.name}</h2>
                     <p className="artist-copy">Artist: {targetSong.artists.map((a: any) => a.name).join(', ')}</p>
                 </div>
@@ -51,3 +56,4 @@ const GameResult: React.FC<GameResultProps> = ({
 };
 
 export default GameResult;
+
