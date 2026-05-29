@@ -89,36 +89,36 @@
 }
 
 .nav-links {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    pointer-events: auto;
 }
 
 .nav-link {
-  display: inline-flex;
-  align-items: center;
-  height: 42px;
-  border: 3px solid var(--ink);
-  border-radius: 14px;
-  padding: 0 16px;
-  color: var(--ink);
-  font-size: 0.9rem;
-  font-weight: 900;
-  text-decoration: none;
-  background: var(--cream);
-  box-shadow: 4px 4px 0 var(--ink);
-  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+    display: inline-flex;
+    align-items: center;
+    height: 42px;
+    border: 3px solid var(--ink);
+    border-radius: 14px;
+    padding: 0 16px;
+    color: var(--ink);
+    font-size: 0.9rem;
+    font-weight: 900;
+    text-decoration: none;
+    background: var(--cream);
+    box-shadow: 4px 4px 0 var(--ink);
+    transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
 }
 
 .nav-link:hover {
-  transform: translate(-2px, -2px);
-  box-shadow: 6px 6px 0 var(--ink);
-  background: var(--gold);
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0 var(--ink);
+    background: var(--gold);
 }
 
 .nav-link-active {
-  background: var(--gold);
+    background: var(--gold);
 }
 
 .home-button {
@@ -157,6 +157,8 @@
     place-items: center;
     width: 48px;
     height: 48px;
+    padding: 0;
+    overflow: hidden;
     border: 3px solid var(--ink);
     border-radius: 50%;
     color: var(--ink);
@@ -178,6 +180,40 @@
     height: 100%;
     border-radius: 50%;
     object-fit: cover;
+}
+
+.profile-icon {
+    font-size: 2rem;
+}
+
+.profile-menu-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-bottom: 14px;
+    border-bottom: 2px solid var(--ink);
+    margin-bottom: 2px;
+}
+
+.profile-menu-identity {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.profile-menu-username {
+    font-size: 1.15rem;
+    font-weight: 900;
+    color: var(--ink);
+    line-height: 1.1;
+    overflow-wrap: anywhere;
+}
+
+.profile-menu-email {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--ink-soft);
+    overflow-wrap: anywhere;
 }
 
 .profile-silhouette {
@@ -306,6 +342,7 @@ body.dark-theme .profile-menu-panel {
         height: 76px;
         padding: 0;
     }
+
     .site-nav-inner {
         width: min(100% - 22px, 1120px);
         flex-direction: row;

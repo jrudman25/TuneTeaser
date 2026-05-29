@@ -107,9 +107,7 @@ const Login = () => {
                         const profileData = await response.json();
                         setAccountName(profileData.display_name);
 
-                        setTimeout(() => {
-                            navigate('/home');
-                        }, 1500);
+                        navigate('/home');
                     } else {
                         setIsLoading(false);
                     }

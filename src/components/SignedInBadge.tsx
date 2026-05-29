@@ -7,9 +7,7 @@ type SignedInBadgeProps = {
 const SignedInBadge = ({ user }: SignedInBadgeProps) => {
     if (!user) return null;
 
-    const label = user.displayName || user.email || 'TuneTeaser account';
-
-    return <span className="account-badge">Signed in as {label}</span>;
+    return <span className="account-badge">Signed in with TuneTeaser</span>;
 };
 
 export default SignedInBadge;

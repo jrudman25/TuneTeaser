@@ -51,25 +51,40 @@ const ProfileMenu: React.FC<ProfileMenuProps> = ({
 
     return (
         <div className="profile-menu" ref={menuRef}>
-            <button
+            <div
                 className="profile-trigger"
-                type="button"
+                role="button"
+                tabIndex={0}
                 aria-label="Open profile menu"
                 aria-expanded={isOpen}
                 aria-haspopup="menu"
                 onClick={() => setIsOpen(current => !current)}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setIsOpen(current => !current);
+                    }
+                }}
                 title={displayLabel}
             >
                 {user?.photoURL ? (
                     <img src={user.photoURL} alt="" />
                 ) : (
-                    <AccountCircleIcon aria-hidden="true" />
+                    <AccountCircleIcon className="profile-icon" aria-hidden="true" />
                 )}
-            </button>
+            </div>
 
             {isOpen && (
                 <div className="profile-menu-panel" role="menu">
                     <div className="profile-menu-summary">
+                        {!isGuest && (user?.displayName || user?.email) && (
+                            <div className="profile-menu-identity">
+                                <span className="profile-menu-username">{user?.displayName || user?.email?.split('@')[0]}</span>
+                                {user?.email && (
+                                    <span className="profile-menu-email">{user.email}</span>
+                                )}
+                            </div>
+                        )}
                         {statusBadge || <span className="account-badge">{displayLabel}</span>}
                     </div>
 

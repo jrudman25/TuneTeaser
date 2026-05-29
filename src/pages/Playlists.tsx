@@ -4,6 +4,7 @@ import { useManualPlaylists } from '../hooks/useManualPlaylists';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
 import { signInAnonymously, signOut } from 'firebase/auth';
 import { auth } from '../backend/FirebaseConfig';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import SignedInBadge from '../components/SignedInBadge';
 import NavBar from '../components/NavBar';
 
@@ -61,7 +62,6 @@ const Playlists = () => {
         return result;
     }, [manualPlaylists, searchQuery, sortBy, sortDir]);
 
-    const hasPlaylists = manualPlaylists.length > 0;
     const playlistPageCount = Math.ceil(filteredAndSortedPlaylists.length / MANUAL_PLAYLISTS_PER_PAGE);
     const clampedPage = playlistPageCount > 0 ? Math.min(playlistPage, playlistPageCount - 1) : 0;
     const paginatedManualPlaylists = filteredAndSortedPlaylists.slice(
@@ -136,11 +136,9 @@ const Playlists = () => {
 
     const actionButtons = (
         <div className="action-row">
-            {(hasPlaylists || isProbablyGuest || localStorage.getItem('skipPlaylistOnboarding') === 'true' || !isOnboarding) && (
-                <Link className="button button-secondary" to={isProbablyGuest ? "/playlists?mode=guest" : "/playlists"}>
-                    Manage Playlists
-                </Link>
-            )}
+            <Link className="button button-secondary" to={isProbablyGuest ? "/playlists?mode=guest" : "/playlists"}>
+                Manage Playlists
+            </Link>
             {(user || isLoadingUser) && (
                 <button className="button button-danger" onClick={handleLogout}>
                     {isProbablyGuest ? 'Exit Guest Mode' : 'Logout'}
@@ -232,7 +230,7 @@ const Playlists = () => {
                         )}
                     </div>
 
-                    {isLoadingManualPlaylists ? (
+                    {isLoadingManualPlaylists && !isOnboarding ? (
                         <div className="loading-card">Loading playlists...</div>
                     ) : filteredAndSortedPlaylists.length > 0 ? (
                         <>
@@ -257,8 +255,8 @@ const Playlists = () => {
                                                 </p>
                                                 <p className="playlist-meta">Added {formatPlaylistDate(playlist.createdAt)}</p>
                                                 {playlist.sourceUrl && (
-                                                    <a className="text-link" href={playlist.sourceUrl} target="_blank" rel="noreferrer">
-                                                        Spotify source
+                                                    <a className="text-link external-link" href={playlist.sourceUrl} target="_blank" rel="noreferrer">
+                                                        Spotify source <OpenInNewIcon style={{ fontSize: '0.85em', verticalAlign: 'middle' }} />
                                                     </a>
                                                 )}
                                                 <button

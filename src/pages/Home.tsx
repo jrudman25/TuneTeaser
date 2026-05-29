@@ -191,17 +191,6 @@ const Home = () => {
         navigate('/');
     };
 
-    if (isLoggingOut) {
-        return (
-            <>
-                <NavBar />
-                <main className="page home-page">
-                    <div className="loading-card">Logging out...</div>
-                </main>
-            </>
-        );
-    }
-
     const statusBadge = (
         <div className="status-stack">
             {isProbablyGuest ? (
@@ -222,10 +211,21 @@ const Home = () => {
                 </Link>
             )}
             <button className="button button-danger" onClick={handleLogout}>
-                {isProbablyGuest ? 'Exit Guest Mode' : isProbablyManualMode ? 'Logout' : 'Logout / Reset Token'}
+                {isProbablyGuest ? 'Exit Guest Mode' : 'Logout'}
             </button>
         </div>
     );
+
+    if (isLoggingOut || isLoadingUser || (user && !user.isAnonymous && isLoadingManualPlaylists)) {
+        return (
+            <>
+                <NavBar statusBadge={statusBadge} actionButtons={actionButtons} />
+                <main className="page home-page">
+                    <div className="loading-card">{isLoggingOut ? 'Logging out...' : 'Loading...'}</div>
+                </main>
+            </>
+        );
+    }
 
     return (
         <>

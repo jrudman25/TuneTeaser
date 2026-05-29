@@ -122,7 +122,7 @@ const Leaderboard = () => {
                             <span className="kicker">Your stats</span>
                             <div className="your-stats-grid">
                                 <div className="stat-block">
-                                    <span className="stat-value">{currentUserRank ?? '--'}</span>
+                                    <span className="stat-value">{currentUserRank != null ? currentUserRank : <span className="playing-badge">...</span>}</span>
                                     <span className="stat-label">Rank</span>
                                 </div>
                                 <div className="stat-block">
