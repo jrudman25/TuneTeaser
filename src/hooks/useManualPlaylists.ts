@@ -116,7 +116,7 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
             throw new Error('Playlist name is required.');
         }
 
-        const playlistNameRegex = /^[a-zA-Z0-9_ [\]()!?'",&./#-]{1,100}$/;
+        const playlistNameRegex = /^[a-zA-Z0-9_ \x5b\x5d()!?'",&./#-]{1,100}$/;
         if (!playlistNameRegex.test(trimmedName)) {
             throw new Error('Playlist name must be 1-100 characters long and contain only letters, numbers, spaces, or standard music punctuation.');
         }
