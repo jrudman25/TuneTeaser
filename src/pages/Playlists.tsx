@@ -81,6 +81,32 @@ const Playlists = () => {
         }
     }, [isGuest, isLoadingUser, user]);
 
+    const handleDelete = async (playlistId: string, name: string) => {
+        const confirmed = window.confirm(`Delete "${name}" from TuneTeaser?`);
+        if (!confirmed) return;
+
+        await deleteManualPlaylist(playlistId);
+    };
+
+    const formatPlaylistDate = (value: any) => {
+        if (!value) return 'Just now';
+        let date: Date | null = null;
+        if (typeof value.toDate === 'function') {
+            date = value.toDate();
+        } else if (typeof value.seconds === 'number') {
+            date = new Date(value.seconds * 1000);
+        } else if (value instanceof Date) {
+            date = value;
+        } else if (typeof value === 'number') {
+            date = new Date(value);
+        }
+        return date ? date.toLocaleDateString() : 'Just now';
+    };
+
+    const getPlaylistSourceLabel = (sourceUrl: string) => {
+        return sourceUrl ? 'Spotify import' : 'Custom mix';
+    };
+
     if (isLoadingUser) {
         return (
             <>
@@ -128,48 +154,54 @@ const Playlists = () => {
                 <section className="record-bin">
                     <div>
                         <span className="eyebrow">{isGuest ? 'Guest crates' : 'Your crates'}</span>
-                        <div className="header-with-actions">
-                            <h2 className="section-title">Music Library</h2>
-                            <div className="library-actions">
-                                <Link className="button button-primary" to={isGuest ? "/playlists/import?mode=guest" : "/playlists/import"}>
-                                    Import Spotify Playlist
+                        <h2 className="section-title">Music Library</h2>
+                        
+                        <div className="action-row" style={{ marginTop: '12px', marginBottom: '20px' }}>
+                            <Link className="button button-large button-primary" to={isGuest ? "/playlists/import?mode=guest" : "/playlists/import"}>
+                                Import Spotify Playlist
+                            </Link>
+                            {!isGuest && (
+                                <Link className="button button-large button-secondary" to="/playlists/custom">
+                                    Build Custom Playlist
                                 </Link>
-                                {!isGuest && (
-                                    <Link className="button button-secondary" to="/playlists/custom">
-                                        Build Custom Playlist
-                                    </Link>
-                                )}
-                            </div>
+                            )}
                         </div>
 
                         {manualPlaylists.length > 0 && (
-                            <div className="filter-row">
+                            <div className="filter-controls" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.75rem' }}>
                                 <input
                                     type="text"
+                                    className="text-input"
                                     placeholder="Search playlists..."
-                                    className="text-input search-input"
                                     value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    onChange={(e) => {
+                                        setSearchQuery(e.target.value);
+                                        setPlaylistPage(0);
+                                    }}
                                 />
-                                <div className="sort-controls">
-                                    <select
-                                        className="text-input sort-select"
-                                        value={sortBy}
-                                        onChange={(e) => setSortBy(e.target.value as any)}
-                                    >
-                                        <option value="default">Sort by Date Added</option>
-                                        <option value="name">Sort by Name</option>
-                                        <option value="tracks">Sort by Track Count</option>
-                                    </select>
-                                    <button
-                                        type="button"
-                                        className="button button-quiet"
-                                        onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
-                                        title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
-                                    >
-                                        {sortDir === 'asc' ? '↑' : '↓'}
-                                    </button>
-                                </div>
+                                <select
+                                    className="text-input"
+                                    value={sortBy}
+                                    onChange={(e) => {
+                                        setSortBy(e.target.value as any);
+                                        setPlaylistPage(0);
+                                    }}
+                                >
+                                    <option value="default">Date Added</option>
+                                    <option value="name">Name</option>
+                                    <option value="tracks">Track Count</option>
+                                </select>
+                                <button
+                                    type="button"
+                                    className="button button-quiet"
+                                    onClick={() => {
+                                        setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+                                        setPlaylistPage(0);
+                                    }}
+                                    title="Toggle Sort Direction"
+                                >
+                                    {sortDir === 'asc' ? '↑' : '↓'}
+                                </button>
                             </div>
                         )}
                     </div>
@@ -178,48 +210,44 @@ const Playlists = () => {
                         <div className="loading-card">Loading playlists...</div>
                     ) : filteredAndSortedPlaylists.length > 0 ? (
                         <>
-                            <div className="record-grid">
-                                {paginatedManualPlaylists.map((playlist: any) => (
-                                    <div key={playlist.id} className="record-card-container">
-                                        {playlist.importStatus === 'importing' && (
-                                            <div className="playlist-card-importing-overlay">
-                                                <div className="spinner" />
-                                                <div className="overlay-text">Importing Tracks...</div>
-                                                <div className="overlay-progress">{playlist.tracks?.length || 0} tracks loaded</div>
-                                            </div>
-                                        )}
-                                        <div className="record-card">
-                                            <div className="record-sleeve">
-                                                <div className="record-vinyl" />
-                                                <div className="record-center">
-                                                    <span className="record-label-text">
-                                                        {playlist.tracks?.length || 0} tracks
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <div className="record-info">
-                                                <h3 className="record-title">{playlist.name}</h3>
-                                                <p className="record-artist">
-                                                    {playlist.importStatus === 'importing' ? (
-                                                        <span className="importing-status-label">Importing...</span>
-                                                    ) : (
-                                                        <>Added {playlist.formattedCreatedAt || 'Just now'}</>
-                                                    )}
+                            <ul className="record-grid">
+                                {paginatedManualPlaylists.map(playlist => {
+                                    const isImporting = playlist.status === 'importing';
+                                    return (
+                                        <li key={playlist.id}>
+                                            <article className="playlist-card playlist-library-card" style={{ position: 'relative', overflow: 'hidden' }}>
+                                                {isImporting && (
+                                                    <div className="playlist-card-importing-overlay">
+                                                        <span>Importing</span>
+                                                        <span style={{ fontSize: '0.85rem', fontFamily: 'var(--body)', fontWeight: 900, color: 'var(--cream)' }}>
+                                                            {playlist.tracks?.length || 0} / {playlist.totalCount || 100} tracks
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                <span className="playlist-label">{getPlaylistSourceLabel(playlist.sourceUrl)}</span>
+                                                <h3 className="playlist-name">{playlist.name}</h3>
+                                                <p className="playlist-meta">
+                                                    {playlist.tracks?.length || 0} tracks
                                                 </p>
-                                                <div className="record-actions">
-                                                    <button
-                                                        type="button"
-                                                        className="button button-quiet button-danger"
-                                                        onClick={() => deleteManualPlaylist(playlist.id)}
-                                                    >
-                                                        Delete
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                                                <p className="playlist-meta">Added {formatPlaylistDate(playlist.createdAt)}</p>
+                                                {playlist.sourceUrl && (
+                                                    <a className="text-link" href={playlist.sourceUrl} target="_blank" rel="noreferrer">
+                                                        Spotify source
+                                                    </a>
+                                                )}
+                                                <button
+                                                    className="button button-danger"
+                                                    type="button"
+                                                    onClick={() => handleDelete(playlist.id, playlist.name)}
+                                                    disabled={isImporting}
+                                                >
+                                                    Delete
+                                                </button>
+                                            </article>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
 
                             {playlistPageCount > 1 && (
                                 <div className="pagination-row">
