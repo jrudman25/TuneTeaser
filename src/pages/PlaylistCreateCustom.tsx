@@ -14,8 +14,8 @@ const PlaylistCreateCustom = () => {
     const [searchParams] = useSearchParams();
     const isOnboarding = searchParams.get('onboarding') === '1';
     const { user, isLoadingUser } = useTuneTeaserAuth();
-    const { addManualPlaylist } = useManualPlaylists(user);
-
+    const { addManualPlaylist, manualPlaylists } = useManualPlaylists(user);
+    const currentCount = manualPlaylists.length;
     const [playlistName, setPlaylistName] = useState('');
     const [trackLines, setTrackLines] = useState('');
     const [formError, setFormError] = useState('');
@@ -78,6 +78,11 @@ const PlaylistCreateCustom = () => {
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         setFormError('');
+
+        if (currentCount >= 25) {
+            setFormError('You have reached the limit of 25 playlists. Please delete an existing playlist to create more.');
+            return;
+        }
 
         if (!playlistName.trim()) {
             setFormError('Playlist name is required.');
@@ -156,86 +161,92 @@ const PlaylistCreateCustom = () => {
             <NavBar statusBadge={statusBadge} actionButtons={actionButtons} />
             <main className="page home-page">
 
-            <section className="record-bin">
-                <div>
-                    <span className="eyebrow">Custom tracks</span>
-                    <h2 className="section-title">Build a Playlist</h2>
-                    <p className="body-copy">
-                        Enter a playlist name and paste Spotify track URLs or type Song - Artist lines. Great for building a custom mix from scratch.
-                    </p>
-                </div>
+                <section className="record-bin">
+                    <div>
+                        <span className="eyebrow">Custom tracks</span>
+                        <h2 className="section-title">Build a Playlist</h2>
+                        <p className="body-copy">
+                            Enter a playlist name and paste Spotify track URLs or type Song - Artist lines. Great for building a custom mix from scratch.
+                        </p>
+                    </div>
 
-                <form className="playlist-form" onSubmit={handleSubmit}>
-                    <label className="form-label">
-                        Playlist name
-                        <input
-                            className="text-input"
-                            value={playlistName}
-                            onChange={(event) => setPlaylistName(event.target.value)}
-                            placeholder="Road Trip Mix"
-                            required
-                        />
-                    </label>
-                    <label className="form-label">
-                        Tracks
-                        <textarea
-                            className="text-area"
-                            value={trackLines}
-                            onChange={(event) => handleTrackLinesChange(event.target.value)}
-                            placeholder={"https://open.spotify.com/track/76GlO5H5RT6g7y0gev86Nk\nspotify:track:4PTG3Z6ehGkBFwjybzWkR8\nSong Two - Artist Two"}
-                            rows={9}
-                            required
-                        />
-                    </label>
-                    <div className="import-summary">
-                        <div className="action-row">
-                            <span className="snippet-meter">{tracksToSave.length} ready tracks</span>
+                    <form className="playlist-form" onSubmit={handleSubmit}>
+                        <label className="form-label">
+                            Playlist name
+                            <input
+                                className="text-input"
+                                value={playlistName}
+                                onChange={(event) => setPlaylistName(event.target.value)}
+                                placeholder="Road Trip Mix"
+                                required
+                                maxLength={100}
+                            />
+                        </label>
+                        <label className="form-label">
+                            Tracks
+                            <textarea
+                                className="text-area"
+                                value={trackLines}
+                                onChange={(event) => handleTrackLinesChange(event.target.value)}
+                                placeholder={"https://open.spotify.com/track/76GlO5H5RT6g7y0gev86Nk\nspotify:track:4PTG3Z6ehGkBFwjybzWkR8\nSong Two - Artist Two"}
+                                rows={9}
+                                required
+                            />
+                        </label>
+                        <div className="import-summary">
+                            <div className="action-row">
+                                <span className="snippet-meter">{tracksToSave.length} ready tracks</span>
+                                {parsedImport.spotifyTrackIds.length > 0 && (
+                                    <span className="snippet-meter">{parsedImport.spotifyTrackIds.length} Spotify links found</span>
+                                )}
+                                {parsedImport.duplicateCount > 0 && (
+                                    <span className="snippet-meter">{parsedImport.duplicateCount} duplicate links ignored</span>
+                                )}
+                            </div>
                             {parsedImport.spotifyTrackIds.length > 0 && (
-                                <span className="snippet-meter">{parsedImport.spotifyTrackIds.length} Spotify links found</span>
+                                <button
+                                    className="button button-tertiary"
+                                    type="button"
+                                    onClick={handleResolveTracks}
+                                    disabled={isResolvingTracks || parsedImport.errors.length > 0}
+                                >
+                                    {isResolvingTracks ? 'Resolving...' : 'Resolve Tracks'}
+                                </button>
                             )}
-                            {parsedImport.duplicateCount > 0 && (
-                                <span className="snippet-meter">{parsedImport.duplicateCount} duplicate links ignored</span>
+                            {parsedImport.errors.length > 0 && (
+                                <ul className="error-list compact-list">
+                                    {parsedImport.errors.map(error => <li key={error}>{error}</li>)}
+                                </ul>
+                            )}
+                            {resolverErrors.length > 0 && (
+                                <ul className="error-list compact-list">
+                                    {resolverErrors.map(error => <li key={error}>{error}</li>)}
+                                </ul>
+                            )}
+                            {tracksToSave.length > 0 && (
+                                <ul className="resolved-track-list">
+                                    {tracksToSave.slice(0, 12).map(track => (
+                                        <li key={track.id}>
+                                            <span>{track.name}</span>
+                                            <span>{track.artists.map(artist => artist.name).join(', ')}</span>
+                                        </li>
+                                    ))}
+                                    {tracksToSave.length > 12 && <li>+ {tracksToSave.length - 12} more tracks</li>}
+                                </ul>
                             )}
                         </div>
-                        {parsedImport.spotifyTrackIds.length > 0 && (
-                            <button
-                                className="button button-tertiary"
-                                type="button"
-                                onClick={handleResolveTracks}
-                                disabled={isResolvingTracks || parsedImport.errors.length > 0}
-                            >
-                                {isResolvingTracks ? 'Resolving...' : 'Resolve Tracks'}
-                            </button>
+                        {currentCount >= 25 && (
+                            <div className="error-banner" style={{ marginBottom: '16px' }}>
+                                <strong>Library Full:</strong> You have reached your limit of 25 playlists. Please delete some existing playlists from your Library to create a custom mix.
+                            </div>
                         )}
-                        {parsedImport.errors.length > 0 && (
-                            <ul className="error-list compact-list">
-                                {parsedImport.errors.map(error => <li key={error}>{error}</li>)}
-                            </ul>
-                        )}
-                        {resolverErrors.length > 0 && (
-                            <ul className="error-list compact-list">
-                                {resolverErrors.map(error => <li key={error}>{error}</li>)}
-                            </ul>
-                        )}
-                        {tracksToSave.length > 0 && (
-                            <ul className="resolved-track-list">
-                                {tracksToSave.slice(0, 12).map(track => (
-                                    <li key={track.id}>
-                                        <span>{track.name}</span>
-                                        <span>{track.artists.map(artist => artist.name).join(', ')}</span>
-                                    </li>
-                                ))}
-                                {tracksToSave.length > 12 && <li>+ {tracksToSave.length - 12} more tracks</li>}
-                            </ul>
-                        )}
-                    </div>
-                    {formError && <div className="error-banner">{formError}</div>}
-                    <button className="button button-large" type="submit" disabled={isSaving}>
-                        {isSaving ? 'Saving...' : 'Save Playlist'}
-                    </button>
-                </form>
-            </section>
-        </main>
+                        {formError && <div className="error-banner">{formError}</div>}
+                        <button className="button button-large" type="submit" disabled={isSaving || currentCount >= 25}>
+                            {isSaving ? 'Saving...' : 'Save Playlist'}
+                        </button>
+                    </form>
+                </section>
+            </main>
         </>
     );
 };

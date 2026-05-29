@@ -13,9 +13,12 @@ import {
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { User } from 'firebase/auth';
 import { db, storage } from '../backend/FirebaseConfig';
-import { ManualPlaylist, ManualTrack } from '../utils/manualPlaylists';
+import { ManualPlaylist, ManualTrack, sanitizeTrack } from '../utils/manualPlaylists';
 import { extractSpotifyPlaylistId } from '../utils/spotifyPlaylistName';
 import { importSpotifyPlaylist, getManualPlaylistTracks } from '../utils/spotifyPlaylistImporter';
+
+export const PLAYLIST_LIMIT = 25;
+export const TRACK_LIMIT = 5000;
 
 export const useManualPlaylists = (user: User | null, isGuest: boolean = false) => {
     const [manualPlaylists, setManualPlaylists] = useState<ManualPlaylist[]>([]);
@@ -109,8 +112,19 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
         const trimmedName = name.trim();
         const trimmedSourceUrl = sourceUrl.trim();
 
-        const finalTotalCount = totalCount !== undefined ? totalCount : tracks.length;
-        const finalImportedCount = importedCount !== undefined ? importedCount : tracks.length;
+        if (!trimmedName) {
+            throw new Error('Playlist name is required.');
+        }
+
+        const playlistNameRegex = /^[a-zA-Z0-9_ [\]()!?'",&./#-]{1,100}$/;
+        if (!playlistNameRegex.test(trimmedName)) {
+            throw new Error('Playlist name must be 1-100 characters long and contain only letters, numbers, spaces, or standard music punctuation.');
+        }
+
+        const cappedTracks = tracks.slice(0, TRACK_LIMIT);
+        const sanitizedTracks = cappedTracks.map(sanitizeTrack);
+        const finalTotalCount = Math.min(totalCount !== undefined ? totalCount : tracks.length, TRACK_LIMIT);
+        const finalImportedCount = Math.min(importedCount !== undefined ? importedCount : tracks.length, TRACK_LIMIT);
         const finalStatus = (finalImportedCount >= finalTotalCount) ? 'ready' : status;
 
         if (isGuest) {
@@ -124,6 +138,10 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
                 console.error(e);
             }
 
+            if (existingPlaylists.length >= PLAYLIST_LIMIT) {
+                throw new Error(`You have reached the limit of ${PLAYLIST_LIMIT} playlists. Please delete an existing playlist to add a new one.`);
+            }
+
             const existingNames = existingPlaylists.map(d => (d.name || '').toLowerCase());
             if (existingNames.includes(trimmedName.toLowerCase())) {
                 throw new Error(`A playlist named "${trimmedName}" already exists.`);
@@ -132,7 +150,7 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
             const playlistId = `guest_manual_${Date.now()}`;
             
             // Upload to Storage
-            const tracksUrl = await uploadTracksToStorage(playlistId, tracks);
+            const tracksUrl = await uploadTracksToStorage(playlistId, sanitizedTracks);
 
             const newPlaylist: ManualPlaylist = {
                 id: playlistId,
@@ -157,8 +175,12 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
         const collectionRef = getCollectionRef();
         if (!collectionRef || !user) throw new Error('You must be logged in to add playlists.');
 
-        // Check for duplicate playlist names
+        // Check for duplicate playlist names and count limit
         const snapshot = await getDocs(collectionRef);
+        if (snapshot.docs.length >= PLAYLIST_LIMIT) {
+            throw new Error(`You have reached the limit of ${PLAYLIST_LIMIT} playlists. Please delete an existing playlist to add a new one.`);
+        }
+
         const existingNames = snapshot.docs.map(d => (d.data().name || '').toLowerCase());
         if (existingNames.includes(trimmedName.toLowerCase())) {
             throw new Error(`A playlist named "${trimmedName}" already exists.`);
@@ -169,7 +191,7 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
         const playlistId = docRef.id;
 
         // Upload to Storage
-        const tracksUrl = await uploadTracksToStorage(playlistId, tracks);
+        const tracksUrl = await uploadTracksToStorage(playlistId, sanitizedTracks);
 
         // Write document to Firestore
         await setDoc(docRef, {
@@ -294,6 +316,12 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
 
             console.log(`[TuneTeaser Importer] Found playlist "${activeImporting.name}" to continue importing. Current tracks: ${offset}/${activeImporting.totalCount || 0}`);
 
+            if (offset >= TRACK_LIMIT) {
+                console.log(`[TuneTeaser Importer] Playlist has reached the track limit of ${TRACK_LIMIT} tracks. Stopping import.`);
+                await updateManualPlaylist(playlistId, { status: 'ready' });
+                return;
+            }
+
             if (!spotifyPlaylistId) {
                 console.warn(`[TuneTeaser Importer] Invalid Spotify playlist URL: ${sourceUrl}. Marking as ready.`);
                 await updateManualPlaylist(playlistId, { status: 'ready' });
@@ -309,8 +337,8 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
                 }
 
                 const newTracks = result.tracks || [];
-                const combinedTracks = [...currentTracks, ...newTracks];
-                const total = result.total || activeImporting.totalCount || combinedTracks.length;
+                const combinedTracks = [...currentTracks, ...newTracks].slice(0, TRACK_LIMIT);
+                const total = Math.min(result.total || activeImporting.totalCount || combinedTracks.length, TRACK_LIMIT);
 
                 console.log(`[TuneTeaser Importer] Fetched ${newTracks.length} tracks. Combined: ${combinedTracks.length} / ${total}`);
 

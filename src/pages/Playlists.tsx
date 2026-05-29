@@ -178,7 +178,7 @@ const Playlists = () => {
 
                 <section className="record-bin">
                     <div>
-                        <span className="eyebrow">{isGuest ? 'Guest crates' : 'Your crates'}</span>
+                        <span className="eyebrow">{isGuest ? 'Guest playlists' : 'Your playlists'}</span>
                         <h2 className="section-title">Music Library</h2>
 
                         <div className="action-row" style={{ marginTop: '12px', marginBottom: '20px' }}>

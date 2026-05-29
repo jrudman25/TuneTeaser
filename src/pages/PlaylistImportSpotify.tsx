@@ -25,7 +25,9 @@ const PlaylistImportSpotify = () => {
     const isOnboarding = searchParams.get('onboarding') === '1';
     const isGuest = searchParams.get('mode') === 'guest';
     const { user, isLoadingUser } = useTuneTeaserAuth();
-    const { addManualPlaylist } = useManualPlaylists(user, isGuest);
+    const { addManualPlaylist, manualPlaylists } = useManualPlaylists(user, isGuest);
+    const currentCount = manualPlaylists.length;
+    const playlistsRemaining = Math.max(0, 25 - currentCount);
 
     const [playlistUrl, setPlaylistUrl] = useState('');
     const [profileUrl, setProfileUrl] = useState('');
@@ -48,6 +50,7 @@ const PlaylistImportSpotify = () => {
     const [saveSuccessMessage, setSaveSuccessMessage] = useState('');
     const [authError, setAuthError] = useState('');
     const [profileSearchQuery, setProfileSearchQuery] = useState('');
+    const [showLinkInstructions, setShowLinkInstructions] = useState(false);
 
     const sourcePlaylistId = extractSpotifyPlaylistId(playlistUrl);
     const sourceUserId = extractSpotifyUserId(profileUrl);
@@ -387,11 +390,49 @@ const PlaylistImportSpotify = () => {
 
             <section className="record-bin">
                 <div>
-                    <span className="eyebrow">Spotify imports</span>
+                    <span className="eyebrow">{isGuest ? 'Spotify imports' : 'Your Spotify imports'}</span>
                     <h2 className="section-title">Import Playlists</h2>
-                    <p className="body-copy">
+                    <p className="body-copy" style={{ marginBottom: '16px' }}>
                         Import one public playlist directly, or paste a Spotify profile URL to choose from that user's public playlists.
                     </p>
+                </div>
+
+                <div className="limit-status-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 12px', borderRadius: '20px', background: currentCount >= 25 ? 'rgba(235, 94, 40, 0.12)' : 'rgba(255,255,255,0.03)', border: currentCount >= 25 ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem', marginBottom: '16px', color: currentCount >= 25 ? 'var(--accent)' : 'var(--cream)' }}>
+                    <span className="dot" style={{ width: '8px', height: '8px', borderRadius: '50%', background: currentCount >= 25 ? 'var(--accent)' : 'var(--mint)' }} />
+                    <span>{currentCount} of 25 playlists used ({playlistsRemaining} remaining)</span>
+                </div>
+
+                <div className="inline-help-toggle" style={{ margin: '0 0 20px 0' }}>
+                    <button
+                        type="button"
+                        className="text-link"
+                        onClick={() => setShowLinkInstructions(!showLinkInstructions)}
+                        style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.9rem', color: 'var(--mint)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    >
+                        {showLinkInstructions ? 'Hide Instructions' : 'Need help finding Spotify playlist or profile links?'}
+                    </button>
+                    
+                    {showLinkInstructions && (
+                        <div className="inline-help-drawer" style={{ marginTop: '12px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem', color: 'var(--cream-80)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <div>
+                                <strong style={{ color: 'var(--mint)', display: 'block', marginBottom: '4px' }}>To find a Spotify Playlist URL:</strong>
+                                <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    <li><strong>On Desktop:</strong> Right-click the playlist title in your sidebar &rarr; Share &rarr; Copy link to playlist.</li>
+                                    <li><strong>On Mobile:</strong> Tap the three dots under the playlist banner &rarr; Share &rarr; Copy link.</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <strong style={{ color: 'var(--mint)', display: 'block', marginBottom: '4px' }}>To find a Spotify Profile URL:</strong>
+                                <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    <li><strong>On Desktop:</strong> Click your profile icon in the top right &rarr; Profile &rarr; Click the three dots under your name &rarr; Share &rarr; Copy link to profile.</li>
+                                    <li><strong>On Mobile:</strong> Tap your profile picture &rarr; View Profile &rarr; Tap the three dots in the top right corner &rarr; Share &rarr; Copy link.</li>
+                                </ul>
+                            </div>
+                            <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--cream-60)' }}>
+                                You can also read our full <Link to="/help" style={{ color: 'var(--mint)', textDecoration: 'underline' }}>Help & FAQ Page</Link> for detailed instructions on scoring, limits, and privacy.
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 <form className="playlist-form" onSubmit={handleSubmit}>
@@ -502,12 +543,18 @@ const PlaylistImportSpotify = () => {
                                     </div>
                                 )}
 
+                                {currentCount + selectedPlaylistIds.length > 25 && (
+                                    <div className="error-banner" style={{ marginTop: '16px', marginBottom: '16px' }}>
+                                        <strong>Limit Exceeded:</strong> Selecting these playlists would put you over your 25 playlist limit (You currently have {currentCount} playlists, and selected {selectedPlaylistIds.length}. Limit is 25). Please deselect some playlists to continue.
+                                    </div>
+                                )}
+
                                 <div className="action-row">
                                     <button
                                         className="button button-large"
                                         type="button"
                                         onClick={handleImportSelectedPlaylists}
-                                        disabled={isBatchImporting || selectedProfilePlaylists.length === 0 || (isGuest && !user)}
+                                        disabled={isBatchImporting || selectedProfilePlaylists.length === 0 || (isGuest && !user) || (currentCount + selectedPlaylistIds.length > 25)}
                                     >
                                         {isBatchImporting ? 'Importing Selected...' : `Import ${selectedProfilePlaylists.length} Selected`}
                                     </button>
@@ -580,9 +627,15 @@ const PlaylistImportSpotify = () => {
                                         required
                                     />
                                 </label>
+                                {currentCount >= 25 && (
+                                    <div className="error-banner" style={{ marginTop: '16px', marginBottom: '16px' }}>
+                                        <strong>Library Full:</strong> You have reached your limit of 25 playlists. Please delete some existing playlists from your Library to import more.
+                                    </div>
+                                )}
+
                                 {currentTracks.length >= 2 && (
                                     <div className="action-row" style={{ marginTop: '10px', marginBottom: '15px' }}>
-                                        <button className="button button-large button-primary" type="submit" disabled={isSaving}>
+                                        <button className="button button-large button-primary" type="submit" disabled={isSaving || currentCount >= 25}>
                                             {isSaving ? 'Saving...' : 'Save Playlist'}
                                         </button>
                                     </div>
@@ -609,7 +662,7 @@ const PlaylistImportSpotify = () => {
                         )}
 
                         {importIsCurrent && currentTracks.length >= 2 && (
-                            <button className="button button-large" type="submit" disabled={isSaving}>
+                            <button className="button button-large" type="submit" disabled={isSaving || currentCount >= 25}>
                                 {isSaving ? 'Saving...' : 'Save Playlist'}
                             </button>
                         )}
