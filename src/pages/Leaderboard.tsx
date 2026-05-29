@@ -10,6 +10,7 @@ import { auth } from '../backend/FirebaseConfig';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
 import { useLeaderboard } from '../hooks/useLeaderboard';
 import NavBar from '../components/NavBar';
+import SignedInBadge from '../components/SignedInBadge';
 
 const RANK_LABELS = ['\u{1F947}', '\u{1F948}', '\u{1F949}'];
 
@@ -64,7 +65,13 @@ const Leaderboard = () => {
 
     const statusBadge = (
         <div className="status-stack">
-            <span className="status-badge">Leaderboard</span>
+            {isProbablyGuest ? (
+                <span className="account-badge">Signed in as Guest</span>
+            ) : user ? (
+                <SignedInBadge user={user} />
+            ) : !isProbablyGuest && localStorage.getItem('accessToken') ? (
+                <span className="account-badge">Signed in with Spotify</span>
+            ) : null}
         </div>
     );
 

@@ -126,10 +126,11 @@ const Playlists = () => {
 
     const statusBadge = (
         <div className="status-stack">
-            <span className="status-badge">
-                {isProbablyGuest ? 'Guest playlists' : isOnboarding && !hasPlaylists ? 'Add your first playlist' : 'TuneTeaser playlists'}
-            </span>
-            <SignedInBadge user={isProbablyGuest ? null : user} />
+            {isProbablyGuest ? (
+                <span className="account-badge">Signed in as Guest</span>
+            ) : (
+                <SignedInBadge user={user} />
+            )}
         </div>
     );
 
@@ -244,14 +245,14 @@ const Playlists = () => {
                                                     <div className="playlist-card-importing-overlay">
                                                         <span>Importing</span>
                                                         <span style={{ fontSize: '0.85rem', fontFamily: 'var(--body)', fontWeight: 900, color: 'var(--cream)' }}>
-                                                            {playlist.tracks?.length || 0} / {playlist.totalCount || 100} tracks
+                                                            {(playlist.importedCount !== undefined ? playlist.importedCount : (playlist.tracks?.length || 0))} / {playlist.totalCount || 100} tracks
                                                         </span>
                                                     </div>
                                                 )}
                                                 <span className="playlist-label">{getPlaylistSourceLabel(playlist.sourceUrl)}</span>
                                                 <h3 className="playlist-name">{playlist.name}</h3>
                                                 <p className="playlist-meta">
-                                                    {playlist.tracks?.length || 0} tracks
+                                                    {playlist.importedCount !== undefined ? playlist.importedCount : (playlist.tracks?.length || 0)} tracks
                                                 </p>
                                                 <p className="playlist-meta">Added {formatPlaylistDate(playlist.createdAt)}</p>
                                                 {playlist.sourceUrl && (

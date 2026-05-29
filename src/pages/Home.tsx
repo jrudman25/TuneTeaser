@@ -204,10 +204,13 @@ const Home = () => {
 
     const statusBadge = (
         <div className="status-stack">
-            <span className="status-badge">
-                {isProbablyGuest ? 'Guest mode' : isProbablyManualMode ? 'Logged in with TuneTeaser' : 'Logged in with Spotify'}
-            </span>
-            {isProbablyManualMode ? <SignedInBadge user={user} /> : !isProbablyGuest && <span className="account-badge">Signed in with Spotify</span>}
+            {isProbablyGuest ? (
+                <span className="account-badge">Signed in as Guest</span>
+            ) : isProbablyManualMode ? (
+                <SignedInBadge user={user} />
+            ) : (
+                <span className="account-badge">Signed in with Spotify</span>
+            )}
         </div>
     );
 

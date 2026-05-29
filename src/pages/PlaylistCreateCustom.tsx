@@ -110,7 +110,6 @@ const PlaylistCreateCustom = () => {
 
     const statusBadge = (
         <div className="status-stack">
-            <span className="status-badge">Build custom playlist</span>
             <SignedInBadge user={user} />
         </div>
     );

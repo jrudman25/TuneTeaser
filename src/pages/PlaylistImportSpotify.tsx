@@ -310,8 +310,11 @@ const PlaylistImportSpotify = () => {
 
     const statusBadge = (
         <div className="status-stack">
-            <span className="status-badge">Import from Spotify</span>
-            <SignedInBadge user={isGuest ? null : user} />
+            {isGuest ? (
+                <span className="account-badge">Signed in as Guest</span>
+            ) : (
+                <SignedInBadge user={user} />
+            )}
         </div>
     );
 
