@@ -16,8 +16,10 @@ import Playlists from './pages/Playlists';
 import Help from './pages/Help';
 import Privacy from './pages/Privacy';
 import Settings from './pages/Settings';
+import { useDarkMode } from './hooks/useDarkMode';
 
 function App() {
+    useDarkMode();
 
     return (
         <Router>

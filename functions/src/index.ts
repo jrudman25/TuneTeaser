@@ -1,7 +1,9 @@
 import { initializeApp } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
+import { getFirestore } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
+import * as functionsV1 from 'firebase-functions/v1';
 import { fetchPlaylistName, fetchPlaylistTracks, fetchSpotifyTracks, fetchUserPlaylists, getSpotifyAccessToken, normalizeTrackIds } from './spotify';
 
 initializeApp();
@@ -161,5 +163,42 @@ export const getManualPlaylistTracks = onCall({
         return { tracks };
     } catch (error: any) {
         throw new HttpsError('internal', error.message || 'Could not fetch tracks from Storage.');
+    }
+});
+
+export const cleanupUserOnDelete = functionsV1.auth.user().onDelete(async (userRecord: any) => {
+    const uid = userRecord.uid;
+    const db = getFirestore();
+    const bucket = getStorage().bucket();
+
+    console.log(`[cleanupUserOnDelete] Starting cleanup for user: ${uid}`);
+
+    try {
+        // 1. Delete leaderboard doc
+        await db.collection('leaderboard').doc(uid).delete();
+        console.log(`[cleanupUserOnDelete] Deleted leaderboard doc for user: ${uid}`);
+
+        // 2. Delete all playlists in the users/{uid}/playlists subcollection
+        const playlistsSnapshot = await db.collection('users').doc(uid).collection('playlists').get();
+        if (!playlistsSnapshot.empty) {
+            const batch = db.batch();
+            playlistsSnapshot.docs.forEach((doc) => {
+                batch.delete(doc.ref);
+            });
+            await batch.commit();
+            console.log(`[cleanupUserOnDelete] Deleted ${playlistsSnapshot.size} playlists for user: ${uid}`);
+        }
+
+        // 3. Delete the user document itself
+        await db.collection('users').doc(uid).delete();
+        console.log(`[cleanupUserOnDelete] Deleted user doc: ${uid}`);
+
+        // 4. Delete the user's Storage folder
+        await bucket.deleteFiles({ prefix: `users/${uid}/` });
+        console.log(`[cleanupUserOnDelete] Deleted Storage files for user: ${uid}`);
+
+    } catch (error) {
+        console.error(`[cleanupUserOnDelete] Error cleaning up user ${uid}:`, error);
+        throw error;
     }
 });
