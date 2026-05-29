@@ -33,16 +33,12 @@ const Leaderboard = () => {
 
     const isLoggedIn = !!user && !user.isAnonymous;
 
-    const handleLoginClick = async () => {
-        if (user && user.isAnonymous) {
-            try {
-                await signOut(auth);
-            } catch (err) {
-                console.error("Failed to sign out guest:", err);
-            }
+    React.useEffect(() => {
+        if (!isLoadingUser && !user && !isGuest) {
+            navigate('/');
         }
-        navigate('/');
-    };
+    }, [isLoadingUser, navigate, user, isGuest]);
+
     const isInTop10 = isLoggedIn && topPlayers.some(p => p.uid === user?.uid);
 
     const backPath = isProbablyLoggedIn ? (isProbablyGuest ? '/home?mode=guest' : '/home') : '/';
@@ -104,123 +100,118 @@ const Leaderboard = () => {
             <NavBar statusBadge={statusBadge} actionButtons={actionButtons} />
             <main className="page home-page">
 
-            <section className="leaderboard-card">
-                <div>
-                    <span className="eyebrow">Leaderboard</span>
-                    <h1 className="section-title">Top players</h1>
-                    <p className="body-copy">
-                        Earn points by guessing songs correctly. Faster guesses earn more points.
-                        Playlists must have at least 10 tracks to be eligible.
-                    </p>
-                </div>
+                <section className="leaderboard-card">
+                    <div>
+                        <span className="eyebrow">Leaderboard</span>
+                        <h1 className="section-title">Top players</h1>
+                        <p className="body-copy">
+                            Earn points by guessing songs correctly. Faster guesses earn more points.
+                            Playlists must have at least 10 tracks to be eligible.
+                            {!isLoggedIn && (
+                                <span style={{ display: 'block', marginTop: '10px', fontSize: '0.95rem', color: 'var(--ink-soft)', fontWeight: 800 }}>
+                                    {user?.isAnonymous
+                                        ? 'You are playing in Guest Mode. Log in to a TuneTeaser account to save your stats and join the board!'
+                                        : 'Log in to save your stats and claim a spot on the leaderboard!'}
+                                </span>
+                            )}
+                        </p>
+                    </div>
 
-                {isLoggedIn && currentUserEntry && (
-                    <div className="your-stats-card">
-                        <span className="kicker">Your stats</span>
-                        <div className="your-stats-grid">
-                            <div className="stat-block">
-                                <span className="stat-value">{currentUserRank ?? '--'}</span>
-                                <span className="stat-label">Rank</span>
-                            </div>
-                            <div className="stat-block">
-                                <span className="stat-value">{currentUserEntry.totalPoints.toLocaleString()}</span>
-                                <span className="stat-label">Points</span>
-                            </div>
-                            <div className="stat-block">
-                                <span className="stat-value">{currentUserEntry.gamesWon.toLocaleString()}</span>
-                                <span className="stat-label">Wins</span>
+                    {isLoggedIn && currentUserEntry && (
+                        <div className="your-stats-card">
+                            <span className="kicker">Your stats</span>
+                            <div className="your-stats-grid">
+                                <div className="stat-block">
+                                    <span className="stat-value">{currentUserRank ?? '--'}</span>
+                                    <span className="stat-label">Rank</span>
+                                </div>
+                                <div className="stat-block">
+                                    <span className="stat-value">{currentUserEntry.totalPoints.toLocaleString()}</span>
+                                    <span className="stat-label">Points</span>
+                                </div>
+                                <div className="stat-block">
+                                    <span className="stat-value">{currentUserEntry.gamesWon.toLocaleString()}</span>
+                                    <span className="stat-label">Wins</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )}
+                    )}
 
-                {isLoggedIn && !currentUserEntry && (
-                    <div className="your-stats-card">
-                        <span className="kicker">Your stats</span>
-                        <p className="body-copy" style={{ marginTop: '8px' }}>
-                            You have not earned any points yet. Play a game to get started!
-                        </p>
-                    </div>
-                )}
+                    {isLoggedIn && !currentUserEntry && (
+                        <div className="your-stats-card">
+                            <span className="kicker">Your stats</span>
+                            <p className="body-copy" style={{ marginTop: '8px' }}>
+                                You have not earned any points yet. Play a game to get started!
+                            </p>
+                        </div>
+                    )}
 
-                {!isLoggedIn && (
-                    <div className="your-stats-card">
-                        <span className="kicker">{user?.isAnonymous ? 'Guest Mode' : 'Not signed in'}</span>
-                        <p className="body-copy" style={{ marginTop: '8px', marginBottom: '16px' }}>
-                            {user?.isAnonymous
-                                ? 'You are currently playing in guest mode. Log in to a TuneTeaser account to save your scores, earn points, and appear on the leaderboard!'
-                                : 'Log in to earn points, track your stats, and appear on the leaderboard!'}
-                        </p>
-                        <button onClick={handleLoginClick} className="button button-secondary">
-                            Log In
-                        </button>
-                    </div>
-                )}
 
-                {topPlayers.length > 0 ? (
-                    <div className="leaderboard-table-wrapper">
-                        <table className="leaderboard-table">
-                            <thead>
-                                <tr>
-                                    <th className="col-rank">Rank</th>
-                                    <th className="col-name">Player</th>
-                                    <th className="col-points">Points</th>
-                                    <th className="col-wins">Wins</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {topPlayers.map((player, index) => {
-                                    const isCurrentUser = isLoggedIn && player.uid === user?.uid;
-                                    return (
-                                        <tr
-                                            key={player.uid}
-                                            className={`leaderboard-row ${isCurrentUser ? 'current-user-row' : ''} ${index < 3 ? `rank-${index + 1}` : ''}`}
-                                        >
-                                            <td className="col-rank">
-                                                <span className={`rank-badge ${index < 3 ? `rank-badge-${index + 1}` : ''}`}>
-                                                    {index < 3 ? RANK_LABELS[index] : index + 1}
-                                                </span>
-                                            </td>
-                                            <td className="col-name">
-                                                {player.displayName}
-                                                {isCurrentUser && <span className="you-tag">you</span>}
-                                            </td>
-                                            <td className="col-points">
-                                                <span className="points-badge">{player.totalPoints.toLocaleString()}</span>
-                                            </td>
-                                            <td className="col-wins">{player.gamesWon.toLocaleString()}</td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
 
-                        {isLoggedIn && currentUserEntry && !isInTop10 && currentUserRank && (
-                            <div className="below-table-user">
-                                <span className="rank-badge">#{currentUserRank}</span>
-                                <span className="below-table-name">
-                                    {currentUserEntry.displayName}
-                                    <span className="you-tag">you</span>
-                                </span>
-                                <span className="points-badge">{currentUserEntry.totalPoints.toLocaleString()}</span>
-                                <span>{currentUserEntry.gamesWon.toLocaleString()} wins</span>
-                            </div>
-                        )}
-                    </div>
-                ) : (
-                    <div className="loading-card">
-                        No scores yet. Be the first to play!
-                    </div>
-                )}
+                    {topPlayers.length > 0 ? (
+                        <div className="leaderboard-table-wrapper">
+                            <table className="leaderboard-table">
+                                <thead>
+                                    <tr>
+                                        <th className="col-rank">Rank</th>
+                                        <th className="col-name">Player</th>
+                                        <th className="col-points">Points</th>
+                                        <th className="col-wins">Wins</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {topPlayers.map((player, index) => {
+                                        const isCurrentUser = isLoggedIn && player.uid === user?.uid;
+                                        return (
+                                            <tr
+                                                key={player.uid}
+                                                className={`leaderboard-row ${isCurrentUser ? 'current-user-row' : ''} ${index < 3 ? `rank-${index + 1}` : ''}`}
+                                            >
+                                                <td className="col-rank">
+                                                    <span className={`rank-badge ${index < 3 ? `rank-badge-${index + 1}` : ''}`}>
+                                                        {index < 3 ? RANK_LABELS[index] : index + 1}
+                                                    </span>
+                                                </td>
+                                                <td className="col-name">
+                                                    {player.displayName}
+                                                    {isCurrentUser && <span className="you-tag">you</span>}
+                                                </td>
+                                                <td className="col-points">
+                                                    <span className="points-badge">{player.totalPoints.toLocaleString()}</span>
+                                                </td>
+                                                <td className="col-wins">{player.gamesWon.toLocaleString()}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
 
-                <div className="action-row" style={{ marginTop: '8px' }}>
-                    <Link to={backPath} className="button button-secondary">
-                        {backLabel}
-                    </Link>
-                    <Link to="/home" className="button button-tertiary">Play Now</Link>
-                </div>
-            </section>
-        </main>
+                            {isLoggedIn && currentUserEntry && !isInTop10 && currentUserRank && (
+                                <div className="below-table-user">
+                                    <span className="rank-badge">#{currentUserRank}</span>
+                                    <span className="below-table-name">
+                                        {currentUserEntry.displayName}
+                                        <span className="you-tag">you</span>
+                                    </span>
+                                    <span className="points-badge">{currentUserEntry.totalPoints.toLocaleString()}</span>
+                                    <span>{currentUserEntry.gamesWon.toLocaleString()} wins</span>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="loading-card">
+                            No scores yet. Be the first to play!
+                        </div>
+                    )}
+
+                    <div className="action-row" style={{ marginTop: '8px' }}>
+                        <Link to={backPath} className="button button-secondary">
+                            {backLabel}
+                        </Link>
+                        <Link to="/home" className="button button-tertiary">Play Now</Link>
+                    </div>
+                </section>
+            </main>
         </>
     );
 };

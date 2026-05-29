@@ -8,7 +8,6 @@ import { useCallback, useEffect, useState } from 'react';
 import {
     collection,
     doc,
-    getDoc,
     onSnapshot,
     orderBy,
     query,
@@ -16,7 +15,8 @@ import {
     limit,
     where,
     getCountFromServer,
-    serverTimestamp
+    serverTimestamp,
+    increment
 } from 'firebase/firestore';
 import { User } from 'firebase/auth';
 import { db } from '../backend/FirebaseConfig';
@@ -109,19 +109,16 @@ export const useLeaderboard = (user: User | null) => {
         const userDocRef = doc(db, LEADERBOARD_COLLECTION, user.uid);
 
         try {
-            const existing = await getDoc(userDocRef);
-            const currentData = existing.exists() ? existing.data() : { totalPoints: 0, gamesWon: 0 };
-
             const displayName = user.displayName
                 || user.email?.split('@')[0]
                 || 'Anonymous';
 
             await setDoc(userDocRef, {
                 displayName,
-                totalPoints: (currentData.totalPoints || 0) + points,
-                gamesWon: (currentData.gamesWon || 0) + 1,
+                totalPoints: increment(points),
+                gamesWon: increment(1),
                 lastUpdated: serverTimestamp()
-            });
+            }, { merge: true });
         } catch (error) {
             console.error('Failed to submit score:', error);
         }
