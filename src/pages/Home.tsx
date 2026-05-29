@@ -35,6 +35,11 @@ const Home = () => {
     const [accessToken, setAccessToken] = useState(localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken'));
     const [isLoggingOut, setIsLoggingOut] = useState(false);
 
+    // Compute probable login state to prevent header buttons/badges flickering/disappearing during page loading states
+    const hasFirebaseUser = Object.keys(localStorage).some(key => key.startsWith('firebase:authUser'));
+    const isProbablyManualMode = isManualMode || (!isGuest && hasFirebaseUser);
+    const isProbablyGuest = isGuest || (user && user.isAnonymous);
+
     useEffect(() => {
         if (isGuest && !isLoadingUser && !user) {
             signInAnonymously(auth).catch(err => {
@@ -105,10 +110,10 @@ const Home = () => {
         selectedPlaylistName,
         loadPlaylist,
         handleGuessSubmit,
-        handleGiveUp,
+        handleGiveUp: originalHandleGiveUp,
         playSnippet,
-        handlePlayAgain,
-        handleSelectNewPlaylist,
+        handlePlayAgain: originalHandlePlayAgain,
+        handleSelectNewPlaylist: originalHandleSelectNewPlaylist,
         isPlaying,
         playerError,
         currentTracks,
@@ -119,6 +124,21 @@ const Home = () => {
     const { submitScore } = useLeaderboard(user);
     const { canScoreSong, recordScore } = useRecentScores();
     const [displayedPoints, setDisplayedPoints] = useState<number | null>(null);
+
+    const handleGiveUp = () => {
+        setDisplayedPoints(null);
+        originalHandleGiveUp();
+    };
+
+    const handlePlayAgain = () => {
+        setDisplayedPoints(null);
+        originalHandlePlayAgain();
+    };
+
+    const handleSelectNewPlaylist = () => {
+        setDisplayedPoints(null);
+        originalHandleSelectNewPlaylist();
+    };
 
     // Wrap handleGuessSubmit to score points inline (event-driven, not effect-driven)
     const handleGuessWithScoring = (specificGuess?: string) => {
@@ -185,21 +205,21 @@ const Home = () => {
     const statusBadge = (
         <div className="status-stack">
             <span className="status-badge">
-                {isGuest ? 'Guest mode' : isManualMode ? 'Logged in with TuneTeaser' : 'Logged in with Spotify'}
+                {isProbablyGuest ? 'Guest mode' : isProbablyManualMode ? 'Logged in with TuneTeaser' : 'Logged in with Spotify'}
             </span>
-            {isManualMode ? <SignedInBadge user={user} /> : !isGuest && <span className="account-badge">Signed in with Spotify</span>}
+            {isProbablyManualMode ? <SignedInBadge user={user} /> : !isProbablyGuest && <span className="account-badge">Signed in with Spotify</span>}
         </div>
     );
 
     const actionButtons = (
         <div className="action-row">
-            {(isManualMode || isGuest) && (
-                <Link className="button button-secondary" to={isGuest ? "/playlists?mode=guest" : "/playlists"}>
+            {(isProbablyManualMode || isProbablyGuest) && (
+                <Link className="button button-secondary" to={isProbablyGuest ? "/playlists?mode=guest" : "/playlists"}>
                     Manage Playlists
                 </Link>
             )}
             <button className="button button-danger" onClick={handleLogout}>
-                {isGuest ? 'Exit Guest Mode' : isManualMode ? 'Logout' : 'Logout / Reset Token'}
+                {isProbablyGuest ? 'Exit Guest Mode' : isProbablyManualMode ? 'Logout' : 'Logout / Reset Token'}
             </button>
         </div>
     );

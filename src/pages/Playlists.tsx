@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useManualPlaylists } from '../hooks/useManualPlaylists';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
-import { signInAnonymously } from 'firebase/auth';
+import { signInAnonymously, signOut } from 'firebase/auth';
 import { auth } from '../backend/FirebaseConfig';
 import SignedInBadge from '../components/SignedInBadge';
 import NavBar from '../components/NavBar';
@@ -16,6 +16,9 @@ const Playlists = () => {
     const isGuest = searchParams.get('mode') === 'guest';
     const [playlistPage, setPlaylistPage] = React.useState(0);
     const { user, isLoadingUser } = useTuneTeaserAuth();
+
+    // Compute probable login state to prevent header buttons/badges flickering/disappearing during page loading states
+    const isProbablyGuest = isGuest || (user && user.isAnonymous);
     const {
         manualPlaylists,
         isLoadingManualPlaylists,
@@ -107,33 +110,54 @@ const Playlists = () => {
         return sourceUrl ? 'Spotify import' : 'Custom mix';
     };
 
+    const handleLogout = async () => {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('tokenExpiry');
+        localStorage.removeItem('verifier');
+        sessionStorage.removeItem('accessToken');
+
+        if (!isGuest || (isGuest && user?.isAnonymous)) {
+            await signOut(auth);
+        }
+
+        navigate('/');
+    };
+
+    const statusBadge = (
+        <div className="status-stack">
+            <span className="status-badge">
+                {isProbablyGuest ? 'Guest playlists' : isOnboarding && !hasPlaylists ? 'Add your first playlist' : 'TuneTeaser playlists'}
+            </span>
+            <SignedInBadge user={isProbablyGuest ? null : user} />
+        </div>
+    );
+
+    const actionButtons = (
+        <div className="action-row">
+            {(hasPlaylists || isProbablyGuest || localStorage.getItem('skipPlaylistOnboarding') === 'true' || !isOnboarding) && (
+                <Link className="button button-secondary" to={isProbablyGuest ? "/home?mode=guest" : "/home"}>
+                    Back to Game
+                </Link>
+            )}
+            {(user || isLoadingUser) && (
+                <button className="button button-danger" onClick={handleLogout}>
+                    {isProbablyGuest ? 'Exit Guest Mode' : 'Logout'}
+                </button>
+            )}
+        </div>
+    );
+
     if (isLoadingUser) {
         return (
             <>
-                <NavBar />
+                <NavBar statusBadge={statusBadge} actionButtons={actionButtons} />
                 <main className="page home-page">
                     <div className="loading-card">Checking account...</div>
                 </main>
             </>
         );
     }
-
-    const statusBadge = (
-        <div className="status-stack">
-            <span className="status-badge">
-                {isGuest ? 'Guest playlists' : isOnboarding && !hasPlaylists ? 'Add your first playlist' : 'TuneTeaser playlists'}
-            </span>
-            <SignedInBadge user={isGuest ? null : user} />
-        </div>
-    );
-
-    const actionButtons = (hasPlaylists || isGuest || localStorage.getItem('skipPlaylistOnboarding') === 'true') ? (
-        <div className="action-row">
-            <Link className="button button-secondary" to={isGuest ? "/home?mode=guest" : "/home"}>
-                Back to Game
-            </Link>
-        </div>
-    ) : undefined;
 
     return (
         <>
@@ -155,7 +179,7 @@ const Playlists = () => {
                     <div>
                         <span className="eyebrow">{isGuest ? 'Guest crates' : 'Your crates'}</span>
                         <h2 className="section-title">Music Library</h2>
-                        
+
                         <div className="action-row" style={{ marginTop: '12px', marginBottom: '20px' }}>
                             <Link className="button button-large button-primary" to={isGuest ? "/playlists/import?mode=guest" : "/playlists/import"}>
                                 Import Spotify Playlist

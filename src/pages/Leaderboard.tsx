@@ -4,7 +4,7 @@
  * @version 2026.05.27
  */
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../backend/FirebaseConfig';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
@@ -15,7 +15,14 @@ const RANK_LABELS = ['\u{1F947}', '\u{1F948}', '\u{1F949}'];
 
 const Leaderboard = () => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const { user, isLoadingUser } = useTuneTeaserAuth();
+
+    // Compute probable login state to prevent header buttons/badges flickering/disappearing during page loading states
+    const isGuest = searchParams.get('mode') === 'guest';
+    const hasFirebaseUser = Object.keys(localStorage).some(key => key.startsWith('firebase:authUser'));
+    const isProbablyLoggedIn = !!user || hasFirebaseUser || !!localStorage.getItem('accessToken') || isGuest;
+    const isProbablyGuest = isGuest || (user && user.isAnonymous);
     const {
         topPlayers,
         currentUserEntry,
@@ -37,19 +44,23 @@ const Leaderboard = () => {
     };
     const isInTop10 = isLoggedIn && topPlayers.some(p => p.uid === user?.uid);
 
-    if (isLoadingUser || isLoading) {
-        return (
-            <>
-                <NavBar />
-                <main className="page home-page">
-                    <div className="loading-card">Loading leaderboard...</div>
-                </main>
-            </>
-        );
-    }
+    const backPath = isProbablyLoggedIn ? (isProbablyGuest ? '/home?mode=guest' : '/home') : '/';
+    const backLabel = isProbablyLoggedIn ? 'Back to Home' : 'Back to Login';
 
-    const backPath = user ? '/home' : '/';
-    const backLabel = user ? 'Back to Home' : 'Back to Login';
+    const handleLogout = async () => {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('tokenExpiry');
+        localStorage.removeItem('verifier');
+        sessionStorage.removeItem('accessToken');
+
+        try {
+            await signOut(auth);
+        } catch (err) {
+            console.error("Failed to sign out user from leaderboard:", err);
+        }
+        navigate('/');
+    };
 
     const statusBadge = (
         <div className="status-stack">
@@ -62,8 +73,24 @@ const Leaderboard = () => {
             <Link className="button button-secondary" to={backPath}>
                 {backLabel}
             </Link>
+            {(user || isLoadingUser) && (
+                <button className="button button-danger" onClick={handleLogout}>
+                    {isProbablyGuest ? 'Exit Guest Mode' : 'Logout'}
+                </button>
+            )}
         </div>
     );
+
+    if (isLoadingUser || isLoading) {
+        return (
+            <>
+                <NavBar statusBadge={statusBadge} actionButtons={actionButtons} />
+                <main className="page home-page">
+                    <div className="loading-card">Loading leaderboard...</div>
+                </main>
+            </>
+        );
+    }
 
     return (
         <>

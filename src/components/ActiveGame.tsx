@@ -181,6 +181,10 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
                 <button className="button button-tertiary" onClick={() => onGuessSubmit()}>Guess</button>
             </div>
 
+            <div className="guess-hint" style={{ fontSize: '0.85rem', color: 'var(--ink-soft)', fontWeight: 800, marginTop: '-6px', marginBottom: '12px', textAlign: 'center' }}>
+                💡 <strong>Pro Tip:</strong> Press "Guess" with a blank input to get 2 more seconds of song snippet (up to 30s)!
+            </div>
+
             {feedbackMessage && <div className="feedback-pill">{feedbackMessage}</div>}
 
             <button className="button button-quiet" onClick={onGiveUp}>Give Up</button>

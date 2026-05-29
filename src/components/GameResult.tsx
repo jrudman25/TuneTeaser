@@ -43,7 +43,7 @@ const GameResult: React.FC<GameResultProps> = ({
                 </div>
                 <div className="action-row">
                     <button className="button button-tertiary" onClick={onPlayAgain} disabled={isLoading}>
-                        Play Again
+                        Next Track
                     </button>
                     <button className="button button-secondary" onClick={onSelectNewPlaylist} disabled={isLoading}>
                         Select New Playlist

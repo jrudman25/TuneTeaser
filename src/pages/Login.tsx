@@ -46,7 +46,7 @@ const Login = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [showSignupPassword, setShowSignupPassword] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
     const [tuneTeaserAuthError, setTuneTeaserAuthError] = useState('');
     const [isTuneTeaserSubmitting, setIsTuneTeaserSubmitting] = useState(false);
 
@@ -147,7 +147,7 @@ const Login = () => {
         setAuthMode(mode);
         setTuneTeaserAuthError('');
         setConfirmPassword('');
-        setShowSignupPassword(false);
+        setShowPassword(false);
     };
 
     const handleTuneTeaserAuth = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -254,22 +254,20 @@ const Login = () => {
                                                         <span className="password-field">
                                                             <input
                                                                 className="text-input"
-                                                                type={authMode === 'signup' && showSignupPassword ? 'text' : 'password'}
+                                                                type={showPassword ? 'text' : 'password'}
                                                                 value={password}
                                                                 onChange={(event) => setPassword(event.target.value)}
                                                                 required
                                                                 minLength={6}
                                                             />
-                                                            {authMode === 'signup' && (
-                                                                <button
-                                                                    className="icon-button"
-                                                                    type="button"
-                                                                    onClick={() => setShowSignupPassword((isShowing) => !isShowing)}
-                                                                    aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
-                                                                >
-                                                                    {showSignupPassword ? <VisibilityOff /> : <Visibility />}
-                                                                </button>
-                                                            )}
+                                                            <button
+                                                                className="icon-button"
+                                                                type="button"
+                                                                onClick={() => setShowPassword((isShowing) => !isShowing)}
+                                                                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                                            >
+                                                                {showPassword ? <VisibilityOff /> : <Visibility />}
+                                                            </button>
                                                         </span>
                                                     </label>
                                                     {authMode === 'signup' && (
@@ -277,7 +275,7 @@ const Login = () => {
                                                             Confirm password
                                                             <input
                                                                 className="text-input"
-                                                                type={showSignupPassword ? 'text' : 'password'}
+                                                                type={showPassword ? 'text' : 'password'}
                                                                 value={confirmPassword}
                                                                 onChange={(event) => setConfirmPassword(event.target.value)}
                                                                 required

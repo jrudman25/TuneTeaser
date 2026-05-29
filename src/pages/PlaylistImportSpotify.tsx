@@ -308,17 +308,6 @@ const PlaylistImportSpotify = () => {
         }
     };
 
-    if (isLoadingUser) {
-        return (
-            <>
-                <NavBar />
-                <main className="page home-page">
-                    <div className="loading-card">Checking account...</div>
-                </main>
-            </>
-        );
-    }
-
     const statusBadge = (
         <div className="status-stack">
             <span className="status-badge">Import from Spotify</span>
@@ -333,6 +322,17 @@ const PlaylistImportSpotify = () => {
             </Link>
         </div>
     );
+
+    if (isLoadingUser) {
+        return (
+            <>
+                <NavBar statusBadge={statusBadge} actionButtons={actionButtons} />
+                <main className="page home-page">
+                    <div className="loading-card">Checking account...</div>
+                </main>
+            </>
+        );
+    }
 
     return (
         <>

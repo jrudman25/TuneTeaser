@@ -108,17 +108,6 @@ const PlaylistCreateCustom = () => {
         }
     };
 
-    if (isLoadingUser) {
-        return (
-            <>
-                <NavBar />
-                <main className="page home-page">
-                    <div className="loading-card">Checking account...</div>
-                </main>
-            </>
-        );
-    }
-
     const statusBadge = (
         <div className="status-stack">
             <span className="status-badge">Build custom playlist</span>
@@ -133,6 +122,17 @@ const PlaylistCreateCustom = () => {
             </Link>
         </div>
     );
+
+    if (isLoadingUser) {
+        return (
+            <>
+                <NavBar statusBadge={statusBadge} actionButtons={actionButtons} />
+                <main className="page home-page">
+                    <div className="loading-card">Checking account...</div>
+                </main>
+            </>
+        );
+    }
 
     return (
         <>

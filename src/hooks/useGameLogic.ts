@@ -128,7 +128,7 @@ export const useGameLogic = (
 
         const checkGuess = normalizeString(guessToCheck);
         const checkTitle = normalizeString(targetSong.name);
-        
+
         const targetArtist = targetSong.artists?.[0]?.name;
         const targetOption = targetArtist ? `${targetSong.name} - ${targetArtist}` : targetSong.name;
         const checkTargetOption = normalizeString(targetOption);
