@@ -110,29 +110,29 @@ const Help = () => {
                     </div>
 
                     <div className="faq-stack" style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                        
+
                         {/* Section 1: How to Play */}
-                        <article 
-                            className={`faq-card ${openSections.howToPlay ? 'open' : ''}`} 
+                        <article
+                            className={`faq-card ${openSections.howToPlay ? 'open' : ''}`}
                             onClick={() => toggleSection('howToPlay')}
                             style={{ ...cardStyle, cursor: 'pointer' }}
                         >
-                            <header 
+                            <header
                                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                             >
                                 <h3 className="subsection-title" style={{ margin: 0, fontSize: '1.25rem', color: openSections.howToPlay ? 'var(--teal)' : 'var(--ink)' }}>How to Play</h3>
-                                <ArrowForwardIosIcon 
-                                    style={{ 
-                                        transform: openSections.howToPlay ? 'rotate(90deg)' : 'rotate(0deg)', 
-                                        transition: 'transform 0.2s ease', 
+                                <ArrowForwardIosIcon
+                                    style={{
+                                        transform: openSections.howToPlay ? 'rotate(90deg)' : 'rotate(0deg)',
+                                        transition: 'transform 0.2s ease',
                                         fontSize: '1rem',
                                         color: 'var(--teal)'
-                                    }} 
+                                    }}
                                 />
                             </header>
                             {openSections.howToPlay && (
-                                <div 
-                                    className="faq-content" 
+                                <div
+                                    className="faq-content"
                                     onClick={(e) => e.stopPropagation()}
                                     style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}
                                 >
@@ -150,34 +150,34 @@ const Help = () => {
                         </article>
 
                         {/* Section 2: Finding Spotify Links */}
-                        <article 
-                            className={`faq-card ${openSections.spotifyLinks ? 'open' : ''}`} 
+                        <article
+                            className={`faq-card ${openSections.spotifyLinks ? 'open' : ''}`}
                             onClick={() => toggleSection('spotifyLinks')}
                             style={{ ...cardStyle, cursor: 'pointer' }}
                         >
-                            <header 
+                            <header
                                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                             >
                                 <h3 className="subsection-title" style={{ margin: 0, fontSize: '1.25rem', color: openSections.spotifyLinks ? 'var(--teal)' : 'var(--ink)' }}>Finding Spotify Links</h3>
-                                <ArrowForwardIosIcon 
-                                    style={{ 
-                                        transform: openSections.spotifyLinks ? 'rotate(90deg)' : 'rotate(0deg)', 
-                                        transition: 'transform 0.2s ease', 
+                                <ArrowForwardIosIcon
+                                    style={{
+                                        transform: openSections.spotifyLinks ? 'rotate(90deg)' : 'rotate(0deg)',
+                                        transition: 'transform 0.2s ease',
                                         fontSize: '1rem',
                                         color: 'var(--teal)'
-                                    }} 
+                                    }}
                                 />
                             </header>
                             {openSections.spotifyLinks && (
-                                <div 
-                                    className="faq-content" 
+                                <div
+                                    className="faq-content"
                                     onClick={(e) => e.stopPropagation()}
                                     style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}
                                 >
                                     <p className="body-copy" style={{ fontSize: '1.05rem' }}>
                                         You can import any public Spotify playlist or profile to play with. Follow these simple steps:
                                     </p>
-                                    
+
                                     <div className="help-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', flexWrap: 'wrap' }}>
                                         {/* Playlist URL guide */}
                                         <div style={subBoxStyle}>
@@ -207,27 +207,27 @@ const Help = () => {
                         </article>
 
                         {/* Section 3: Storage Limits & Data Caps */}
-                        <article 
-                            className={`faq-card ${openSections.limits ? 'open' : ''}`} 
+                        <article
+                            className={`faq-card ${openSections.limits ? 'open' : ''}`}
                             onClick={() => toggleSection('limits')}
                             style={{ ...cardStyle, cursor: 'pointer' }}
                         >
-                            <header 
+                            <header
                                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                             >
                                 <h3 className="subsection-title" style={{ margin: 0, fontSize: '1.25rem', color: openSections.limits ? 'var(--teal)' : 'var(--ink)' }}>Storage & Playlist Limits</h3>
-                                <ArrowForwardIosIcon 
-                                    style={{ 
-                                        transform: openSections.limits ? 'rotate(90deg)' : 'rotate(0deg)', 
-                                        transition: 'transform 0.2s ease', 
+                                <ArrowForwardIosIcon
+                                    style={{
+                                        transform: openSections.limits ? 'rotate(90deg)' : 'rotate(0deg)',
+                                        transition: 'transform 0.2s ease',
                                         fontSize: '1rem',
                                         color: 'var(--teal)'
-                                    }} 
+                                    }}
                                 />
                             </header>
                             {openSections.limits && (
-                                <div 
-                                    className="faq-content" 
+                                <div
+                                    className="faq-content"
                                     onClick={(e) => e.stopPropagation()}
                                     style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}
                                 >
@@ -235,7 +235,7 @@ const Help = () => {
                                         To maintain high performance and optimize cloud storage, the following resource caps are enforced:
                                     </p>
                                     <ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px', fontWeight: 700, color: 'var(--ink-soft)' }}>
-                                        <li><strong>Playlist Limit:</strong> Each user (including guest sessions) can save a maximum of <strong>25</strong> active playlists in their library. To add more, simply delete an old playlist from your Music Library.</li>
+                                        <li><strong>Playlist Limit:</strong> Each user (including guest sessions) can save a maximum of <strong>30</strong> active playlists in their library. To add more, simply delete an old playlist from your Music Library.</li>
                                         <li><strong>Track Cap:</strong> A single playlist is limited to a maximum of <strong>5,000</strong> tracks. Any import exceeding this length will be sliced and capped at the first 5,000 songs.</li>
                                         <li><strong>Static Snapshots:</strong> When you import from Spotify, it creates a static snapshot of your tracks at that specific moment. If you subsequently add or delete tracks on Spotify, the changes will not sync automatically. You can update your playlist easily by deleting it from TuneTeaser and importing the link again.</li>
                                     </ul>
@@ -244,27 +244,27 @@ const Help = () => {
                         </article>
 
                         {/* Section 4: Leaderboard Rules */}
-                        <article 
-                            className={`faq-card ${openSections.scoring ? 'open' : ''}`} 
+                        <article
+                            className={`faq-card ${openSections.scoring ? 'open' : ''}`}
                             onClick={() => toggleSection('scoring')}
                             style={{ ...cardStyle, cursor: 'pointer' }}
                         >
-                            <header 
+                            <header
                                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                             >
                                 <h3 className="subsection-title" style={{ margin: 0, fontSize: '1.25rem', color: openSections.scoring ? 'var(--teal)' : 'var(--ink)' }}>Leaderboard & Scoring</h3>
-                                <ArrowForwardIosIcon 
-                                    style={{ 
-                                        transform: openSections.scoring ? 'rotate(90deg)' : 'rotate(0deg)', 
-                                        transition: 'transform 0.2s ease', 
+                                <ArrowForwardIosIcon
+                                    style={{
+                                        transform: openSections.scoring ? 'rotate(90deg)' : 'rotate(0deg)',
+                                        transition: 'transform 0.2s ease',
                                         fontSize: '1rem',
                                         color: 'var(--teal)'
-                                    }} 
+                                    }}
                                 />
                             </header>
                             {openSections.scoring && (
-                                <div 
-                                    className="faq-content" 
+                                <div
+                                    className="faq-content"
                                     onClick={(e) => e.stopPropagation()}
                                     style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}
                                 >
@@ -282,27 +282,27 @@ const Help = () => {
                         </article>
 
                         {/* Section 5: Account and Privacy */}
-                        <article 
-                            className={`faq-card ${openSections.privacy ? 'open' : ''}`} 
+                        <article
+                            className={`faq-card ${openSections.privacy ? 'open' : ''}`}
                             onClick={() => toggleSection('privacy')}
                             style={{ ...cardStyle, cursor: 'pointer' }}
                         >
-                            <header 
+                            <header
                                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                             >
                                 <h3 className="subsection-title" style={{ margin: 0, fontSize: '1.25rem', color: openSections.privacy ? 'var(--teal)' : 'var(--ink)' }}>Account Modes & Security</h3>
-                                <ArrowForwardIosIcon 
-                                    style={{ 
-                                        transform: openSections.privacy ? 'rotate(90deg)' : 'rotate(0deg)', 
-                                        transition: 'transform 0.2s ease', 
+                                <ArrowForwardIosIcon
+                                    style={{
+                                        transform: openSections.privacy ? 'rotate(90deg)' : 'rotate(0deg)',
+                                        transition: 'transform 0.2s ease',
                                         fontSize: '1rem',
                                         color: 'var(--teal)'
-                                    }} 
+                                    }}
                                 />
                             </header>
                             {openSections.privacy && (
-                                <div 
-                                    className="faq-content" 
+                                <div
+                                    className="faq-content"
                                     onClick={(e) => e.stopPropagation()}
                                     style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}
                                 >

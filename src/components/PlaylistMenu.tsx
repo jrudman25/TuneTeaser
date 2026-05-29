@@ -127,10 +127,11 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
                                 setSortDir(d => d === 'asc' ? 'desc' : 'asc');
                                 setPlaylistPage(0);
                             }}
-                            title="Toggle Sort Direction"
+                            aria-label={`Sort ${sortDir === 'asc' ? 'descending' : 'ascending'}`}
+                            title={`Sort ${sortDir === 'asc' ? 'descending' : 'ascending'}`}
                             type="button"
                         >
-                            {sortDir === 'asc' ? '↑' : '↓'}
+                            {sortDir === 'asc' ? 'Asc' : 'Desc'}
                         </button>
                     </div>
                 )}

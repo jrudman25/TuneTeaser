@@ -27,7 +27,7 @@ const PlaylistImportSpotify = () => {
     const { user, isLoadingUser } = useTuneTeaserAuth();
     const { addManualPlaylist, manualPlaylists } = useManualPlaylists(user, isGuest);
     const currentCount = manualPlaylists.length;
-    const playlistsRemaining = Math.max(0, 25 - currentCount);
+    const playlistsRemaining = Math.max(0, 30 - currentCount);
 
     const [playlistUrl, setPlaylistUrl] = useState('');
     const [profileUrl, setProfileUrl] = useState('');
@@ -382,297 +382,290 @@ const PlaylistImportSpotify = () => {
             <NavBar statusBadge={statusBadge} actionButtons={actionButtons} />
             <main className="page home-page">
 
-            {authError && (
-                <div className="error-banner">
-                    <strong>Authentication Error:</strong> {authError}
-                </div>
-            )}
+                {authError && (
+                    <div className="error-banner">
+                        <strong>Authentication Error:</strong> {authError}
+                    </div>
+                )}
 
-            <section className="record-bin">
-                <div>
-                    <span className="eyebrow">{isGuest ? 'Spotify imports' : 'Your Spotify imports'}</span>
-                    <h2 className="section-title">Import Playlists</h2>
-                    <p className="body-copy" style={{ marginBottom: '16px' }}>
-                        Import one public playlist directly, or paste a Spotify profile URL to choose from that user's public playlists.
-                    </p>
-                </div>
+                <section className="record-bin">
+                    <div>
+                        <span className="eyebrow">{isGuest ? 'Spotify imports' : 'Your Spotify imports'}</span>
+                        <h2 className="section-title">Import Playlists</h2>
+                        <p className="body-copy" style={{ marginBottom: '16px' }}>
+                            Import one public playlist directly, or paste a Spotify profile URL to choose from that user's public playlists.
+                        </p>
+                    </div>
 
-                <div className="limit-status-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 12px', borderRadius: '20px', background: currentCount >= 25 ? 'rgba(235, 94, 40, 0.12)' : 'rgba(255,255,255,0.03)', border: currentCount >= 25 ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem', marginBottom: '16px', color: currentCount >= 25 ? 'var(--accent)' : 'var(--cream)' }}>
-                    <span className="dot" style={{ width: '8px', height: '8px', borderRadius: '50%', background: currentCount >= 25 ? 'var(--accent)' : 'var(--mint)' }} />
-                    <span>{currentCount} of 25 playlists used ({playlistsRemaining} remaining)</span>
-                </div>
+                    <div className="limit-status-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', width: 'fit-content', border: '2px solid var(--ink)', borderRadius: '999px', padding: '7px 12px', color: 'var(--ink)', fontSize: '0.85rem', fontWeight: 900, background: currentCount >= 30 ? 'rgba(215, 67, 50, 0.14)' : 'rgba(244, 185, 66, 0.22)', boxShadow: '3px 3px 0 rgba(33, 23, 15, 0.18)', marginBottom: '16px' }}>
+                        <span className="dot" style={{ width: '8px', height: '8px', borderRadius: '50%', background: currentCount >= 30 ? 'var(--red)' : 'var(--teal)' }} />
+                        <span>{currentCount} of 30 playlists used ({playlistsRemaining} remaining)</span>
+                    </div>
 
-                <div className="inline-help-toggle" style={{ margin: '0 0 20px 0' }}>
-                    <button
-                        type="button"
-                        className="text-link"
-                        onClick={() => setShowLinkInstructions(!showLinkInstructions)}
-                        style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.9rem', color: 'var(--mint)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                    >
-                        {showLinkInstructions ? 'Hide Instructions' : 'Need help finding Spotify playlist or profile links?'}
-                    </button>
-                    
-                    {showLinkInstructions && (
-                        <div className="inline-help-drawer" style={{ marginTop: '12px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem', color: 'var(--cream-80)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            <div>
-                                <strong style={{ color: 'var(--mint)', display: 'block', marginBottom: '4px' }}>To find a Spotify Playlist URL:</strong>
-                                <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                    <li><strong>On Desktop:</strong> Right-click the playlist title in your sidebar &rarr; Share &rarr; Copy link to playlist.</li>
-                                    <li><strong>On Mobile:</strong> Tap the three dots under the playlist banner &rarr; Share &rarr; Copy link.</li>
-                                </ul>
-                            </div>
-                            <div>
-                                <strong style={{ color: 'var(--mint)', display: 'block', marginBottom: '4px' }}>To find a Spotify Profile URL:</strong>
-                                <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                    <li><strong>On Desktop:</strong> Click your profile icon in the top right &rarr; Profile &rarr; Click the three dots under your name &rarr; Share &rarr; Copy link to profile.</li>
-                                    <li><strong>On Mobile:</strong> Tap your profile picture &rarr; View Profile &rarr; Tap the three dots in the top right corner &rarr; Share &rarr; Copy link.</li>
-                                </ul>
-                            </div>
-                            <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--cream-60)' }}>
-                                You can also read our full <Link to="/help" style={{ color: 'var(--mint)', textDecoration: 'underline' }}>Help & FAQ Page</Link> for detailed instructions on scoring, limits, and privacy.
-                            </p>
-                        </div>
-                    )}
-                </div>
+                    <div className="inline-help-toggle" style={{ margin: '0 0 20px 0' }}>
+                        <button
+                            type="button"
+                            className="text-link"
+                            onClick={() => setShowLinkInstructions(!showLinkInstructions)}
+                            style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.9rem', color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                        >
+                            {showLinkInstructions ? 'Hide Instructions' : 'Need help finding Spotify playlist or profile links?'}
+                        </button>
 
-                <form className="playlist-form" onSubmit={handleSubmit}>
-                    <section className="import-flow-card">
-                        <div>
-                            <h3 className="subsection-title">Import from profile</h3>
-                            <p className="helper-text">Paste a Spotify profile URL, then choose which public playlists to import.</p>
-                        </div>
-                        <label className="form-label">
-                            Spotify profile URL
-                            <input
-                                className="text-input"
-                                value={profileUrl}
-                                onChange={(event) => handleProfileUrlChange(event.target.value)}
-                                placeholder="https://open.spotify.com/user/..."
-                            />
-                        </label>
-
-                        {profileUrl.trim() && !sourceUserId && (
-                            <div className="inline-error">{validateProfileUrl(profileUrl) || 'This link does not contain a valid Spotify user ID.'}</div>
-                        )}
-
-                        {sourceUserId && (
-                            <div className="action-row">
-                                <button
-                                    className="button button-tertiary"
-                                    type="button"
-                                    onClick={handleLoadProfilePlaylists}
-                                    disabled={isLoadingProfilePlaylists || isBatchImporting || (isGuest && !user)}
-                                >
-                                    {isLoadingProfilePlaylists ? 'Loading...' : 'Load Public Playlists'}
-                                </button>
-                                {profilePlaylistsAreCurrent && currentProfilePlaylists.length > 0 && (
-                                    <span className="snippet-meter">{currentProfilePlaylists.length} public playlists found</span>
-                                )}
+                        {showLinkInstructions && (
+                            <div className="inline-help-drawer" style={{ marginTop: '12px', background: 'rgba(255, 248, 232, 0.58)', padding: '16px', borderRadius: '12px', border: '2px solid var(--ink)', fontSize: '0.85rem', color: 'var(--ink-soft)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                <div>
+                                    <strong style={{ color: 'var(--teal)', display: 'block', marginBottom: '4px' }}>To find a Spotify Playlist URL:</strong>
+                                    <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <li><strong>On Desktop:</strong> Right-click the playlist title in your sidebar &rarr; Share &rarr; Copy link to playlist.</li>
+                                        <li><strong>On Mobile:</strong> Tap the three dots under the playlist banner &rarr; Share &rarr; Copy link.</li>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <strong style={{ color: 'var(--teal)', display: 'block', marginBottom: '4px' }}>To find a Spotify Profile URL:</strong>
+                                    <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <li><strong>On Desktop:</strong> Click your profile icon in the top right &rarr; Profile &rarr; Click the three dots under your name &rarr; Share &rarr; Copy link to profile.</li>
+                                        <li><strong>On Mobile:</strong> Tap your profile picture &rarr; View Profile &rarr; Tap the three dots in the top right corner &rarr; Share &rarr; Copy link.</li>
+                                    </ul>
+                                </div>
+                                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--ink-soft)' }}>
+                                    You can also read our full <Link to="/help" style={{ color: 'var(--red)', textDecoration: 'underline' }}>Help & FAQ Page</Link> for detailed instructions on scoring, limits, and privacy.
+                                </p>
                             </div>
                         )}
+                    </div>
 
-                        {currentProfilePlaylists.length > 0 && (
-                            <section className="profile-playlist-picker" aria-label="Spotify profile playlists">
-                                <div className="profile-playlist-picker-header">
-                                    <div>
-                                        <h3 className="subsection-title">Choose playlists</h3>
-                                        <p className="helper-text">Only public playlists are available without Spotify login.</p>
-                                    </div>
+                    <form className="playlist-form" onSubmit={handleSubmit}>
+                        <section className="import-flow-card">
+                            <div>
+                                <h3 className="subsection-title">Import from profile</h3>
+                                <p className="helper-text">Paste a Spotify profile URL, then choose which public playlists to import.</p>
+                            </div>
+                            <label className="form-label">
+                                Spotify profile URL
+                                <input
+                                    className="text-input"
+                                    value={profileUrl}
+                                    onChange={(event) => handleProfileUrlChange(event.target.value)}
+                                    placeholder="https://open.spotify.com/user/..."
+                                />
+                            </label>
+
+                            {profileUrl.trim() && !sourceUserId && (
+                                <div className="inline-error">{validateProfileUrl(profileUrl) || 'This link does not contain a valid Spotify user ID.'}</div>
+                            )}
+
+                            {sourceUserId && (
+                                <div className="action-row">
                                     <button
-                                        className="button button-secondary"
+                                        className="button button-tertiary"
                                         type="button"
-                                        onClick={handleToggleAllPlaylists}
-                                        disabled={isBatchImporting}
+                                        onClick={handleLoadProfilePlaylists}
+                                        disabled={isLoadingProfilePlaylists || isBatchImporting || (isGuest && !user)}
                                     >
-                                        {allFilteredPlaylistsSelected ? 'Clear All' : 'Select All'}
+                                        {isLoadingProfilePlaylists ? 'Loading...' : 'Load Public Playlists'}
                                     </button>
+                                    {profilePlaylistsAreCurrent && currentProfilePlaylists.length > 0 && (
+                                        <span className="snippet-meter">{currentProfilePlaylists.length} public playlists found</span>
+                                    )}
                                 </div>
+                            )}
 
-                                <div className="filter-controls" style={{ marginTop: '12px', marginBottom: '16px' }}>
-                                    <input
-                                        type="text"
-                                        className="text-input"
-                                        placeholder="Search playlists..."
-                                        value={profileSearchQuery}
-                                        onChange={(e) => {
-                                            setProfileSearchQuery(e.target.value);
-                                            setProfilePlaylistPage(0);
-                                        }}
-                                        disabled={isBatchImporting}
-                                    />
-                                </div>
+                            {currentProfilePlaylists.length > 0 && (
+                                <section className="profile-playlist-picker" aria-label="Spotify profile playlists">
+                                    <div className="profile-playlist-picker-header">
+                                        <div>
+                                            <h3 className="subsection-title">Choose playlists</h3>
+                                            <p className="helper-text">Only public playlists are available without Spotify login.</p>
+                                        </div>
+                                        <button
+                                            className="button button-secondary"
+                                            type="button"
+                                            onClick={handleToggleAllPlaylists}
+                                            disabled={isBatchImporting}
+                                        >
+                                            {allFilteredPlaylistsSelected ? 'Clear All' : 'Select All'}
+                                        </button>
+                                    </div>
 
-                                <ul className="profile-playlist-list">
-                                    {paginatedProfilePlaylists.map(playlist => (
-                                        <li key={playlist.id}>
-                                            <label className="profile-playlist-option">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedPlaylistIds.includes(playlist.id)}
-                                                    onChange={() => handleTogglePlaylist(playlist.id)}
-                                                    disabled={isBatchImporting}
-                                                />
-                                                <span>
-                                                    <strong>{playlist.name}</strong>
-                                                    <small>{playlist.trackCount} tracks</small>
-                                                </span>
-                                            </label>
+                                    <div className="filter-controls" style={{ marginTop: '12px', marginBottom: '16px' }}>
+                                        <input
+                                            type="text"
+                                            className="text-input"
+                                            placeholder="Search playlists..."
+                                            value={profileSearchQuery}
+                                            onChange={(e) => {
+                                                setProfileSearchQuery(e.target.value);
+                                                setProfilePlaylistPage(0);
+                                            }}
+                                            disabled={isBatchImporting}
+                                        />
+                                    </div>
+
+                                    <ul className="profile-playlist-list">
+                                        {paginatedProfilePlaylists.map(playlist => (
+                                            <li key={playlist.id}>
+                                                <label className="profile-playlist-option">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedPlaylistIds.includes(playlist.id)}
+                                                        onChange={() => handleTogglePlaylist(playlist.id)}
+                                                        disabled={isBatchImporting}
+                                                    />
+                                                    <span>
+                                                        <strong>{playlist.name}</strong>
+                                                        <small>{playlist.trackCount} tracks</small>
+                                                    </span>
+                                                </label>
+                                            </li>
+                                        ))}
+                                    </ul>
+
+                                    {profilePlaylistPageCount > 1 && (
+                                        <div className="pagination-row">
+                                            <button
+                                                className="button button-quiet"
+                                                type="button"
+                                                disabled={profilePlaylistPage === 0 || isBatchImporting}
+                                                onClick={() => setProfilePlaylistPage(page => page - 1)}
+                                            >
+                                                Previous
+                                            </button>
+                                            <span className="snippet-meter">Page {profilePlaylistPage + 1} of {profilePlaylistPageCount}</span>
+                                            <button
+                                                className="button button-quiet"
+                                                type="button"
+                                                disabled={profilePlaylistPage + 1 >= profilePlaylistPageCount || isBatchImporting}
+                                                onClick={() => setProfilePlaylistPage(page => page + 1)}
+                                            >
+                                                Next
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {currentCount + selectedPlaylistIds.length > 30 && (
+                                        <div className="error-banner" style={{ marginTop: '16px', marginBottom: '16px' }}>
+                                            <strong>Limit Exceeded:</strong> Selecting these playlists would put you over your 30 playlist limit (You currently have {currentCount} playlists, and selected {selectedPlaylistIds.length}. Limit is 30). Please deselect some playlists to continue.
+                                        </div>
+                                    )}
+
+                                    <div className="action-row">
+                                        <button
+                                            className="button button-large"
+                                            type="button"
+                                            onClick={handleImportSelectedPlaylists}
+                                            disabled={isBatchImporting || selectedProfilePlaylists.length === 0 || (isGuest && !user) || (currentCount + selectedPlaylistIds.length > 30)}
+                                        >
+                                            {isBatchImporting ? 'Importing Selected...' : `Import ${selectedProfilePlaylists.length} Selected`}
+                                        </button>
+                                    </div>
+                                </section>
+                            )}
+
+                            {batchImportResults.length > 0 && (
+                                <ul className="compact-list import-result-list">
+                                    {batchImportResults.map(result => (
+                                        <li className={`import-result-${result.status}`} key={result.playlistId}>
+                                            {result.message}
                                         </li>
                                     ))}
                                 </ul>
+                            )}
+                        </section>
 
-                                {profilePlaylistPageCount > 1 && (
-                                    <div className="pagination-row">
-                                        <button
-                                            className="button button-quiet"
-                                            type="button"
-                                            disabled={profilePlaylistPage === 0 || isBatchImporting}
-                                            onClick={() => setProfilePlaylistPage(page => page - 1)}
-                                        >
-                                            Previous
-                                        </button>
-                                        <span className="snippet-meter">Page {profilePlaylistPage + 1} of {profilePlaylistPageCount}</span>
-                                        <button
-                                            className="button button-quiet"
-                                            type="button"
-                                            disabled={profilePlaylistPage + 1 >= profilePlaylistPageCount || isBatchImporting}
-                                            onClick={() => setProfilePlaylistPage(page => page + 1)}
-                                        >
-                                            Next
-                                        </button>
-                                    </div>
-                                )}
+                        <section className="import-flow-card">
+                            <div>
+                                <h3 className="subsection-title">Import one playlist</h3>
+                                <p className="helper-text">Paste a public Spotify playlist URL to import its tracks.</p>
+                            </div>
+                            <label className="form-label">
+                                Spotify playlist URL
+                                <input
+                                    className="text-input"
+                                    value={playlistUrl}
+                                    onChange={(event) => handlePlaylistUrlChange(event.target.value)}
+                                    placeholder="https://open.spotify.com/playlist/..."
+                                />
+                            </label>
 
-                                {currentCount + selectedPlaylistIds.length > 25 && (
-                                    <div className="error-banner" style={{ marginTop: '16px', marginBottom: '16px' }}>
-                                        <strong>Limit Exceeded:</strong> Selecting these playlists would put you over your 25 playlist limit (You currently have {currentCount} playlists, and selected {selectedPlaylistIds.length}. Limit is 25). Please deselect some playlists to continue.
-                                    </div>
-                                )}
+                            {playlistUrl.trim() && !sourcePlaylistId && (
+                                <div className="inline-error">{validatePlaylistUrl(playlistUrl) || 'This link does not contain a valid Spotify playlist ID.'}</div>
+                            )}
 
+                            {sourcePlaylistId && (
                                 <div className="action-row">
                                     <button
-                                        className="button button-large"
+                                        className="button button-tertiary"
                                         type="button"
-                                        onClick={handleImportSelectedPlaylists}
-                                        disabled={isBatchImporting || selectedProfilePlaylists.length === 0 || (isGuest && !user) || (currentCount + selectedPlaylistIds.length > 25)}
+                                        onClick={handleImport}
+                                        disabled={isImporting || (isGuest && !user)}
                                     >
-                                        {isBatchImporting ? 'Importing Selected...' : `Import ${selectedProfilePlaylists.length} Selected`}
+                                        {isImporting ? 'Importing...' : 'Import Tracks from Playlist'}
                                     </button>
+                                    {importIsCurrent && currentTracks.length > 0 && (
+                                        <span className="snippet-meter">
+                                            {importedTotal > currentTracks.length
+                                                ? `${importedTotal.toLocaleString()} tracks found (first 100 loaded, remainder will import in background)`
+                                                : `${currentTracks.length} tracks imported`}
+                                        </span>
+                                    )}
                                 </div>
-                            </section>
-                        )}
+                            )}
 
-                        {batchImportResults.length > 0 && (
-                            <ul className="compact-list import-result-list">
-                                {batchImportResults.map(result => (
-                                    <li className={`import-result-${result.status}`} key={result.playlistId}>
-                                        {result.message}
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </section>
-                    
-                    <section className="import-flow-card">
-                        <div>
-                            <h3 className="subsection-title">Import one playlist</h3>
-                            <p className="helper-text">Paste a public Spotify playlist URL to import its tracks.</p>
-                        </div>
-                        <label className="form-label">
-                            Spotify playlist URL
-                            <input
-                                className="text-input"
-                                value={playlistUrl}
-                                onChange={(event) => handlePlaylistUrlChange(event.target.value)}
-                                placeholder="https://open.spotify.com/playlist/..."
-                            />
-                        </label>
+                            {importIsCurrent && currentTracks.length > 0 && (
+                                <>
+                                    <label className="form-label">
+                                        Playlist name
+                                        <input
+                                            className="text-input"
+                                            value={playlistName}
+                                            onChange={(event) => {
+                                                setPlaylistName(event.target.value);
+                                                nameWasAutoFilled.current = false;
+                                            }}
+                                            placeholder="Road Trip Mix"
+                                            required
+                                        />
+                                    </label>
+                                    {currentCount >= 30 && (
+                                        <div className="error-banner" style={{ marginTop: '16px', marginBottom: '16px' }}>
+                                            <strong>Library Full:</strong> You have reached your limit of 30 playlists. Please delete some existing playlists from your Library to import more.
+                                        </div>
+                                    )}
 
-                        {playlistUrl.trim() && !sourcePlaylistId && (
-                            <div className="inline-error">{validatePlaylistUrl(playlistUrl) || 'This link does not contain a valid Spotify playlist ID.'}</div>
-                        )}
+                                </>
+                            )}
 
-                        {sourcePlaylistId && (
-                            <div className="action-row">
-                                <button
-                                    className="button button-tertiary"
-                                    type="button"
-                                    onClick={handleImport}
-                                    disabled={isImporting || (isGuest && !user)}
-                                >
-                                    {isImporting ? 'Importing...' : 'Import Tracks from Playlist'}
+                            {importErrors.length > 0 && (
+                                <ul className="error-list compact-list">
+                                    {importErrors.map(error => <li key={error}>{error}</li>)}
+                                </ul>
+                            )}
+
+                            {currentTracks.length > 0 && (
+                                <ul className="resolved-track-list">
+                                    {currentTracks.slice(0, 12).map(track => (
+                                        <li key={track.id}>
+                                            <span>{track.name}</span>
+                                            <span>{track.artists.map(artist => artist.name).join(', ')}</span>
+                                        </li>
+                                    ))}
+                                    {currentTracks.length > 12 && <li>+ {currentTracks.length - 12} more tracks</li>}
+                                </ul>
+                            )}
+
+                            {importIsCurrent && currentTracks.length >= 2 && (
+                                <button className="button button-large" type="submit" disabled={isSaving || currentCount >= 30}>
+                                    {isSaving ? 'Saving...' : 'Save Playlist'}
                                 </button>
-                                {importIsCurrent && currentTracks.length > 0 && (
-                                    <span className="snippet-meter">
-                                        {importedTotal > currentTracks.length
-                                            ? `${importedTotal.toLocaleString()} tracks found (first 100 loaded, remainder will import in background)`
-                                            : `${currentTracks.length} tracks imported`}
-                                    </span>
-                                )}
-                            </div>
-                        )}
+                            )}
+                        </section>
 
-                        {importIsCurrent && currentTracks.length > 0 && (
-                            <>
-                                <label className="form-label">
-                                    Playlist name
-                                    <input
-                                        className="text-input"
-                                        value={playlistName}
-                                        onChange={(event) => {
-                                            setPlaylistName(event.target.value);
-                                            nameWasAutoFilled.current = false;
-                                        }}
-                                        placeholder="Road Trip Mix"
-                                        required
-                                    />
-                                </label>
-                                {currentCount >= 25 && (
-                                    <div className="error-banner" style={{ marginTop: '16px', marginBottom: '16px' }}>
-                                        <strong>Library Full:</strong> You have reached your limit of 25 playlists. Please delete some existing playlists from your Library to import more.
-                                    </div>
-                                )}
-
-                                {currentTracks.length >= 2 && (
-                                    <div className="action-row" style={{ marginTop: '10px', marginBottom: '15px' }}>
-                                        <button className="button button-large button-primary" type="submit" disabled={isSaving || currentCount >= 25}>
-                                            {isSaving ? 'Saving...' : 'Save Playlist'}
-                                        </button>
-                                    </div>
-                                )}
-                            </>
-                        )}
-
-                        {importErrors.length > 0 && (
-                            <ul className="error-list compact-list">
-                                {importErrors.map(error => <li key={error}>{error}</li>)}
-                            </ul>
-                        )}
-
-                        {currentTracks.length > 0 && (
-                            <ul className="resolved-track-list">
-                                {currentTracks.slice(0, 12).map(track => (
-                                    <li key={track.id}>
-                                        <span>{track.name}</span>
-                                        <span>{track.artists.map(artist => artist.name).join(', ')}</span>
-                                    </li>
-                                ))}
-                                {currentTracks.length > 12 && <li>+ {currentTracks.length - 12} more tracks</li>}
-                            </ul>
-                        )}
-
-                        {importIsCurrent && currentTracks.length >= 2 && (
-                            <button className="button button-large" type="submit" disabled={isSaving || currentCount >= 25}>
-                                {isSaving ? 'Saving...' : 'Save Playlist'}
-                            </button>
-                        )}
-                    </section>
-
-                    {formError && <div className="error-banner">{formError}</div>}
-                    {saveSuccessMessage && <div className="success-banner">{saveSuccessMessage}</div>}
-                </form>
-            </section>
-        </main>
+                        {formError && <div className="error-banner">{formError}</div>}
+                        {saveSuccessMessage && <div className="success-banner">{saveSuccessMessage}</div>}
+                    </form>
+                </section>
+            </main>
         </>
     );
 };

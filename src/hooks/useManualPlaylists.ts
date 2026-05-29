@@ -17,7 +17,7 @@ import { ManualPlaylist, ManualTrack, sanitizeTrack } from '../utils/manualPlayl
 import { extractSpotifyPlaylistId } from '../utils/spotifyPlaylistName';
 import { importSpotifyPlaylist, getManualPlaylistTracks } from '../utils/spotifyPlaylistImporter';
 
-export const PLAYLIST_LIMIT = 25;
+export const PLAYLIST_LIMIT = 30;
 export const TRACK_LIMIT = 5000;
 
 export const useManualPlaylists = (user: User | null, isGuest: boolean = false) => {
@@ -148,7 +148,7 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
             }
 
             const playlistId = `guest_manual_${Date.now()}`;
-            
+
             // Upload to Storage
             const tracksUrl = await uploadTracksToStorage(playlistId, sanitizedTracks);
 

@@ -79,8 +79,8 @@ const PlaylistCreateCustom = () => {
         event.preventDefault();
         setFormError('');
 
-        if (currentCount >= 25) {
-            setFormError('You have reached the limit of 25 playlists. Please delete an existing playlist to create more.');
+        if (currentCount >= 30) {
+            setFormError('You have reached the limit of 30 playlists. Please delete an existing playlist to create more.');
             return;
         }
 
@@ -235,13 +235,13 @@ const PlaylistCreateCustom = () => {
                                 </ul>
                             )}
                         </div>
-                        {currentCount >= 25 && (
+                        {currentCount >= 30 && (
                             <div className="error-banner" style={{ marginBottom: '16px' }}>
-                                <strong>Library Full:</strong> You have reached your limit of 25 playlists. Please delete some existing playlists from your Library to create a custom mix.
+                                <strong>Library Full:</strong> You have reached your limit of 30 playlists. Please delete some existing playlists from your Library to create a custom mix.
                             </div>
                         )}
                         {formError && <div className="error-banner">{formError}</div>}
-                        <button className="button button-large" type="submit" disabled={isSaving || currentCount >= 25}>
+                        <button className="button button-large" type="submit" disabled={isSaving || currentCount >= 30}>
                             {isSaving ? 'Saving...' : 'Save Playlist'}
                         </button>
                     </form>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { updateProfile, deleteUser, signOut } from 'firebase/auth';
 import { doc, getDocs, collection, query, where, updateDoc } from 'firebase/firestore';
@@ -18,18 +18,12 @@ const Settings = () => {
     const [searchParams] = useSearchParams();
     const isGuest = searchParams.get('mode') === 'guest';
 
-    const [newUsername, setNewUsername] = useState('');
+    const [newUsername, setNewUsername] = useState<string | null>(null);
     const [isUpdatingUsername, setIsUpdatingUsername] = useState(false);
     const [usernameError, setUsernameError] = useState('');
     const [usernameSuccess, setUsernameSuccess] = useState('');
 
     const [isDeleting, setIsDeleting] = useState(false);
-
-    useEffect(() => {
-        if (user && user.displayName) {
-            setNewUsername(user.displayName);
-        }
-    }, [user]);
 
     // Track which accordion sections are open
     const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -70,7 +64,7 @@ const Settings = () => {
         setUsernameError('');
         setUsernameSuccess('');
 
-        const trimmedName = newUsername.trim();
+        const trimmedName = (newUsername ?? user.displayName ?? '').trim();
         if (!trimmedName) {
             setUsernameError('Username cannot be empty.');
             return;
@@ -114,7 +108,7 @@ const Settings = () => {
             try {
                 const leaderboardDoc = doc(db, 'leaderboard', user.uid);
                 await updateDoc(leaderboardDoc, { displayName: trimmedName });
-            } catch (_e) {
+            } catch {
                 // Might not exist if they never played a game. That's fine.
             }
 
@@ -182,6 +176,7 @@ const Settings = () => {
 
     const backPath = isGuest ? '/home?mode=guest' : user ? '/home' : '/';
     const backLabel = user || isGuest ? 'Back to Home' : 'Back to Login';
+    const displayedUsername = newUsername ?? user.displayName ?? '';
 
     const actionButtons = (
         <div className="action-row">
@@ -245,7 +240,7 @@ const Settings = () => {
                                             <input
                                                 type="text"
                                                 className="text-input"
-                                                value={newUsername}
+                                                value={displayedUsername}
                                                 onChange={(e) => setNewUsername(e.target.value)}
                                                 placeholder="Enter new username"
                                                 maxLength={20}
@@ -262,7 +257,7 @@ const Settings = () => {
                                             <button
                                                 type="submit"
                                                 className="button button-primary"
-                                                disabled={isUpdatingUsername || newUsername.trim() === user.displayName}
+                                                disabled={isUpdatingUsername || displayedUsername.trim() === user.displayName}
                                             >
                                                 {isUpdatingUsername ? 'Saving...' : 'Update Username'}
                                             </button>

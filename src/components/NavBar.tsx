@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
+import ProfileMenu from './ProfileMenu';
 import './NavBar.css';
 
 interface NavBarProps {
@@ -30,25 +31,16 @@ const NavBar: React.FC<NavBarProps> = ({ statusBadge, actionButtons }) => {
                         <Link className="logo-link" to={isLoginPage ? '/' : (isGuest ? '/home?mode=guest' : '/home')} onClick={handleLogoClick} aria-label="TuneTeaser home">
                             <span className="logo-mark" aria-hidden="true">TT</span>
                         </Link>
-                        {statusBadge}
                     </div>
                     <div className="site-nav-right">
                         <div className="nav-links">
                             {isProbablyLoggedIn && (
-                                <>
-                                    <Link
-                                        className={`nav-link ${location.pathname === '/leaderboard' ? 'nav-link-active' : ''}`}
-                                        to={isGuest ? "/leaderboard?mode=guest" : "/leaderboard"}
-                                    >
-                                        Leaderboard
-                                    </Link>
-                                    <Link
-                                        className={`nav-link ${location.pathname === '/settings' ? 'nav-link-active' : ''}`}
-                                        to={isGuest ? "/settings?mode=guest" : "/settings"}
-                                    >
-                                        Settings
-                                    </Link>
-                                </>
+                                <Link
+                                    className={`nav-link ${location.pathname === '/leaderboard' ? 'nav-link-active' : ''}`}
+                                    to={isGuest ? "/leaderboard?mode=guest" : "/leaderboard"}
+                                >
+                                    Leaderboard
+                                </Link>
                             )}
                             <Link
                                 className={`nav-link ${location.pathname === '/help' ? 'nav-link-active' : ''}`}
@@ -57,7 +49,15 @@ const NavBar: React.FC<NavBarProps> = ({ statusBadge, actionButtons }) => {
                                 Help & FAQ
                             </Link>
                         </div>
-                        {actionButtons}
+                        {(isProbablyLoggedIn || statusBadge || actionButtons) && (
+                            <ProfileMenu
+                                user={user}
+                                isGuest={isGuest}
+                                showSettings={isProbablyLoggedIn}
+                                statusBadge={statusBadge}
+                                actionButtons={actionButtons}
+                            />
+                        )}
                     </div>
                 </div>
             </nav>
