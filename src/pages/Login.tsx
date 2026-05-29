@@ -11,6 +11,23 @@ import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { auth } from '../backend/FirebaseConfig';
 import { redirectToAuthCodeFlow, getAccessToken } from '../utils/auth';
 import NavBar from '../components/NavBar';
+import { collection, query, where, getDocs, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../backend/FirebaseConfig';
+
+import { 
+  RegExpMatcher, 
+  englishDataset, 
+  englishRecommendedTransformers 
+} from 'obscenity';
+
+const matcher = new RegExpMatcher({
+  ...englishDataset.build(),
+  ...englishRecommendedTransformers,
+});
+
+const containsProfanity = (text: string): boolean => {
+    return matcher.hasMatch(text);
+};
 
 const getGracefulAuthErrorMessage = (error: any): string => {
     if (!error || !error.code) {
@@ -157,6 +174,33 @@ const Login = () => {
 
         try {
             if (authMode === 'signup') {
+                const trimmedUsername = username.trim();
+
+                if (!trimmedUsername) {
+                    setTuneTeaserAuthError('Username is required.');
+                    setIsTuneTeaserSubmitting(false);
+                    return;
+                }
+
+                // 1. Check for profanity
+                if (containsProfanity(trimmedUsername)) {
+                    setTuneTeaserAuthError('Username contains offensive or inappropriate language. Please choose a different one.');
+                    setIsTuneTeaserSubmitting(false);
+                    return;
+                }
+
+                // 2. Check if username is taken in the leaderboard
+                const q = query(
+                    collection(db, 'leaderboard'),
+                    where('displayName', '==', trimmedUsername)
+                );
+                const querySnapshot = await getDocs(q);
+                if (!querySnapshot.empty) {
+                    setTuneTeaserAuthError('This username is already taken. Please choose another one.');
+                    setIsTuneTeaserSubmitting(false);
+                    return;
+                }
+
                 if (password !== confirmPassword) {
                     setTuneTeaserAuthError('Passwords do not match.');
                     setIsTuneTeaserSubmitting(false);
@@ -164,9 +208,17 @@ const Login = () => {
                 }
 
                 const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-                if (username.trim()) {
-                    await updateProfile(userCredential.user, { displayName: username.trim() });
-                }
+                await updateProfile(userCredential.user, { displayName: trimmedUsername });
+
+                // Initialize leaderboard document to reserve the username immediately
+                const userDocRef = doc(db, 'leaderboard', userCredential.user.uid);
+                await setDoc(userDocRef, {
+                    displayName: trimmedUsername,
+                    totalPoints: 0,
+                    gamesWon: 0,
+                    lastUpdated: serverTimestamp()
+                });
+
                 navigate('/playlists?onboarding=1');
             } else {
                 await signInWithEmailAndPassword(auth, email, password);

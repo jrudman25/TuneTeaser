@@ -6,6 +6,8 @@ import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
 import { resolveSpotifyTracks } from '../utils/spotifyTrackResolver';
 import SignedInBadge from '../components/SignedInBadge';
 import NavBar from '../components/NavBar';
+import { signOut } from 'firebase/auth';
+import { auth } from '../backend/FirebaseConfig';
 
 const PlaylistCreateCustom = () => {
     const navigate = useNavigate();
@@ -108,6 +110,17 @@ const PlaylistCreateCustom = () => {
         }
     };
 
+    const handleLogout = async () => {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('tokenExpiry');
+        localStorage.removeItem('verifier');
+        sessionStorage.removeItem('accessToken');
+
+        await signOut(auth);
+        navigate('/');
+    };
+
     const statusBadge = (
         <div className="status-stack">
             <SignedInBadge user={user} />
@@ -119,6 +132,11 @@ const PlaylistCreateCustom = () => {
             <Link className="button button-secondary" to="/playlists">
                 Back to Playlists
             </Link>
+            {(user || isLoadingUser) && (
+                <button className="button button-danger" onClick={handleLogout}>
+                    Logout
+                </button>
+            )}
         </div>
     );
 

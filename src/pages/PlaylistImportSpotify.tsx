@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ManualTrack } from '../utils/manualPlaylists';
 import { useManualPlaylists } from '../hooks/useManualPlaylists';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
-import { signInAnonymously } from 'firebase/auth';
+import { signInAnonymously, signOut } from 'firebase/auth';
 import { auth } from '../backend/FirebaseConfig';
 import { extractSpotifyPlaylistId } from '../utils/spotifyPlaylistName';
 import { importSpotifyPlaylist } from '../utils/spotifyPlaylistImporter';
@@ -47,6 +47,7 @@ const PlaylistImportSpotify = () => {
     const [profilePlaylistPage, setProfilePlaylistPage] = useState(0);
     const [saveSuccessMessage, setSaveSuccessMessage] = useState('');
     const [authError, setAuthError] = useState('');
+    const [profileSearchQuery, setProfileSearchQuery] = useState('');
 
     const sourcePlaylistId = extractSpotifyPlaylistId(playlistUrl);
     const sourceUserId = extractSpotifyUserId(profileUrl);
@@ -54,11 +55,19 @@ const PlaylistImportSpotify = () => {
     const currentTracks = importIsCurrent ? importedTracks : [];
     const profilePlaylistsAreCurrent = profilePlaylistsForUrl === profileUrl.trim();
     const currentProfilePlaylists = profilePlaylistsAreCurrent ? profilePlaylists : [];
-    const allProfilePlaylistIds = currentProfilePlaylists.map(playlist => playlist.id);
+
+    const filteredProfilePlaylists = React.useMemo(() => {
+        if (!profileSearchQuery.trim()) return currentProfilePlaylists;
+        const query = profileSearchQuery.toLowerCase();
+        return currentProfilePlaylists.filter(p => p.name?.toLowerCase().includes(query));
+    }, [currentProfilePlaylists, profileSearchQuery]);
+
+    const filteredProfilePlaylistIds = filteredProfilePlaylists.map(playlist => playlist.id);
     const selectedProfilePlaylists = currentProfilePlaylists.filter(playlist => selectedPlaylistIds.includes(playlist.id));
-    const allProfilePlaylistsSelected = currentProfilePlaylists.length > 0 && selectedProfilePlaylists.length === currentProfilePlaylists.length;
-    const profilePlaylistPageCount = Math.ceil(currentProfilePlaylists.length / PROFILE_PLAYLISTS_PER_PAGE);
-    const paginatedProfilePlaylists = currentProfilePlaylists.slice(
+    const allFilteredPlaylistsSelected = filteredProfilePlaylists.length > 0 && filteredProfilePlaylists.every(p => selectedPlaylistIds.includes(p.id));
+
+    const profilePlaylistPageCount = Math.ceil(filteredProfilePlaylists.length / PROFILE_PLAYLISTS_PER_PAGE);
+    const paginatedProfilePlaylists = filteredProfilePlaylists.slice(
         profilePlaylistPage * PROFILE_PLAYLISTS_PER_PAGE,
         (profilePlaylistPage + 1) * PROFILE_PLAYLISTS_PER_PAGE
     );
@@ -124,6 +133,7 @@ const PlaylistImportSpotify = () => {
         setBatchImportResults([]);
         setFormError('');
         setProfilePlaylistPage(0);
+        setProfileSearchQuery('');
         if (value.trim() !== profilePlaylistsForUrl) {
             setSelectedPlaylistIds([]);
         }
@@ -169,6 +179,7 @@ const PlaylistImportSpotify = () => {
         setImportErrors([]);
         setBatchImportResults([]);
         setProfilePlaylistPage(0);
+        setProfileSearchQuery('');
         setIsLoadingProfilePlaylists(true);
         try {
             const result = await fetchSpotifyUserPlaylists(profileUrl);
@@ -194,7 +205,14 @@ const PlaylistImportSpotify = () => {
     };
 
     const handleToggleAllPlaylists = () => {
-        setSelectedPlaylistIds(allProfilePlaylistsSelected ? [] : allProfilePlaylistIds);
+        if (allFilteredPlaylistsSelected) {
+            setSelectedPlaylistIds(currentSelection => currentSelection.filter(id => !filteredProfilePlaylistIds.includes(id)));
+        } else {
+            setSelectedPlaylistIds(currentSelection => {
+                const union = new Set([...currentSelection, ...filteredProfilePlaylistIds]);
+                return Array.from(union);
+            });
+        }
     };
 
     const handleImportSelectedPlaylists = async () => {
@@ -318,11 +336,30 @@ const PlaylistImportSpotify = () => {
         </div>
     );
 
+    const handleLogout = async () => {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('tokenExpiry');
+        localStorage.removeItem('verifier');
+        sessionStorage.removeItem('accessToken');
+
+        if (!isGuest || (isGuest && user?.isAnonymous)) {
+            await signOut(auth);
+        }
+
+        navigate('/');
+    };
+
     const actionButtons = (
         <div className="action-row">
             <Link className="button button-secondary" to={playlistsPath}>
                 Back to Playlists
             </Link>
+            {(user || isLoadingUser) && (
+                <button className="button button-danger" onClick={handleLogout}>
+                    {isGuest ? 'Exit Guest Mode' : 'Logout'}
+                </button>
+            )}
         </div>
     );
 
@@ -406,8 +443,22 @@ const PlaylistImportSpotify = () => {
                                         onClick={handleToggleAllPlaylists}
                                         disabled={isBatchImporting}
                                     >
-                                        {allProfilePlaylistsSelected ? 'Clear All' : 'Select All'}
+                                        {allFilteredPlaylistsSelected ? 'Clear All' : 'Select All'}
                                     </button>
+                                </div>
+
+                                <div className="filter-controls" style={{ marginTop: '12px', marginBottom: '16px' }}>
+                                    <input
+                                        type="text"
+                                        className="text-input"
+                                        placeholder="Search playlists..."
+                                        value={profileSearchQuery}
+                                        onChange={(e) => {
+                                            setProfileSearchQuery(e.target.value);
+                                            setProfilePlaylistPage(0);
+                                        }}
+                                        disabled={isBatchImporting}
+                                    />
                                 </div>
 
                                 <ul className="profile-playlist-list">
@@ -515,19 +566,28 @@ const PlaylistImportSpotify = () => {
                         )}
 
                         {importIsCurrent && currentTracks.length > 0 && (
-                            <label className="form-label">
-                                Playlist name
-                                <input
-                                    className="text-input"
-                                    value={playlistName}
-                                    onChange={(event) => {
-                                        setPlaylistName(event.target.value);
-                                        nameWasAutoFilled.current = false;
-                                    }}
-                                    placeholder="Road Trip Mix"
-                                    required
-                                />
-                            </label>
+                            <>
+                                <label className="form-label">
+                                    Playlist name
+                                    <input
+                                        className="text-input"
+                                        value={playlistName}
+                                        onChange={(event) => {
+                                            setPlaylistName(event.target.value);
+                                            nameWasAutoFilled.current = false;
+                                        }}
+                                        placeholder="Road Trip Mix"
+                                        required
+                                    />
+                                </label>
+                                {currentTracks.length >= 2 && (
+                                    <div className="action-row" style={{ marginTop: '10px', marginBottom: '15px' }}>
+                                        <button className="button button-large button-primary" type="submit" disabled={isSaving}>
+                                            {isSaving ? 'Saving...' : 'Save Playlist'}
+                                        </button>
+                                    </div>
+                                )}
+                            </>
                         )}
 
                         {importErrors.length > 0 && (
