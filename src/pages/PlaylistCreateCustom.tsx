@@ -135,7 +135,7 @@ const PlaylistCreateCustom = () => {
     const actionButtons = (
         <div className="action-row">
             <Link className="button button-secondary" to="/playlists">
-                Back to Playlists
+                Manage Playlists
             </Link>
             {(user || isLoadingUser) && (
                 <button className="button button-danger" onClick={handleLogout}>

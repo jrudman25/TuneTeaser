@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
+import HomeIcon from '@mui/icons-material/Home';
 import ProfileMenu from './ProfileMenu';
 import './NavBar.css';
 
@@ -49,6 +50,16 @@ const NavBar: React.FC<NavBarProps> = ({ statusBadge, actionButtons }) => {
                                 Help & FAQ
                             </Link>
                         </div>
+                        {isProbablyLoggedIn && (
+                            <Link
+                                className="home-button"
+                                to={isGuest ? '/home?mode=guest' : '/home'}
+                                aria-label="Home"
+                                title="Home"
+                            >
+                                <HomeIcon aria-hidden="true" />
+                            </Link>
+                        )}
                         {(isProbablyLoggedIn || statusBadge || actionButtons) && (
                             <ProfileMenu
                                 user={user}

@@ -356,7 +356,7 @@ const PlaylistImportSpotify = () => {
     const actionButtons = (
         <div className="action-row">
             <Link className="button button-secondary" to={playlistsPath}>
-                Back to Playlists
+                Manage Playlists
             </Link>
             {(user || isLoadingUser) && (
                 <button className="button button-danger" onClick={handleLogout}>

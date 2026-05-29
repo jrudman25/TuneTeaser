@@ -121,6 +121,30 @@
   background: var(--gold);
 }
 
+.home-button {
+    display: inline-grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    border: 3px solid var(--ink);
+    border-radius: 50%;
+    color: var(--ink);
+    text-decoration: none;
+    background: var(--cream);
+    box-shadow: 4px 4px 0 var(--ink);
+    transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.home-button:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0 var(--ink);
+    background: var(--gold);
+}
+
+.home-button svg {
+    font-size: 1.5rem;
+}
+
 .profile-menu {
     position: relative;
     display: inline-flex;
@@ -260,13 +284,15 @@ body.dark-theme .nav-link-active {
 }
 
 body.dark-theme .profile-trigger,
-body.dark-theme .profile-menu-panel {
+body.dark-theme .profile-menu-panel,
+body.dark-theme .home-button {
     background: #171b24;
     box-shadow: 4px 4px 0 #05060a;
 }
 
 body.dark-theme .profile-trigger:hover,
-body.dark-theme .profile-trigger[aria-expanded="true"] {
+body.dark-theme .profile-trigger[aria-expanded="true"],
+body.dark-theme .home-button:hover {
     color: #171008;
     background: var(--gold);
 }
@@ -332,10 +358,15 @@ body.dark-theme .profile-menu-panel {
         gap: 8px;
     }
 
-    .profile-trigger {
+    .profile-trigger,
+    .home-button {
         width: 42px;
         height: 42px;
         flex: 0 0 auto;
+    }
+
+    .home-button svg {
+        font-size: 1.3rem;
     }
 
     .profile-silhouette {

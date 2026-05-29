@@ -21,13 +21,10 @@ const Privacy = () => {
         </div>
     );
 
-    const backPath = isGuest ? '/home?mode=guest' : user ? '/home' : '/';
-    const backLabel = user || isGuest ? 'Back to Home' : 'Back to Login';
-
     const actionButtons = (
         <div className="action-row">
-            <Link className="button button-secondary" to={backPath}>
-                {backLabel}
+            <Link className="button button-secondary" to={isGuest ? "/playlists?mode=guest" : "/playlists"}>
+                Manage Playlists
             </Link>
         </div>
     );

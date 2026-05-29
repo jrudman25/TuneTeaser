@@ -67,8 +67,8 @@ const Help = () => {
 
     const actionButtons = (
         <div className="action-row">
-            <Link className="button button-secondary" to={backPath}>
-                {backLabel}
+            <Link className="button button-secondary" to={isGuest ? "/playlists?mode=guest" : "/playlists"}>
+                Manage Playlists
             </Link>
             {(user || isLoadingUser) && (
                 <button className="button button-danger" onClick={handleLogout}>

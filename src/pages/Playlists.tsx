@@ -137,8 +137,8 @@ const Playlists = () => {
     const actionButtons = (
         <div className="action-row">
             {(hasPlaylists || isProbablyGuest || localStorage.getItem('skipPlaylistOnboarding') === 'true' || !isOnboarding) && (
-                <Link className="button button-secondary" to={isProbablyGuest ? "/home?mode=guest" : "/home"}>
-                    Back to Game
+                <Link className="button button-secondary" to={isProbablyGuest ? "/playlists?mode=guest" : "/playlists"}>
+                    Manage Playlists
                 </Link>
             )}
             {(user || isLoadingUser) && (
