@@ -124,6 +124,9 @@ const Login = () => {
                 } else {
                     unsubscribeTuneTeaserAuth = onAuthStateChanged(auth, currentUser => {
                         if (currentUser) {
+                            if (sessionStorage.getItem('isSigningUp') === 'true') {
+                                return;
+                            }
                             if (currentUser.isAnonymous) {
                                 navigate('/home?mode=guest');
                             } else {
@@ -171,6 +174,9 @@ const Login = () => {
         event.preventDefault();
         setTuneTeaserAuthError('');
         setIsTuneTeaserSubmitting(true);
+        if (authMode === 'signup') {
+            sessionStorage.setItem('isSigningUp', 'true');
+        }
 
         try {
             if (authMode === 'signup') {
@@ -182,21 +188,23 @@ const Login = () => {
                     return;
                 }
 
-                // 1. Check for profanity
-                if (containsProfanity(trimmedUsername)) {
-                    setTuneTeaserAuthError('Username contains offensive or inappropriate language. Please choose a different one.');
+                // Alphanumeric, spaces, underscores, hyphens, 3-20 chars
+                const usernameRegex = /^[a-zA-Z0-9_ -]{3,20}$/;
+                if (!usernameRegex.test(trimmedUsername)) {
+                    setTuneTeaserAuthError('Username must be 3-20 characters long and contain only letters, numbers, spaces, underscores, or hyphens.');
                     setIsTuneTeaserSubmitting(false);
                     return;
                 }
 
-                // 2. Check if username is taken in the leaderboard
-                const q = query(
-                    collection(db, 'leaderboard'),
-                    where('displayName', '==', trimmedUsername)
-                );
-                const querySnapshot = await getDocs(q);
-                if (!querySnapshot.empty) {
-                    setTuneTeaserAuthError('This username is already taken. Please choose another one.');
+                if (trimmedUsername.includes('  ')) {
+                    setTuneTeaserAuthError('Username cannot contain consecutive spaces.');
+                    setIsTuneTeaserSubmitting(false);
+                    return;
+                }
+
+                // 1. Check for profanity
+                if (containsProfanity(trimmedUsername)) {
+                    setTuneTeaserAuthError('Username contains offensive or inappropriate language. Please choose a different one.');
                     setIsTuneTeaserSubmitting(false);
                     return;
                 }
@@ -207,7 +215,40 @@ const Login = () => {
                     return;
                 }
 
+                // 2. Create the user in Auth first so they are authenticated
                 const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+
+                // 3. Check if username is taken in the leaderboard (now fully authorized since user is authenticated)
+                try {
+                    const q = query(
+                        collection(db, 'leaderboard'),
+                        where('displayName', '==', trimmedUsername)
+                    );
+                    const querySnapshot = await getDocs(q);
+                    if (!querySnapshot.empty) {
+                        // Username is taken! Delete the newly created user to roll back
+                        try {
+                            await userCredential.user.delete();
+                        } catch (deleteError) {
+                            console.error("Failed to delete rolled-back user:", deleteError);
+                        }
+                        setTuneTeaserAuthError('This username is already taken. Please choose another one.');
+                        setIsTuneTeaserSubmitting(false);
+                        return;
+                    }
+                } catch (firestoreError) {
+                    // If Firestore permissions or connection failed, roll back the account and show error
+                    console.error("Firestore username query failed:", firestoreError);
+                    try {
+                        await userCredential.user.delete();
+                    } catch (deleteError) {
+                        console.error("Failed to delete rolled-back user after Firestore error:", deleteError);
+                    }
+                    setTuneTeaserAuthError('Database check failed. Please try again.');
+                    setIsTuneTeaserSubmitting(false);
+                    return;
+                }
+
                 await updateProfile(userCredential.user, { displayName: trimmedUsername });
 
                 // Initialize leaderboard document to reserve the username immediately
@@ -219,6 +260,7 @@ const Login = () => {
                     lastUpdated: serverTimestamp()
                 });
 
+                sessionStorage.removeItem('isSigningUp');
                 navigate('/playlists?onboarding=1');
             } else {
                 await signInWithEmailAndPassword(auth, email, password);
@@ -227,6 +269,7 @@ const Login = () => {
         } catch (error: any) {
             setTuneTeaserAuthError(getGracefulAuthErrorMessage(error));
         } finally {
+            sessionStorage.removeItem('isSigningUp');
             setIsTuneTeaserSubmitting(false);
         }
     };
@@ -237,7 +280,7 @@ const Login = () => {
             <main className="page hero-page">
                 <section className="hero-card">
                     <div className="hero-copy">
-                        <span className="eyebrow">Name that tune from your own crates</span>
+                        <span className="eyebrow">Name that tune from your own playlists</span>
                         <h1 className="title">TuneTeaser</h1>
                         <p className="lede">
                             Drop the needle on a tiny song snippet, race the clock in your head, and prove you know your playlists better than anyone.
@@ -245,9 +288,9 @@ const Login = () => {
                         <div className="how-to-card">
                             <span className="kicker">How it works</span>
                             <ol className="how-to-list">
-                                <li><span className="number-chip">1</span><span>Sign in, or jump into featured guest playlists.</span></li>
+                                <li><span className="number-chip">1</span><span>Create an account, or play instantly in Guest Mode.</span></li>
                                 <li><span className="number-chip">2</span><span>Import playlists from Spotify URLs, a Spotify profile, or a custom track list.</span></li>
-                                <li><span className="number-chip">3</span><span>Pick a crate, hear a short snippet, and guess the track title.</span></li>
+                                <li><span className="number-chip">3</span><span>Pick a playlist, hear a short snippet, and guess the track title.</span></li>
                             </ol>
                         </div>
                         <div className="hero-actions">

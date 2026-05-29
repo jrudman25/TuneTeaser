@@ -84,7 +84,7 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
             <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '1rem' }}>
                 <div>
                     <span className="eyebrow">Record bin</span>
-                    <h2 className="section-title">Choose your crate</h2>
+                    <h2 className="section-title">Choose your playlist</h2>
                     <p className="body-copy">Pick the playlist you know best. We will pull one track and start the quiz stage.</p>
                 </div>
 

@@ -79,6 +79,22 @@ export const isSpotifyNonTrackUrl = (value: string) => {
     }
 };
 
+export const sanitizeHTML = (str: string): string => {
+    return (str || '').replace(/<[^>]*>/g, '').trim();
+};
+
+export const sanitizeTrack = (track: ManualTrack): ManualTrack => {
+    return {
+        ...track,
+        name: sanitizeHTML(track.name),
+        artists: (track.artists || []).map(a => ({ ...a, name: sanitizeHTML(a.name) })),
+        album: {
+            ...track.album,
+            name: sanitizeHTML(track.album?.name || '')
+        }
+    };
+};
+
 const parseManualTrackLine = (line: string, lineIndex: number, trackIndex: number) => {
     const separator = ' - ';
     const separatorIndex = line.indexOf(separator);
@@ -90,8 +106,11 @@ const parseManualTrackLine = (line: string, lineIndex: number, trackIndex: numbe
         };
     }
 
-    const name = line.slice(0, separatorIndex).trim();
-    const artist = line.slice(separatorIndex + separator.length).trim();
+    const rawName = line.slice(0, separatorIndex);
+    const rawArtist = line.slice(separatorIndex + separator.length);
+
+    const name = sanitizeHTML(rawName);
+    const artist = sanitizeHTML(rawArtist);
 
     if (!name || !artist) {
         return {
