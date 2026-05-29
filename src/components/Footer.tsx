@@ -11,7 +11,7 @@ const Footer = () => {
 
     return (
         <footer className="site-footer">
-            v{version} | Made with ❤️ by Jordan © {new Date().getFullYear()} | <Link to="/help">Help & FAQ</Link> | <a href="https://github.com/jrudman25/tuneteaser" target="_blank" rel="noopener noreferrer">Source</a>
+            v{version} | Made with ❤️ by Jordan © {new Date().getFullYear()} | <Link to="/help">Help & FAQ</Link> | <Link to="/privacy">Privacy</Link> | <a href="https://github.com/jrudman25/tuneteaser" target="_blank" rel="noopener noreferrer">Source</a>
         </footer>
     );
 };

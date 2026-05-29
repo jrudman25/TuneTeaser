@@ -35,12 +35,20 @@ const NavBar: React.FC<NavBarProps> = ({ statusBadge, actionButtons }) => {
                     <div className="site-nav-right">
                         <div className="nav-links">
                             {isProbablyLoggedIn && (
-                                <Link
-                                    className={`nav-link ${location.pathname === '/leaderboard' ? 'nav-link-active' : ''}`}
-                                    to={isGuest ? "/leaderboard?mode=guest" : "/leaderboard"}
-                                >
-                                    Leaderboard
-                                </Link>
+                                <>
+                                    <Link
+                                        className={`nav-link ${location.pathname === '/leaderboard' ? 'nav-link-active' : ''}`}
+                                        to={isGuest ? "/leaderboard?mode=guest" : "/leaderboard"}
+                                    >
+                                        Leaderboard
+                                    </Link>
+                                    <Link
+                                        className={`nav-link ${location.pathname === '/settings' ? 'nav-link-active' : ''}`}
+                                        to={isGuest ? "/settings?mode=guest" : "/settings"}
+                                    >
+                                        Settings
+                                    </Link>
+                                </>
                             )}
                             <Link
                                 className={`nav-link ${location.pathname === '/help' ? 'nav-link-active' : ''}`}
