@@ -25,6 +25,7 @@
     *   Playlists must contain at least 10 tracks to be eligible for points.
     *   A 10-minute cooldown prevents spamming the exact same song and playlist combination.
     *   **Resource Caps**: Libraries are limited to a maximum of 25 playlists per account (both registered and guest) to prevent storage expansion, and individual playlists are capped at 5,000 tracks.
+    *   **Account Cleanup**: Inactive anonymous users (older than 30 days) are automatically deleted daily to keep the database clean and organized.
     *   **Input Protection**: Strict alphanumeric and safe-symbol constraints are enforced on display names and playlist titles to block scripting/HTML tags. Custom song titles and artists are automatically sanitized.
     *   **High-Concurrency Scaling**: Leaderboard score submissions are executed via atomic database-side increments to ensure data integrity during multiple concurrent game rounds.
 

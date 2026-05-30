@@ -12,8 +12,8 @@ const mockBatchCommit = vi.fn();
 
 vi.mock('firebase-admin/firestore', () => ({
     getFirestore: vi.fn(() => ({
-        collection: vi.fn((path: string) => ({
-            doc: vi.fn((docId: string) => ({
+        collection: vi.fn(() => ({
+            doc: vi.fn(() => ({
                 delete: mockDocDelete,
                 collection: vi.fn(() => ({
                     get: mockCollectionGet
@@ -34,7 +34,7 @@ const mockDeleteFiles = vi.fn();
 vi.mock('firebase-admin/storage', () => ({
     getStorage: vi.fn(() => ({
         bucket: vi.fn(() => ({
-            file: vi.fn((path: string) => ({
+            file: vi.fn(() => ({
                 exists: mockFileExists,
                 download: mockFileDownload
             })),

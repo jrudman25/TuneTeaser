@@ -1,7 +1,9 @@
 import { initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import { getStorage } from 'firebase-admin/storage';
 import { getFirestore } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import * as functionsV1 from 'firebase-functions/v1';
 import { fetchPlaylistName, fetchPlaylistTracks, fetchSpotifyTracks, fetchUserPlaylists, getSpotifyAccessToken, normalizeTrackIds } from './spotify';
@@ -200,5 +202,39 @@ export const cleanupUserOnDelete = functionsV1.auth.user().onDelete(async (userR
     } catch (error) {
         console.error(`[cleanupUserOnDelete] Error cleaning up user ${uid}:`, error);
         throw error;
+    }
+});
+
+export const cleanupAnonymousUsers = onSchedule('every 24 hours', async () => {
+    const auth = getAuth();
+    const now = Date.now();
+    const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
+    
+    let nextPageToken: string | undefined;
+    let deletedCount = 0;
+
+    try {
+        do {
+            const listUsersResult = await auth.listUsers(1000, nextPageToken);
+            const usersToDelete = listUsersResult.users.filter(user => {
+                const isAnonymous = user.providerData.length === 0;
+                const lastSignInTime = new Date(user.metadata.lastSignInTime || user.metadata.creationTime).getTime();
+                const isInactive = now - lastSignInTime > thirtyDaysInMs;
+                return isAnonymous && isInactive;
+            });
+
+            if (usersToDelete.length > 0) {
+                const uidsToDelete = usersToDelete.map(user => user.uid);
+                // Firebase Admin SDK supports deleting up to 1000 users at once
+                await auth.deleteUsers(uidsToDelete);
+                deletedCount += uidsToDelete.length;
+            }
+            
+            nextPageToken = listUsersResult.pageToken;
+        } while (nextPageToken);
+
+        console.log(`[cleanupAnonymousUsers] Successfully deleted ${deletedCount} inactive anonymous users.`);
+    } catch (error) {
+        console.error('[cleanupAnonymousUsers] Error cleaning up anonymous users:', error);
     }
 });
