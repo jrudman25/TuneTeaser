@@ -273,7 +273,7 @@ const Help = () => {
                                     </p>
                                     <ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px', fontWeight: 700, color: 'var(--ink-soft)' }}>
                                         <li><strong>Eligible Playlists:</strong> To qualify for the global leaderboard, you must play on a playlist containing at least <strong>10</strong> tracks. Smaller mixes can be played for fun, but scores will not be uploaded.</li>
-                                        <li><strong>Speed Bonus:</strong> Points are calculated based on your guess speed. Guessing a track title immediately awards up to 250 points, which decays to 50 points as the snippet ends.</li>
+                                        <li><strong>Speed Bonus:</strong> Points are calculated based on your guess speed. Guessing a track title immediately awards 25 points, which decreases by 1 point for every additional 2 seconds of snippet length you need (4s = 24 points, 6s = 23 points, etc.).</li>
                                         <li><strong>Account Required:</strong> You must be signed into a registered email or Spotify account to upload scores. Guest Mode games do not submit scores to the cloud leaderboard.</li>
                                     </ul>
                                 </div>
@@ -310,7 +310,7 @@ const Help = () => {
                                     </p>
                                     <ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px', fontWeight: 700, color: 'var(--ink-soft)' }}>
                                         <li><strong>TuneTeaser Account:</strong> Sign up with an email and password to back up your custom lists, sync multiple devices, and climb the leaderboard.</li>
-                                        <li><strong>Spotify Login:</strong> Log in directly via Spotify to easily resolve your public playlists without pasting links manually.</li>
+                                        <li><strong>Spotify Login:</strong> Log in directly via Spotify to easily resolve your public playlists without pasting links manually. Only available via invite.</li>
                                         <li><strong>Guest Mode:</strong> Play immediately. We sign you in anonymously behind the scenes using secure isolated tokens to separate your data. Playlists are saved in your local browser storage. No email is collected and no scores go to the global leaderboard.</li>
                                     </ul>
                                 </div>
