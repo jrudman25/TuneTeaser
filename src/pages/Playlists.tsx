@@ -7,6 +7,7 @@ import { auth } from '../backend/FirebaseConfig';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import SignedInBadge from '../components/SignedInBadge';
 import NavBar from '../components/NavBar';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 const MANUAL_PLAYLISTS_PER_PAGE = 8;
 
@@ -31,6 +32,8 @@ const Playlists = () => {
     const [sortBy, setSortBy] = React.useState<'default' | 'name' | 'tracks'>('default');
     const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('desc'); // Default to newest for added date
     const [authError, setAuthError] = React.useState('');
+    const [deleteTarget, setDeleteTarget] = React.useState<{ id: string; name: string } | null>(null);
+    const [isDeletingPlaylist, setIsDeletingPlaylist] = React.useState(false);
 
     const filteredAndSortedPlaylists = React.useMemo(() => {
         let result = manualPlaylists.map((p, index) => ({ ...p, originalIndex: index }));
@@ -84,11 +87,19 @@ const Playlists = () => {
         }
     }, [isGuest, isLoadingUser, user]);
 
-    const handleDelete = async (playlistId: string, name: string) => {
-        const confirmed = window.confirm(`Delete "${name}" from TuneTeaser?`);
-        if (!confirmed) return;
+    const handleDeleteClick = (playlistId: string, name: string) => {
+        setDeleteTarget({ id: playlistId, name });
+    };
 
-        await deleteManualPlaylist(playlistId);
+    const handleDeleteConfirm = async () => {
+        if (!deleteTarget) return;
+        setIsDeletingPlaylist(true);
+        try {
+            await deleteManualPlaylist(deleteTarget.id);
+        } finally {
+            setIsDeletingPlaylist(false);
+            setDeleteTarget(null);
+        }
     };
 
     const formatPlaylistDate = (value: any) => {
@@ -262,7 +273,7 @@ const Playlists = () => {
                                                 <button
                                                     className="button button-danger"
                                                     type="button"
-                                                    onClick={() => handleDelete(playlist.id, playlist.name)}
+                                                    onClick={() => handleDeleteClick(playlist.id, playlist.name)}
                                                     disabled={isImporting}
                                                 >
                                                     Delete
@@ -299,6 +310,19 @@ const Playlists = () => {
                         <div className="loading-card">Add a playlist to unlock your TuneTeaser library.</div>
                     )}
                 </section>
+
+                <ConfirmDialog
+                    open={deleteTarget !== null}
+                    title="Delete Playlist"
+                    message={`Are you sure you want to delete "${deleteTarget?.name || ''}" from your library? This cannot be undone.`}
+                    confirmLabel="Delete"
+                    cancelLabel="Keep It"
+                    variant="danger"
+                    onConfirm={handleDeleteConfirm}
+                    onCancel={() => setDeleteTarget(null)}
+                    isLoading={isDeletingPlaylist}
+                    loadingLabel="Deleting..."
+                />
             </main>
         </>
     );

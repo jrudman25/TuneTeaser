@@ -259,7 +259,7 @@ const Login = () => {
                 });
 
                 sessionStorage.removeItem('isSigningUp');
-                navigate('/playlists?onboarding=1');
+                navigate('/home');
             } else {
                 await signInWithEmailAndPassword(auth, email, password);
                 navigate('/home');

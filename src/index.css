@@ -188,6 +188,17 @@
     box-shadow: 10px 10px 0 #05060a;
   }
 
+  body.dark-theme .confirm-overlay {
+    background: rgba(6, 7, 10, 0.82);
+  }
+
+  body.dark-theme .confirm-card {
+    background:
+      linear-gradient(145deg, rgba(33, 38, 50, 0.98), rgba(20, 23, 31, 0.95)),
+      var(--cream);
+    box-shadow: 12px 12px 0 #05060a, 0 24px 50px var(--shadow);
+  }
+
   * {
     box-sizing: border-box;
   }
@@ -1224,6 +1235,134 @@
     align-items: center;
     justify-content: center;
     background: var(--cream);
+  }
+
+  /* ── Confirm Dialog & Onboarding ── */
+
+  .confirm-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(33, 23, 15, 0.72);
+    backdrop-filter: blur(4px);
+    animation: fadeIn 200ms ease both;
+  }
+
+  .confirm-card {
+    position: relative;
+    width: min(460px, 100%);
+    border: var(--border);
+    border-radius: var(--radius-lg);
+    padding: clamp(24px, 5vw, 40px);
+    color: var(--ink);
+    background:
+      linear-gradient(145deg, rgba(255, 248, 232, 0.98), rgba(236, 211, 148, 0.94)),
+      var(--cream);
+    box-shadow: 12px 12px 0 var(--ink), 0 24px 50px var(--shadow);
+    animation: dialogPop 280ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .confirm-title {
+    margin: 0;
+    font-family: var(--display);
+    font-size: clamp(1.4rem, 4vw, 2rem);
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    text-transform: uppercase;
+  }
+
+  .confirm-body {
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.55;
+  }
+
+  .confirm-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 8px;
+  }
+
+  .onboarding-card {
+    width: min(560px, 100%);
+  }
+
+  .onboarding-step-indicator {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .onboarding-dot {
+    width: 10px;
+    height: 10px;
+    border: 2px solid var(--ink);
+    border-radius: 50%;
+    background: transparent;
+    transition: background 200ms ease, transform 200ms ease;
+  }
+
+  .onboarding-dot-active {
+    background: var(--teal);
+    transform: scale(1.3);
+  }
+
+  .onboarding-step-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .onboarding-feature-list {
+    display: grid;
+    gap: 10px;
+    margin: 14px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .onboarding-feature-list li {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    color: var(--ink-soft);
+    font-weight: 800;
+    font-size: 0.98rem;
+  }
+
+  .onboarding-cta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes dialogPop {
+    from {
+      opacity: 0;
+      transform: scale(0.88) translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
   }
 
   /* ── Leaderboard ── */

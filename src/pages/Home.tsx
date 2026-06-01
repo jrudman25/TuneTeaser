@@ -20,6 +20,7 @@ import ActiveGame from '../components/ActiveGame';
 import GameResult from '../components/GameResult';
 import SignedInBadge from '../components/SignedInBadge';
 import NavBar from '../components/NavBar';
+import OnboardingTour from '../components/OnboardingTour';
 
 const Home = () => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -34,11 +35,27 @@ const Home = () => {
     const isManualMode = !isGuest && !!user && !user.isAnonymous;
     const [accessToken, setAccessToken] = useState(localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken'));
     const [isLoggingOut, setIsLoggingOut] = useState(false);
+    const [onboardingDismissed, setOnboardingDismissed] = useState(false);
 
     // Compute probable login state to prevent header buttons/badges flickering/disappearing during page loading states
     const hasFirebaseUser = Object.keys(localStorage).some(key => key.startsWith('firebase:authUser'));
     const isProbablyManualMode = isManualMode || (!isGuest && hasFirebaseUser);
     const isProbablyGuest = isGuest || (user && user.isAnonymous);
+
+    // Derive onboarding visibility from current state (no setState inside useEffect)
+    const showOnboarding = React.useMemo(() => {
+        if (onboardingDismissed) return false;
+        if (isLoadingUser || isLoadingManualPlaylists) return false;
+
+        // Skip onboarding for Spotify-login users
+        const isSpotifyUser = !!accessToken && !isManualMode && !isGuest;
+        if (isSpotifyUser) return false;
+
+        if (localStorage.getItem('onboardingComplete') === 'true') return false;
+
+        // Show for new email users with no playlists, or first-visit guests
+        return (isManualMode && manualPlaylists.length === 0) || isGuest;
+    }, [onboardingDismissed, isLoadingUser, isLoadingManualPlaylists, accessToken, isManualMode, isGuest, manualPlaylists.length]);
 
     useEffect(() => {
         if (isGuest && !isLoadingUser && !user) {
@@ -89,14 +106,6 @@ const Home = () => {
             navigate('/');
         }
     }, [isLoadingUser, isGuest, isManualMode, accessToken, navigate]);
-
-    useEffect(() => {
-        if (isLoadingUser || isLoadingManualPlaylists || !isManualMode) return;
-        const onboardingSkipped = localStorage.getItem('skipPlaylistOnboarding') === 'true';
-        if (manualPlaylists.length === 0 && !onboardingSkipped) {
-            navigate('/playlists?onboarding=1');
-        }
-    }, [isLoadingManualPlaylists, isLoadingUser, isManualMode, manualPlaylists.length, navigate]);
 
     const { playlists, isLoadingPlaylists, playlistError } = usePlaylists(accessToken, isGuest, manualPlaylists, isManualMode);
     const {
@@ -288,6 +297,15 @@ const Home = () => {
                         earnedPoints={displayedPoints}
                     />
                 )}
+
+                <OnboardingTour
+                    open={showOnboarding}
+                    isGuest={isGuest}
+                    onComplete={() => {
+                        setOnboardingDismissed(true);
+                        localStorage.setItem('onboardingComplete', 'true');
+                    }}
+                />
             </main>
         </>
     );

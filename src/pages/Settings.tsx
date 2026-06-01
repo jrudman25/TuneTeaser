@@ -9,6 +9,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import NavBar from '../components/NavBar';
 import SignedInBadge from '../components/SignedInBadge';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 const Settings = () => {
     const navigate = useNavigate();
@@ -24,6 +25,7 @@ const Settings = () => {
     const [usernameSuccess, setUsernameSuccess] = useState('');
 
     const [isDeleting, setIsDeleting] = useState(false);
+    const [showDeleteAccountDialog, setShowDeleteAccountDialog] = useState(false);
 
     // Track which accordion sections are open
     const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -122,14 +124,7 @@ const Settings = () => {
     };
 
     const handleDeleteAccount = async () => {
-        const confirmDelete = window.confirm(
-            "WARNING: This action is irreversible.\n\n" +
-            "All your playlists, high scores, and account data will be permanently deleted.\n" +
-            "Are you absolutely sure you want to delete your account?"
-        );
-
-        if (!confirmDelete) return;
-
+        setShowDeleteAccountDialog(false);
         setIsDeleting(true);
         try {
             await deleteUser(user);
@@ -333,7 +328,7 @@ const Settings = () => {
                                         </p>
                                         <button
                                             className="button button-danger"
-                                            onClick={handleDeleteAccount}
+                                            onClick={() => setShowDeleteAccountDialog(true)}
                                             disabled={isDeleting}
                                         >
                                             {isDeleting ? 'Deleting...' : 'Delete My Account'}
@@ -344,6 +339,18 @@ const Settings = () => {
                         </article>
 
                     </div>
+                    <ConfirmDialog
+                        open={showDeleteAccountDialog}
+                        title="Delete Account"
+                        message={'WARNING: This action is irreversible. All your playlists, high scores, and account data will be permanently deleted. Are you absolutely sure?'}
+                        confirmLabel="Delete My Account"
+                        cancelLabel="Cancel"
+                        variant="danger"
+                        onConfirm={handleDeleteAccount}
+                        onCancel={() => setShowDeleteAccountDialog(false)}
+                        isLoading={isDeleting}
+                        loadingLabel="Deleting..."
+                    />
                 </section>
             </main>
         </>
