@@ -4,6 +4,7 @@
  * @version 2026.05.24
  */
 import React, { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 
 interface PlaylistMenuProps {
     playlists: any[];
@@ -78,6 +79,12 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
 
     const playlistPageCount = Math.ceil(filteredAndSortedPlaylists.length / PLAYLISTS_PER_PAGE);
     const clampedPage = playlistPageCount > 0 ? Math.min(playlistPage, playlistPageCount - 1) : 0;
+
+    const currentPagePlaylists = filteredAndSortedPlaylists.slice(clampedPage * PLAYLISTS_PER_PAGE, (clampedPage + 1) * PLAYLISTS_PER_PAGE);
+    const hasLikedSongs = clampedPage === 0 && !isGuest && !searchQuery && sortBy === 'default' && sortDir === 'asc';
+    const visibleItemsCount = currentPagePlaylists.length + (hasLikedSongs ? 1 : 0);
+    const placeholdersNeeded = visibleItemsCount > 0 ? Math.max(0, PLAYLISTS_PER_PAGE - visibleItemsCount) : 0;
+    const placeholders = Array.from({ length: placeholdersNeeded });
 
     return (
         <section className="record-bin">
@@ -154,7 +161,7 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
                                 </button>
                             </li>
                         )}
-                        {filteredAndSortedPlaylists.slice(clampedPage * PLAYLISTS_PER_PAGE, (clampedPage + 1) * PLAYLISTS_PER_PAGE).map((playlist: any) => {
+                        {currentPagePlaylists.map((playlist: any) => {
                             const isImporting = playlist.status === 'importing';
                             return (
                                 <li key={playlist.id}>
@@ -194,10 +201,32 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
                                 </li>
                             );
                         })}
+                        {placeholders.map((_, i) => (
+                            <li key={`placeholder-${i}`} style={{ visibility: 'hidden' }} aria-hidden="true">
+                                <article className="playlist-card">
+                                    <span className="playlist-label">&nbsp;</span>
+                                    <span className="playlist-name">&nbsp;</span>
+                                    <span className="playlist-meta" style={{ fontSize: '0.85rem' }}>&nbsp;</span>
+                                    <span className="playlist-meta" style={{ fontSize: '0.85rem' }}>&nbsp;</span>
+                                </article>
+                            </li>
+                        ))}
                     </ul>
-                    {filteredAndSortedPlaylists.length === 0 && searchQuery && (
+                    {visibleItemsCount === 0 && searchQuery && (
                         <div style={{ padding: '2rem', textAlign: 'center', opacity: 0.7 }}>
                             No playlists found matching "{searchQuery}"
+                        </div>
+                    )}
+                    {visibleItemsCount === 0 && !searchQuery && !showPremadePlaylists && (
+                        <div style={{ padding: '2rem', textAlign: 'center', opacity: 0.8, border: '2px dashed var(--ink-soft)', borderRadius: '12px', marginTop: '1rem' }}>
+                            <p style={{ marginBottom: '1rem', fontWeight: 700, fontSize: '1.1rem' }}>You don't have any playlists yet.</p>
+                            <p style={{ lineHeight: 1.5 }}>
+                                Check the <strong>"Include Premades"</strong> box above to play with our curated mixes, or go to{' '}
+                                <Link to={isGuest ? "/playlists?mode=guest" : "/playlists"} style={{ fontWeight: 700, textDecoration: 'underline' }}>
+                                    Manage Playlists
+                                </Link>{' '}
+                                to add your own music.
+                            </p>
                         </div>
                     )}
                     {filteredAndSortedPlaylists.length > PLAYLISTS_PER_PAGE && (

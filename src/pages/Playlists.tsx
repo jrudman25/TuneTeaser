@@ -282,6 +282,18 @@ const Playlists = () => {
                                         </li>
                                     );
                                 })}
+                                {Array.from({ length: Math.max(0, MANUAL_PLAYLISTS_PER_PAGE - paginatedManualPlaylists.length) }).map((_, i) => (
+                                    <li key={`placeholder-${i}`} style={{ visibility: 'hidden' }} aria-hidden="true">
+                                        <article className="playlist-card playlist-library-card">
+                                            <span className="playlist-label">&nbsp;</span>
+                                            <h3 className="playlist-name">&nbsp;</h3>
+                                            <p className="playlist-meta">&nbsp;</p>
+                                            <p className="playlist-meta">&nbsp;</p>
+                                            <div style={{ visibility: 'hidden' }}>&nbsp;</div>
+                                            <button className="button button-danger" type="button" disabled>&nbsp;</button>
+                                        </article>
+                                    </li>
+                                ))}
                             </ul>
 
                             {playlistPageCount > 1 && (
