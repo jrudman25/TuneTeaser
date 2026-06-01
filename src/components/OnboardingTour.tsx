@@ -6,7 +6,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { Link } from 'react-router-dom';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 
 interface OnboardingTourProps {
     open: boolean;
@@ -42,9 +42,6 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ open, isGuest, onComple
 
     if (!open) return null;
 
-    const playlistsPath = isGuest ? '/playlists?mode=guest' : '/playlists';
-    const importPath = isGuest ? '/playlists/import?mode=guest' : '/playlists/import';
-
     const steps: TourStep[] = [
         {
             title: 'Welcome to TuneTeaser',
@@ -65,7 +62,7 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ open, isGuest, onComple
             body: (
                 <>
                     <p className="confirm-body">
-                        TuneTeaser plays songs from playlists you import. There are three ways to add music:
+                        TuneTeaser plays songs from playlists you import. There are {isGuest ? 'two' : 'three'} ways to add music:
                     </p>
                     <ul className="onboarding-feature-list">
                         <li>
@@ -83,22 +80,10 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ open, isGuest, onComple
                             </li>
                         )}
                     </ul>
-                    <div className="onboarding-cta-row">
-                        <Link
-                            className="button button-secondary"
-                            to={importPath}
-                            onClick={onComplete}
-                        >
-                            Import a Playlist Now
-                        </Link>
-                        <Link
-                            className="button button-quiet"
-                            to={playlistsPath}
-                            onClick={onComplete}
-                        >
-                            Browse Library
-                        </Link>
-                    </div>
+
+                    <p className="confirm-body" style={{ marginTop: '16px' }}>
+                        To start adding music, click the <strong>Manage Playlists</strong> button in the profile menu <AccountCircleIcon /> after this tour.
+                    </p>
                 </>
             )
         },
@@ -108,7 +93,6 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ open, isGuest, onComple
                 <>
                     <p className="confirm-body">
                         Every correct guess earns points based on how fast you answer.
-                        Consecutive correct guesses build a score multiplier.
                     </p>
                     {isGuest ? (
                         <p className="confirm-body" style={{ marginTop: '12px' }}>
@@ -121,15 +105,10 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ open, isGuest, onComple
                             Play on playlists with 10 or more tracks to earn eligible points.
                         </p>
                     )}
-                    <div className="onboarding-cta-row">
-                        <Link
-                            className="button button-secondary"
-                            to="/leaderboard"
-                            onClick={onComplete}
-                        >
-                            View Leaderboard
-                        </Link>
-                    </div>
+
+                    <p className="confirm-body" style={{ marginTop: '16px' }}>
+                        Click <strong>Leaderboard</strong> in the navigation menu to view the global rankings.
+                    </p>
                 </>
             )
         },
@@ -142,17 +121,8 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ open, isGuest, onComple
                         playlist limits, scoring rules, and account modes.
                     </p>
                     <p className="confirm-body" style={{ marginTop: '12px' }}>
-                        You can always find it in the navigation menu.
+                        You can always find it by clicking <strong>Help</strong> in the top navigation menu.
                     </p>
-                    <div className="onboarding-cta-row">
-                        <Link
-                            className="button button-secondary"
-                            to={isGuest ? '/help?mode=guest' : '/help'}
-                            onClick={onComplete}
-                        >
-                            Open Help & FAQ
-                        </Link>
-                    </div>
                 </>
             )
         }

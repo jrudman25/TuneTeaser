@@ -143,7 +143,7 @@ const Help = () => {
                                         <li><strong>Select a Playlist:</strong> Choose a playlist from your library or featured guest playlists.</li>
                                         <li><strong>Hear the Snippet:</strong> A random track is chosen, and a short audio preview will play.</li>
                                         <li><strong>Race the Clock:</strong> You have a limited time to guess the correct song title. Type your answer and select from the instant results.</li>
-                                        <li><strong>Earn Points:</strong> Answering quickly gives you a higher speed multiplier. Correct guesses reward points, while consecutive correct guesses build your multiplier streak.</li>
+                                        <li><strong>Earn Points:</strong> Correct guesses reward points, and answering quickly gives you a higher score multiplier.</li>
                                     </ul>
                                 </div>
                             )}
@@ -274,7 +274,6 @@ const Help = () => {
                                     <ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px', fontWeight: 700, color: 'var(--ink-soft)' }}>
                                         <li><strong>Eligible Playlists:</strong> To qualify for the global leaderboard, you must play on a playlist containing at least <strong>10</strong> tracks. Smaller mixes can be played for fun, but scores will not be uploaded.</li>
                                         <li><strong>Speed Bonus:</strong> Points are calculated based on your guess speed. Guessing a track title immediately awards up to 250 points, which decays to 50 points as the snippet ends.</li>
-                                        <li><strong>Multiplier Streaks:</strong> Correct consecutive guesses increment your score multiplier. Breaking your streak resets it.</li>
                                         <li><strong>Account Required:</strong> You must be signed into a registered email or Spotify account to upload scores. Guest Mode games do not submit scores to the cloud leaderboard.</li>
                                     </ul>
                                 </div>
