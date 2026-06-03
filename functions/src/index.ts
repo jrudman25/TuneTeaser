@@ -12,6 +12,258 @@ initializeApp();
 
 const spotifyClientId = defineSecret('SPOTIFY_CLIENT_ID');
 const spotifyClientSecret = defineSecret('SPOTIFY_CLIENT_SECRET');
+const MULTIPLAYER_ROOM_LIMIT_FREE = 5;
+const MULTIPLAYER_ROOM_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const MULTIPLAYER_ROOM_CODE_LENGTH = 6;
+
+const makeRoomCode = () => {
+    let code = '';
+    for (let i = 0; i < MULTIPLAYER_ROOM_CODE_LENGTH; i++) {
+        code += MULTIPLAYER_ROOM_CODE_CHARS[Math.floor(Math.random() * MULTIPLAYER_ROOM_CODE_CHARS.length)];
+    }
+    return code;
+};
+
+const getDisplayName = (value: unknown) => {
+    const displayName = typeof value === 'string' ? value.trim().slice(0, 32) : '';
+    if (!displayName) {
+        throw new HttpsError('invalid-argument', 'Display name is required.');
+    }
+    return displayName;
+};
+
+const getRoomId = (value: unknown) => {
+    const roomId = typeof value === 'string' ? value.trim().toUpperCase() : '';
+    if (!/^[A-Z2-9]{6}$/.test(roomId)) {
+        throw new HttpsError('invalid-argument', 'Enter a valid room code.');
+    }
+    return roomId;
+};
+
+const getAuthedUid = (request: any) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'You must be logged in to use multiplayer.');
+    }
+    return request.auth.uid;
+};
+
+const getRoomRefForHost = async (roomId: string, uid: string) => {
+    const db = getFirestore();
+    const roomRef = db.collection('multiplayerRooms').doc(roomId);
+    const roomSnap = await roomRef.get();
+
+    if (!roomSnap.exists) {
+        throw new HttpsError('not-found', 'Room not found.');
+    }
+
+    const room = roomSnap.data();
+    if (room?.hostUid !== uid) {
+        throw new HttpsError('permission-denied', 'Only the host can do that.');
+    }
+
+    return { db, roomRef, room };
+};
+
+export const createMultiplayerRoom = onCall({
+    timeoutSeconds: 15,
+    memory: '256MiB',
+    invoker: 'public'
+}, async (request) => {
+    const uid = getAuthedUid(request);
+    const displayName = getDisplayName(request.data?.displayName);
+    const now = Date.now();
+    const db = getFirestore();
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+        const roomId = makeRoomCode();
+        const roomRef = db.collection('multiplayerRooms').doc(roomId);
+        const roomSnap = await roomRef.get();
+
+        if (roomSnap.exists) {
+            continue;
+        }
+
+        const roomData = {
+            id: roomId,
+            hostUid: uid,
+            status: 'lobby',
+            visibility: 'private',
+            maxPlayers: MULTIPLAYER_ROOM_LIMIT_FREE,
+            pointGoal: 100,
+            playerCount: 1,
+            playlistId: null,
+            playlistName: null,
+            createdAt: now,
+            updatedAt: now,
+            expiresAt: now + 12 * 60 * 60 * 1000
+        };
+
+        const playerData = {
+            uid,
+            displayName,
+            isHost: true,
+            score: 0,
+            state: 'lobby',
+            joinedAt: now,
+            updatedAt: now
+        };
+
+        const batch = db.batch();
+        batch.set(roomRef, roomData);
+        batch.set(roomRef.collection('players').doc(uid), playerData);
+        await batch.commit();
+
+        return { roomId };
+    }
+
+    throw new HttpsError('resource-exhausted', 'Could not create a room code. Try again.');
+});
+
+export const joinMultiplayerRoom = onCall({
+    timeoutSeconds: 15,
+    memory: '256MiB',
+    invoker: 'public'
+}, async (request) => {
+    const uid = getAuthedUid(request);
+    const roomId = getRoomId(request.data?.roomId);
+    const displayName = getDisplayName(request.data?.displayName);
+    const db = getFirestore();
+    const roomRef = db.collection('multiplayerRooms').doc(roomId);
+    const playerRef = roomRef.collection('players').doc(uid);
+    const now = Date.now();
+
+    await db.runTransaction(async transaction => {
+        const roomSnap = await transaction.get(roomRef);
+
+        if (!roomSnap.exists) {
+            throw new HttpsError('not-found', 'Room not found.');
+        }
+
+        const room = roomSnap.data();
+        const playerSnap = await transaction.get(playerRef);
+        const playerCount = typeof room?.playerCount === 'number' ? room.playerCount : 0;
+        const maxPlayers = typeof room?.maxPlayers === 'number' ? room.maxPlayers : MULTIPLAYER_ROOM_LIMIT_FREE;
+
+        if (room?.status === 'ended') {
+            throw new HttpsError('failed-precondition', 'This game has ended.');
+        }
+
+        if (!playerSnap.exists && playerCount >= maxPlayers) {
+            throw new HttpsError('resource-exhausted', 'This room is full.');
+        }
+
+        transaction.set(playerRef, {
+            uid,
+            displayName,
+            isHost: room?.hostUid === uid,
+            score: playerSnap.exists ? playerSnap.data()?.score || 0 : 0,
+            state: 'lobby',
+            joinedAt: playerSnap.exists ? playerSnap.data()?.joinedAt || now : now,
+            updatedAt: now
+        }, { merge: true });
+
+        transaction.update(roomRef, {
+            playerCount: playerSnap.exists ? playerCount : playerCount + 1,
+            updatedAt: now
+        });
+    });
+
+    return { roomId };
+});
+
+export const updateMultiplayerRoomSettings = onCall({
+    timeoutSeconds: 15,
+    memory: '256MiB',
+    invoker: 'public'
+}, async (request) => {
+    const uid = getAuthedUid(request);
+    const roomId = getRoomId(request.data?.roomId);
+    const playlistId = typeof request.data?.playlistId === 'string' ? request.data.playlistId.trim().slice(0, 128) : '';
+    const playlistName = typeof request.data?.playlistName === 'string' ? request.data.playlistName.trim().slice(0, 128) : '';
+    const pointGoal = Number(request.data?.pointGoal);
+
+    if (!playlistId || !playlistName) {
+        throw new HttpsError('invalid-argument', 'Pick a playlist before starting multiplayer.');
+    }
+
+    if (!Number.isInteger(pointGoal) || pointGoal < 10 || pointGoal > 1000) {
+        throw new HttpsError('invalid-argument', 'Point goal must be between 10 and 1000.');
+    }
+
+    const { roomRef, room } = await getRoomRefForHost(roomId, uid);
+
+    if (room?.status !== 'lobby' && room?.status !== 'ended') {
+        throw new HttpsError('failed-precondition', 'Settings can only be changed from the lobby or end screen.');
+    }
+
+    await roomRef.update({
+        playlistId,
+        playlistName,
+        pointGoal,
+        status: 'lobby',
+        updatedAt: Date.now()
+    });
+
+    return { roomId };
+});
+
+export const startMultiplayerGame = onCall({
+    timeoutSeconds: 15,
+    memory: '256MiB',
+    invoker: 'public'
+}, async (request) => {
+    const uid = getAuthedUid(request);
+    const roomId = getRoomId(request.data?.roomId);
+    const { roomRef, room } = await getRoomRefForHost(roomId, uid);
+
+    if (!room?.playlistId || !room?.playlistName) {
+        throw new HttpsError('failed-precondition', 'Pick a playlist before starting.');
+    }
+
+    await roomRef.update({
+        status: 'playing',
+        startedAt: Date.now(),
+        updatedAt: Date.now()
+    });
+
+    return { roomId };
+});
+
+export const kickMultiplayerPlayer = onCall({
+    timeoutSeconds: 15,
+    memory: '256MiB',
+    invoker: 'public'
+}, async (request) => {
+    const uid = getAuthedUid(request);
+    const roomId = getRoomId(request.data?.roomId);
+    const targetUid = typeof request.data?.targetUid === 'string' ? request.data.targetUid.trim() : '';
+
+    if (!targetUid || targetUid === uid) {
+        throw new HttpsError('invalid-argument', 'Choose another player to kick.');
+    }
+
+    const { db, roomRef } = await getRoomRefForHost(roomId, uid);
+    const playerRef = roomRef.collection('players').doc(targetUid);
+
+    await db.runTransaction(async transaction => {
+        const playerSnap = await transaction.get(playerRef);
+        const roomSnap = await transaction.get(roomRef);
+
+        if (!playerSnap.exists || !roomSnap.exists) {
+            return;
+        }
+
+        const room = roomSnap.data();
+        const playerCount = Math.max(0, (room?.playerCount || 1) - 1);
+        transaction.delete(playerRef);
+        transaction.update(roomRef, {
+            playerCount,
+            updatedAt: Date.now()
+        });
+    });
+
+    return { roomId };
+});
 
 export const resolveSpotifyTracks = onCall({
     secrets: [spotifyClientId, spotifyClientSecret],

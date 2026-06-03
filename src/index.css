@@ -54,7 +54,8 @@
   body.dark-theme .record-bin,
   body.dark-theme .result-card,
   body.dark-theme .error-card,
-  body.dark-theme .leaderboard-card {
+  body.dark-theme .leaderboard-card,
+  body.dark-theme .multiplayer-card {
     background:
       linear-gradient(145deg, rgba(33, 38, 50, 0.98), rgba(20, 23, 31, 0.95)),
       var(--cream);
@@ -70,7 +71,9 @@
   body.dark-theme .your-stats-card,
   body.dark-theme .stat-block,
   body.dark-theme .profile-playlist-option,
-  body.dark-theme .import-result-list li {
+  body.dark-theme .import-result-list li,
+  body.dark-theme .multiplayer-share-box,
+  body.dark-theme .multiplayer-player-list li {
     background: rgba(28, 32, 41, 0.88);
   }
 
@@ -860,6 +863,100 @@
     display: flex;
     flex-direction: column;
     gap: 24px;
+  }
+
+  .multiplayer-panel {
+    overflow: hidden;
+  }
+
+  .multiplayer-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 18px;
+  }
+
+  .multiplayer-card {
+    display: grid;
+    gap: 14px;
+    border: 3px solid var(--ink);
+    border-radius: 22px;
+    padding: 18px;
+    background: rgba(255, 248, 232, 0.78);
+    box-shadow: 7px 7px 0 var(--ink);
+  }
+
+  .multiplayer-card h2 {
+    margin: 0;
+    color: var(--ink);
+    font-family: var(--display);
+    font-size: clamp(1.25rem, 3vw, 1.75rem);
+  }
+
+  .form-label {
+    color: var(--ink-soft);
+    font-size: 0.88rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .multiplayer-code-input {
+    font-family: var(--display);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .multiplayer-lobby {
+    display: grid;
+    gap: 22px;
+    border-top: 3px dashed var(--ink);
+    padding-top: 24px;
+  }
+
+  .multiplayer-lobby-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+    align-items: start;
+    gap: 18px;
+  }
+
+  .multiplayer-share-box {
+    display: grid;
+    gap: 10px;
+    border: 3px solid var(--ink);
+    border-radius: 18px;
+    padding: 14px;
+    background: rgba(255, 248, 232, 0.68);
+  }
+
+  .multiplayer-player-list {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .multiplayer-player-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border: 2px solid var(--ink);
+    border-radius: 14px;
+    padding: 12px;
+    background: rgba(255, 248, 232, 0.72);
+  }
+
+  .multiplayer-player-list li>div {
+    display: grid;
+    gap: 2px;
+  }
+
+  .multiplayer-player-list span {
+    color: var(--ink-soft);
+    font-size: 0.9rem;
+    font-weight: 900;
   }
 
   .record-grid {

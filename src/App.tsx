@@ -16,6 +16,7 @@ import Playlists from './pages/Playlists';
 import Help from './pages/Help';
 import Privacy from './pages/Privacy';
 import Settings from './pages/Settings';
+import Multiplayer from './pages/Multiplayer';
 import { useDarkMode } from './hooks/useDarkMode';
 
 function App() {
@@ -31,6 +32,7 @@ function App() {
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/help" element={<Help />} />
                     <Route path="/privacy" element={<Privacy />} />
+                    <Route path="/multiplayer" element={<Multiplayer />} />
                     <Route path="/playlists" element={<Playlists />} />
                     <Route path="/playlists/import" element={<PlaylistImportSpotify />} />
                     <Route path="/playlists/custom" element={<PlaylistCreateCustom />} />
