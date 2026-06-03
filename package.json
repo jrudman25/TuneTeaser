@@ -1,6 +1,6 @@
 {
   "name": "tuneteaser",
-  "version": "0.9.5",
+  "version": "1.0.0",
   "private": true,
   "dependencies": {
     "@emotion/react": "^11.11.1",
@@ -20,6 +20,7 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:emulator": "vite --mode emulator",
     "start": "vite",
     "build": "tsc && vite build",
     "build-functions": "cd functions && npm run build",
@@ -27,8 +28,10 @@
     "preview": "vite preview",
     "test": "vitest",
     "test-functions": "cd functions && npm run test",
+    "emulators": "firebase emulators:start --only auth,firestore,functions",
     "deploy": "npm run build && firebase deploy --only hosting",
-    "deploy-functions": "cd functions && npm run deploy"
+    "deploy-functions": "cd functions && npm run deploy",
+    "deploy-rules": "firebase deploy --only firestore:rules"
   },
   "devDependencies": {
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11",

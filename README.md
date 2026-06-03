@@ -19,6 +19,7 @@
 *   **Account Clarity**: Signed-in pages show which TuneTeaser account is active.
 *   **Retro Arcade Design**: A record-shop inspired interface with arcade-style game panels, responsive layouts, and accessible focus states.
 *   **Real-Time Leaderboard**: Compete with other music experts! A real-time scoreboard shows the top 10 players and your current position/rank.
+*   **Local Multiplayer Lobby Foundation**: Create a private party room, share a short code or link, let players join with temporary display names, pick a playlist, set a point goal, and manage players before starting.
 *   **Dynamic Scoring**: Points are based on correct guesses and speed. Solve a song in the initial 2-second snippet for a maximum score of 25 points. Slower answers scale down linearly to a base of 10 points.
 *   **Fair Play Safeguards & Storage Safety**:
     *   Guest/anonymous profiles are ineligible for points to prevent scoreboard pollution.
@@ -43,9 +44,19 @@
 
 ### Scripts
 *   **Run local dev server**: `npm run dev`
+*   **Run local Firebase emulators**: `npm run emulators`
+*   **Run dev server against emulators**: `npm run dev:emulator`
 *   **Run unit tests**: `npm run test`
 *   **Build production code**: `npm run build`
 *   **Deploy to Firebase Hosting**: `npm run deploy`
+
+### Local Firebase Emulator Testing
+Use two terminals for local Firebase testing:
+1.  Run `npm run emulators` from the project root.
+2.  Run `npm run dev:emulator` from the project root.
+3.  Open the Vite URL for the app and `http://127.0.0.1:4000` for the Firebase Emulator UI.
+
+The `dev:emulator` script loads `.env.emulator`, which sets `VITE_USE_FIREBASE_EMULATORS=true`. In that mode, Auth, Firestore, and Functions use local emulators instead of production Firebase.
 
 ### Firestore Leaderboard Schema
 To enable the leaderboard system, the Firestore database needs to contain a `leaderboard` collection:
@@ -70,6 +81,25 @@ service cloud.firestore {
   }
 }
 ```
+
+### Firestore Multiplayer Schema
+Local multiplayer uses a `multiplayerRooms` collection and `players` subcollection:
+*   **Collection**: `multiplayerRooms`
+*   **Document ID**: `{roomCode}` six-character private room code
+*   **Fields**:
+    *   `hostUid`: `string`
+    *   `status`: `"lobby" | "playing" | "ended"`
+    *   `maxPlayers`: `number`
+    *   `pointGoal`: `number`
+    *   `playerCount`: `number`
+    *   `playlistId`: `string | null`
+    *   `playlistName`: `string | null`
+    *   `expiresAt`: `number`
+*   **Subcollection**: `multiplayerRooms/{roomCode}/players/{uid}`
+    *   `displayName`: `string`
+    *   `isHost`: `boolean`
+    *   `score`: `number`
+    *   `state`: `string`
 
 ## Requirements
 *   **TuneTeaser Account or Local Storage**: Required to save imported playlists and custom mixes (saved in browser local storage for guests, or persistently in a database for registered accounts).
