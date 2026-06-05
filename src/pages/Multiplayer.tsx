@@ -1,5 +1,5 @@
 import React, { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { signInAnonymously } from 'firebase/auth';
 import { FirebaseError } from 'firebase/app';
 import NavBar from '../components/NavBar';
@@ -21,19 +21,31 @@ import {
 } from '../utils/multiplayer';
 
 const getFirebaseMessage = (error: unknown, fallback: string) => {
-    if (error instanceof FirebaseError) return error.message;
+    if (error instanceof FirebaseError) {
+        if (
+            import.meta.env.DEV
+            && import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true'
+            && error.code === 'functions/internal'
+        ) {
+            return 'The local Functions emulator returned an internal error. Restart npm run emulators and check that functions loaded successfully.';
+        }
+
+        return error.message;
+    }
     if (error instanceof Error) return error.message;
     return fallback;
 };
 
-const getDefaultDisplayName = () => {
-    return localStorage.getItem('multiplayerDisplayName') || '';
+const getDefaultRoomName = () => {
+    return localStorage.getItem('multiplayerRoomName') || '';
 };
 
 const Multiplayer = () => {
     const navigate = useNavigate();
+    const { roomCode: roomCodeParam } = useParams();
     const [searchParams] = useSearchParams();
-    const initialRoomId = (searchParams.get('room') || '').toUpperCase();
+    const queryRoomId = (searchParams.get('room') || '').toUpperCase();
+    const initialRoomId = (roomCodeParam || queryRoomId).toUpperCase();
     const isGuest = searchParams.get('mode') === 'guest';
     const { user, isLoadingUser } = useTuneTeaserAuth();
     const accessToken = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken');
@@ -41,7 +53,7 @@ const Multiplayer = () => {
     const { manualPlaylists, isLoadingManualPlaylists, manualPlaylistError } = useManualPlaylists(user, effectiveGuest);
     const isManualMode = !effectiveGuest && !!user && !user.isAnonymous;
     const { playlists, isLoadingPlaylists, playlistError } = usePlaylists(accessToken, effectiveGuest, manualPlaylists, isManualMode);
-    const [displayName, setDisplayName] = useState(getDefaultDisplayName);
+    const [roomName, setRoomName] = useState(getDefaultRoomName);
     const [roomCode, setRoomCode] = useState(initialRoomId);
     const [activeRoomId, setActiveRoomId] = useState(initialRoomId);
     const [room, setRoom] = useState<MultiplayerRoom | null>(null);
@@ -59,8 +71,22 @@ const Multiplayer = () => {
     }, [players, user?.uid]);
 
     const isHost = !!room && room.hostUid === user?.uid;
-    const shareUrl = activeRoomId ? `${window.location.origin}/multiplayer?room=${activeRoomId}` : '';
-    const modeQuery = effectiveGuest ? '&mode=guest' : '';
+    const shareUrl = activeRoomId ? `${window.location.origin}/multiplayer/${activeRoomId}` : '';
+    const modeQuery = effectiveGuest ? '?mode=guest' : '';
+
+    useEffect(() => {
+        if (queryRoomId && !roomCodeParam) {
+            navigate(`/multiplayer/${queryRoomId}${modeQuery}`, { replace: true });
+        }
+    }, [modeQuery, navigate, queryRoomId, roomCodeParam]);
+
+    useEffect(() => {
+        const routedRoomId = (roomCodeParam || '').toUpperCase();
+        if (!routedRoomId || routedRoomId === activeRoomId) return;
+        setRoomCode(routedRoomId);
+        setActiveRoomId(routedRoomId);
+        setHasJoinedActiveRoom(false);
+    }, [activeRoomId, roomCodeParam]);
 
     useEffect(() => {
         if (!isLoadingUser && !user) {
@@ -95,23 +121,18 @@ const Multiplayer = () => {
 
     useEffect(() => {
         if (!hasJoinedActiveRoom || !activeRoomId || !user || isLoadingUser || currentPlayer || players.length === 0) return;
-        setError('You are no longer in this room. Ask the host for a new invite if you were kicked.');
-    }, [activeRoomId, currentPlayer, hasJoinedActiveRoom, isLoadingUser, players.length, user]);
+        setHasJoinedActiveRoom(false);
+        setActiveRoomId('');
+        setRoom(null);
+        setPlayers([]);
+        navigate('/multiplayer', { replace: true });
+        setError('You were removed from the room.');
+    }, [activeRoomId, currentPlayer, hasJoinedActiveRoom, isLoadingUser, navigate, players.length, user]);
 
-    const ensureReady = async () => {
-        const trimmedName = displayName.trim();
-        if (!trimmedName) {
-            setError('Enter a display name first.');
-            return null;
-        }
-
-        localStorage.setItem('multiplayerDisplayName', trimmedName);
-
+    const ensureSignedIn = async () => {
         if (!auth.currentUser) {
             await signInAnonymously(auth);
         }
-
-        return trimmedName;
     };
 
     const handleCreateRoom = async (event: FormEvent) => {
@@ -121,13 +142,18 @@ const Multiplayer = () => {
         setIsBusy(true);
 
         try {
-            const trimmedName = await ensureReady();
-            if (!trimmedName) return;
-            const result = await createMultiplayerRoom(trimmedName);
+            const trimmedRoomName = roomName.trim();
+            if (!trimmedRoomName) {
+                setError('Enter a room name first.');
+                return;
+            }
+            localStorage.setItem('multiplayerRoomName', trimmedRoomName);
+            await ensureSignedIn();
+            const result = await createMultiplayerRoom(trimmedRoomName);
             setActiveRoomId(result.roomId);
             setRoomCode(result.roomId);
             setHasJoinedActiveRoom(true);
-            navigate(`/multiplayer?room=${result.roomId}${modeQuery}`, { replace: true });
+            navigate(`/multiplayer/${result.roomId}${modeQuery}`, { replace: true });
             setSuccess('Room created. Share the code or link with players.');
         } catch (err) {
             setError(getFirebaseMessage(err, 'Could not create room.'));
@@ -143,12 +169,31 @@ const Multiplayer = () => {
         setIsBusy(true);
 
         try {
-            const trimmedName = await ensureReady();
-            if (!trimmedName) return;
-            const result = await joinMultiplayerRoom(roomCode, trimmedName);
+            await ensureSignedIn();
+            const result = await joinMultiplayerRoom(roomCode);
             setActiveRoomId(result.roomId);
             setHasJoinedActiveRoom(true);
-            navigate(`/multiplayer?room=${result.roomId}${modeQuery}`, { replace: true });
+            navigate(`/multiplayer/${result.roomId}${modeQuery}`, { replace: true });
+            setSuccess('Joined room.');
+        } catch (err) {
+            setError(getFirebaseMessage(err, 'Could not join room.'));
+        } finally {
+            setIsBusy(false);
+        }
+    };
+
+    const handleJoinActiveRoom = async () => {
+        if (!activeRoomId) return;
+
+        setError('');
+        setSuccess('');
+        setIsBusy(true);
+
+        try {
+            await ensureSignedIn();
+            const result = await joinMultiplayerRoom(activeRoomId);
+            setRoomCode(result.roomId);
+            setHasJoinedActiveRoom(true);
             setSuccess('Joined room.');
         } catch (err) {
             setError(getFirebaseMessage(err, 'Could not join room.'));
@@ -241,56 +286,64 @@ const Multiplayer = () => {
             <main className="page home-page multiplayer-page">
                 <section className="record-bin multiplayer-panel">
                     <span className="eyebrow">Party mode</span>
-                    <h1 className="section-title">Multiplayer lobby</h1>
-                    <p className="body-copy">Create a local party room, share the code, and let players join from their phones. The host device controls the music.</p>
+                    <h1 className="section-title">{activeRoomId ? 'Game room' : 'Multiplayer lobby'}</h1>
+                    <p className="body-copy">
+                        {activeRoomId
+                            ? 'Share the room link with players and get ready to play.'
+                            : 'Create a local party room, share the code, and let players join from their phones. The host device controls the music.'}
+                    </p>
 
                     {error && <div className="error-banner"><strong>Error:</strong> {error}</div>}
                     {success && <div className="success-banner">{success}</div>}
                     {manualPlaylistError && <div className="error-banner"><strong>Error:</strong> {manualPlaylistError}</div>}
                     {playlistError && <div className="error-banner"><strong>Error:</strong> {playlistError}</div>}
 
-                    <div className="multiplayer-grid">
-                        <form className="multiplayer-card" onSubmit={handleCreateRoom}>
-                            <span className="playlist-label">Host</span>
-                            <h2>Create a room</h2>
-                            <label className="form-label" htmlFor="display-name">Display name</label>
-                            <input
-                                id="display-name"
-                                className="text-input"
-                                value={displayName}
-                                maxLength={32}
-                                onChange={event => setDisplayName(event.target.value)}
-                                placeholder="DJ Jazzy Jess"
-                            />
-                            <button className="button button-secondary" type="submit" disabled={isBusy || isLoadingUser}>
-                                Create room
-                            </button>
-                        </form>
+                    {!activeRoomId && (
+                        <div className="multiplayer-grid">
+                            <form className="multiplayer-card" onSubmit={handleCreateRoom}>
+                                <span className="playlist-label">Host</span>
+                                <h2>Create a room</h2>
+                                <label className="form-label" htmlFor="room-name">Room name</label>
+                                <input
+                                    id="room-name"
+                                    className="text-input"
+                                    value={roomName}
+                                    maxLength={40}
+                                    onChange={event => setRoomName(event.target.value)}
+                                    placeholder="Jess's Birthday Bash"
+                                />
+                                <p className="body-copy">Players will appear by their TuneTeaser username.</p>
+                                <button className="button button-secondary" type="submit" disabled={isBusy || isLoadingUser}>
+                                    Create room
+                                </button>
+                            </form>
 
-                        <form className="multiplayer-card" onSubmit={handleJoinRoom}>
-                            <span className="playlist-label">Join</span>
-                            <h2>Enter a code</h2>
-                            <label className="form-label" htmlFor="room-code">Room code</label>
-                            <input
-                                id="room-code"
-                                className="text-input multiplayer-code-input"
-                                value={roomCode}
-                                maxLength={6}
-                                onChange={event => setRoomCode(event.target.value.toUpperCase())}
-                                placeholder="ABC123"
-                            />
-                            <button className="button button-tertiary" type="submit" disabled={isBusy || isLoadingUser}>
-                                Join game
-                            </button>
-                        </form>
-                    </div>
+                            <form className="multiplayer-card" onSubmit={handleJoinRoom}>
+                                <span className="playlist-label">Join</span>
+                                <h2>Enter a code</h2>
+                                <label className="form-label" htmlFor="room-code">Room code</label>
+                                <input
+                                    id="room-code"
+                                    className="text-input multiplayer-code-input"
+                                    value={roomCode}
+                                    maxLength={6}
+                                    onChange={event => setRoomCode(event.target.value.toUpperCase())}
+                                    placeholder="ABC123"
+                                />
+                                <button className="button button-tertiary" type="submit" disabled={isBusy || isLoadingUser}>
+                                    Join game
+                                </button>
+                            </form>
+                        </div>
+                    )}
 
                     {activeRoomId && room && (
                         <section className="multiplayer-lobby">
                             <div className="multiplayer-lobby-header">
                                 <div>
                                     <span className="eyebrow">Room {activeRoomId}</span>
-                                    <h2 className="section-title">{room.status === 'playing' ? 'Game in progress' : 'Lobby'}</h2>
+                                    <h2 className="section-title">{room.roomName || (room.status === 'playing' ? 'Game in progress' : 'Lobby')}</h2>
+                                    <p className="body-copy">{room.status === 'playing' ? 'Game in progress' : 'Lobby'}</p>
                                     <p className="body-copy">{room.playerCount} / {room.maxPlayers} players joined</p>
                                 </div>
                                 <div className="multiplayer-share-box">
@@ -302,7 +355,19 @@ const Multiplayer = () => {
                                 </div>
                             </div>
 
-                            <div className="multiplayer-grid">
+                            {!currentPlayer && (
+                                <div className="multiplayer-card">
+                                    <span className="playlist-label">Invite</span>
+                                    <h2>Join this room</h2>
+                                    <p className="body-copy">You are viewing this room, but you have not joined it yet.</p>
+                                    <button className="button button-tertiary" type="button" disabled={isBusy || isLoadingUser} onClick={handleJoinActiveRoom}>
+                                        Join room
+                                    </button>
+                                </div>
+                            )}
+
+                            {currentPlayer && (
+                                <div className="multiplayer-grid">
                                 <div className="multiplayer-card">
                                     <span className="playlist-label">Players</span>
                                     <ul className="multiplayer-player-list">
@@ -351,8 +416,9 @@ const Multiplayer = () => {
                                     )}
                                 </div>
                             </div>
+                            )}
 
-                            {isHost && (
+                            {currentPlayer && isHost && (
                                 <PlaylistMenu
                                     playlists={playlists}
                                     isLoading={isLoadingPlaylists || isLoadingManualPlaylists}

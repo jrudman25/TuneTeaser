@@ -6,6 +6,7 @@ export type MultiplayerRoomStatus = 'lobby' | 'playing' | 'ended';
 
 export interface MultiplayerRoom {
     id: string;
+    roomName: string;
     hostUid: string;
     status: MultiplayerRoomStatus;
     visibility: 'private' | 'public';
@@ -40,12 +41,12 @@ const callRoomFunction = async <TInput>(name: string, input: TInput) => {
     return result.data;
 };
 
-export const createMultiplayerRoom = (displayName: string) => {
-    return callRoomFunction('createMultiplayerRoom', { displayName });
+export const createMultiplayerRoom = (roomName: string) => {
+    return callRoomFunction('createMultiplayerRoom', { roomName });
 };
 
-export const joinMultiplayerRoom = (roomId: string, displayName: string) => {
-    return callRoomFunction('joinMultiplayerRoom', { roomId, displayName });
+export const joinMultiplayerRoom = (roomId: string) => {
+    return callRoomFunction('joinMultiplayerRoom', { roomId });
 };
 
 export const updateMultiplayerRoomSettings = (

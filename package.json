@@ -28,7 +28,7 @@
     "preview": "vite preview",
     "test": "vitest",
     "test-functions": "cd functions && npm run test",
-    "emulators": "firebase emulators:start --only auth,firestore,functions",
+    "emulators": "npm run build-functions && set FUNCTIONS_DISCOVERY_TIMEOUT=120 && firebase emulators:start --only auth,firestore,functions",
     "deploy": "npm run build && firebase deploy --only hosting",
     "deploy-functions": "cd functions && npm run deploy",
     "deploy-rules": "firebase deploy --only firestore:rules"

@@ -33,6 +33,7 @@ function App() {
                     <Route path="/help" element={<Help />} />
                     <Route path="/privacy" element={<Privacy />} />
                     <Route path="/multiplayer" element={<Multiplayer />} />
+                    <Route path="/multiplayer/:roomCode" element={<Multiplayer />} />
                     <Route path="/playlists" element={<Playlists />} />
                     <Route path="/playlists/import" element={<PlaylistImportSpotify />} />
                     <Route path="/playlists/custom" element={<PlaylistCreateCustom />} />

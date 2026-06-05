@@ -19,7 +19,7 @@
 *   **Account Clarity**: Signed-in pages show which TuneTeaser account is active.
 *   **Retro Arcade Design**: A record-shop inspired interface with arcade-style game panels, responsive layouts, and accessible focus states.
 *   **Real-Time Leaderboard**: Compete with other music experts! A real-time scoreboard shows the top 10 players and your current position/rank.
-*   **Local Multiplayer Lobby Foundation**: Create a private party room, share a short code or link, let players join with temporary display names, pick a playlist, set a point goal, and manage players before starting.
+*   **Local Multiplayer Lobby Foundation**: Create a private party room, share a short code or `/multiplayer/{roomCode}` link, let players join with their TuneTeaser usernames, pick a playlist, set a point goal, and manage players before starting.
 *   **Dynamic Scoring**: Points are based on correct guesses and speed. Solve a song in the initial 2-second snippet for a maximum score of 25 points. Slower answers scale down linearly to a base of 10 points.
 *   **Fair Play Safeguards & Storage Safety**:
     *   Guest/anonymous profiles are ineligible for points to prevent scoreboard pollution.
@@ -88,6 +88,7 @@ Local multiplayer uses a `multiplayerRooms` collection and `players` subcollecti
 *   **Document ID**: `{roomCode}` six-character private room code
 *   **Fields**:
     *   `hostUid`: `string`
+    *   `roomName`: `string`
     *   `status`: `"lobby" | "playing" | "ended"`
     *   `maxPlayers`: `number`
     *   `pointGoal`: `number`

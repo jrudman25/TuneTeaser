@@ -24,12 +24,12 @@ const makeRoomCode = () => {
     return code;
 };
 
-const getDisplayName = (value: unknown) => {
-    const displayName = typeof value === 'string' ? value.trim().slice(0, 32) : '';
-    if (!displayName) {
-        throw new HttpsError('invalid-argument', 'Display name is required.');
+const getRoomName = (value: unknown) => {
+    const roomName = typeof value === 'string' ? value.trim().slice(0, 40) : '';
+    if (!roomName) {
+        throw new HttpsError('invalid-argument', 'Room name is required.');
     }
-    return displayName;
+    return roomName;
 };
 
 const getRoomId = (value: unknown) => {
@@ -45,6 +45,13 @@ const getAuthedUid = (request: any) => {
         throw new HttpsError('unauthenticated', 'You must be logged in to use multiplayer.');
     }
     return request.auth.uid;
+};
+
+const getPlayerDisplayName = async (uid: string) => {
+    const userRecord = await getAuth().getUser(uid);
+    return userRecord.displayName
+        || userRecord.email?.split('@')[0]
+        || `Guest ${uid.slice(0, 6).toUpperCase()}`;
 };
 
 const getRoomRefForHost = async (roomId: string, uid: string) => {
@@ -70,7 +77,8 @@ export const createMultiplayerRoom = onCall({
     invoker: 'public'
 }, async (request) => {
     const uid = getAuthedUid(request);
-    const displayName = getDisplayName(request.data?.displayName);
+    const roomName = getRoomName(request.data?.roomName);
+    const displayName = await getPlayerDisplayName(uid);
     const now = Date.now();
     const db = getFirestore();
 
@@ -85,6 +93,7 @@ export const createMultiplayerRoom = onCall({
 
         const roomData = {
             id: roomId,
+            roomName,
             hostUid: uid,
             status: 'lobby',
             visibility: 'private',
@@ -126,7 +135,7 @@ export const joinMultiplayerRoom = onCall({
 }, async (request) => {
     const uid = getAuthedUid(request);
     const roomId = getRoomId(request.data?.roomId);
-    const displayName = getDisplayName(request.data?.displayName);
+    const displayName = await getPlayerDisplayName(uid);
     const db = getFirestore();
     const roomRef = db.collection('multiplayerRooms').doc(roomId);
     const playerRef = roomRef.collection('players').doc(uid);
