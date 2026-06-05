@@ -7,7 +7,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { signOut, signInAnonymously } from 'firebase/auth';
 import { auth } from '../backend/FirebaseConfig';
-import { refreshAccessToken } from '../utils/auth';
+import { getFreshSpotifyAccessToken } from '../utils/auth';
 import { isEligibleForPoints } from '../utils/scoreUtils';
 import { usePlaylists } from '../hooks/usePlaylists';
 import { useGameLogic } from '../hooks/useGameLogic';
@@ -70,36 +70,21 @@ const Home = () => {
 
         const checkToken = async () => {
             const tokenExpiry = localStorage.getItem('tokenExpiry');
-            const refreshToken = localStorage.getItem('refreshToken');
             const clientId = `${import.meta.env.VITE_SPOTIFY_CLIENT_ID}`;
 
-            if (tokenExpiry && refreshToken && Date.now() > parseInt(tokenExpiry)) {
+            if (accessToken && (!tokenExpiry || Date.now() > parseInt(tokenExpiry))) {
                 console.log("Token expired, refreshing...");
-                try {
-                    const data = await refreshAccessToken(clientId, refreshToken);
-                    if (data.access_token) {
-                        const { access_token, expires_in, refresh_token: newRefreshToken } = data;
-                        localStorage.setItem('accessToken', access_token);
-                        sessionStorage.setItem('accessToken', access_token);
-                        localStorage.setItem('tokenExpiry', (Date.now() + expires_in * 1000).toString());
-                        if (newRefreshToken) {
-                            localStorage.setItem('refreshToken', newRefreshToken);
-                        }
-                        setAccessToken(access_token);
-                    }
-                } catch (e) {
-                    console.error("Failed to refresh token", e);
-                    localStorage.removeItem('accessToken');
-                    localStorage.removeItem('refreshToken');
-                    localStorage.removeItem('tokenExpiry');
-                    localStorage.removeItem('verifier');
-                    sessionStorage.removeItem('accessToken');
+                const freshToken = await getFreshSpotifyAccessToken(clientId);
+                if (freshToken) {
+                    setAccessToken(freshToken);
+                } else {
+                    setAccessToken(null);
                     window.location.href = '/';
                 }
             }
         };
         checkToken();
-    }, [isGuest]);
+    }, [accessToken, isGuest]);
 
     useEffect(() => {
         if (!isLoadingUser && !isGuest && !isManualMode && !accessToken) {

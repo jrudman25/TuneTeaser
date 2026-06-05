@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { redirectToAuthCodeFlow, getAccessToken, refreshAccessToken } from '../utils/auth';
+import { clearSpotifySession, getFreshSpotifyAccessToken, redirectToAuthCodeFlow, getAccessToken, refreshAccessToken } from '../utils/auth';
 
 // Mock crypto
 const mockGetRandomValues = vi.fn((arr: Uint8Array) => {
@@ -44,6 +44,7 @@ describe('Auth Utilities', () => {
     it('getAccessToken exchanges code for tokens', async () => {
         const mockResponse = { access_token: 'access-123', refresh_token: 'refresh-456', expires_in: 3600 };
         global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
             json: () => Promise.resolve(mockResponse)
         });
 
@@ -64,6 +65,7 @@ describe('Auth Utilities', () => {
     it('refreshAccessToken exchanges refresh token for new access token', async () => {
         const mockResponse = { access_token: 'new-access-123', expires_in: 3600 };
         global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
             json: () => Promise.resolve(mockResponse)
         });
 
@@ -81,5 +83,83 @@ describe('Auth Utilities', () => {
         expect(params.get('refresh_token')).toBe('refresh-456');
 
         expect(data).toEqual(mockResponse);
+    });
+
+    it('refreshAccessToken throws when Spotify rejects refresh token', async () => {
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: false,
+            status: 400,
+            json: () => Promise.resolve({ error: 'invalid_grant', error_description: 'Refresh token revoked' })
+        });
+
+        await expect(refreshAccessToken('test-client-id', 'refresh-456')).rejects.toThrow('Refresh token revoked');
+    });
+
+    it('getFreshSpotifyAccessToken returns valid stored token without refreshing', async () => {
+        const getItemSpy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key: string) => {
+            if (key === 'accessToken') return 'stored-access-token';
+            if (key === 'tokenExpiry') return (Date.now() + 60000).toString();
+            return null;
+        });
+        global.fetch = vi.fn();
+
+        const token = await getFreshSpotifyAccessToken('test-client-id');
+
+        expect(token).toBe('stored-access-token');
+        expect(global.fetch).not.toHaveBeenCalled();
+
+        getItemSpy.mockRestore();
+    });
+
+    it('getFreshSpotifyAccessToken clears stale session when refresh fails', async () => {
+        const storage = new Map<string, string>([
+            ['accessToken', 'expired-access-token'],
+            ['refreshToken', 'revoked-refresh-token'],
+            ['tokenExpiry', (Date.now() - 60000).toString()],
+            ['verifier', 'old-verifier']
+        ]);
+        const getItemSpy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key: string) => storage.get(key) ?? null);
+        const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation((key: string, value: string) => {
+            storage.set(key, value);
+        });
+        const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation((key: string) => {
+            storage.delete(key);
+        });
+        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: false,
+            status: 400,
+            json: () => Promise.resolve({ error: 'invalid_grant' })
+        });
+
+        const token = await getFreshSpotifyAccessToken('test-client-id');
+
+        expect(token).toBeNull();
+        expect(storage.has('accessToken')).toBe(false);
+        expect(storage.has('refreshToken')).toBe(false);
+        expect(storage.has('tokenExpiry')).toBe(false);
+        expect(storage.has('verifier')).toBe(false);
+        expect(removeItemSpy).toHaveBeenCalledWith('accessToken');
+        expect(removeItemSpy).toHaveBeenCalledWith('refreshToken');
+        expect(removeItemSpy).toHaveBeenCalledWith('tokenExpiry');
+        expect(removeItemSpy).toHaveBeenCalledWith('verifier');
+
+        getItemSpy.mockRestore();
+        setItemSpy.mockRestore();
+        removeItemSpy.mockRestore();
+        consoleErrorSpy.mockRestore();
+    });
+
+    it('clearSpotifySession removes all stored Spotify session keys', () => {
+        const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem');
+
+        clearSpotifySession();
+
+        expect(removeItemSpy).toHaveBeenCalledWith('accessToken');
+        expect(removeItemSpy).toHaveBeenCalledWith('refreshToken');
+        expect(removeItemSpy).toHaveBeenCalledWith('tokenExpiry');
+        expect(removeItemSpy).toHaveBeenCalledWith('verifier');
+
+        removeItemSpy.mockRestore();
     });
 });

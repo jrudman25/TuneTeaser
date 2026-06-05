@@ -38,6 +38,9 @@ export async function getAccessToken(clientId: string, code: string, redirectUri
     });
 
     const data = await result.json();
+    if (!result.ok) {
+        throw new Error(getSpotifyTokenErrorMessage(data, result.status));
+    }
     return data; // Returns access_token, refresh_token, expires_in
 }
 
@@ -54,7 +57,72 @@ export async function refreshAccessToken(clientId: string, refreshToken: string)
     });
 
     const data = await result.json();
+    if (!result.ok) {
+        throw new Error(getSpotifyTokenErrorMessage(data, result.status));
+    }
     return data;
+}
+
+export function clearSpotifySession() {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('tokenExpiry');
+    localStorage.removeItem('verifier');
+    sessionStorage.removeItem('accessToken');
+}
+
+export async function getFreshSpotifyAccessToken(clientId: string) {
+    const accessToken = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken');
+    const refreshToken = localStorage.getItem('refreshToken');
+    const tokenExpiry = localStorage.getItem('tokenExpiry');
+    const parsedTokenExpiry = tokenExpiry ? Number.parseInt(tokenExpiry, 10) : Number.NaN;
+
+    if (!accessToken) {
+        return null;
+    }
+
+    if (Number.isFinite(parsedTokenExpiry) && Date.now() < parsedTokenExpiry) {
+        return accessToken;
+    }
+
+    if (!refreshToken) {
+        clearSpotifySession();
+        return null;
+    }
+
+    try {
+        const data = await refreshAccessToken(clientId, refreshToken);
+        if (!data.access_token) {
+            clearSpotifySession();
+            return null;
+        }
+
+        localStorage.setItem('accessToken', data.access_token);
+        sessionStorage.setItem('accessToken', data.access_token);
+        localStorage.setItem('tokenExpiry', (Date.now() + data.expires_in * 1000).toString());
+
+        if (data.refresh_token) {
+            localStorage.setItem('refreshToken', data.refresh_token);
+        }
+
+        return data.access_token;
+    } catch (error) {
+        console.error('Failed to refresh Spotify session:', error);
+        clearSpotifySession();
+        return null;
+    }
+}
+
+function getSpotifyTokenErrorMessage(data: any, status: number) {
+    if (data?.error_description) {
+        return data.error_description;
+    }
+
+    if (data?.error) {
+        return `Spotify token request failed: ${data.error}`;
+    }
+
+    return `Spotify token request failed with status ${status}`;
 }
 
 function generateCodeVerifier(length: number) {

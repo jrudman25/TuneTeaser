@@ -9,7 +9,7 @@ import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndP
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { auth } from '../backend/FirebaseConfig';
-import { redirectToAuthCodeFlow, getAccessToken } from '../utils/auth';
+import { redirectToAuthCodeFlow, getAccessToken, getFreshSpotifyAccessToken } from '../utils/auth';
 import NavBar from '../components/NavBar';
 import { collection, query, where, getDocs, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../backend/FirebaseConfig';
@@ -118,7 +118,12 @@ const Login = () => {
             } else if (!code) {
                 const existingToken = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken');
                 if (existingToken) {
-                    navigate('/home');
+                    const freshToken = await getFreshSpotifyAccessToken(clientId);
+                    if (freshToken) {
+                        navigate('/home');
+                    } else {
+                        setIsLoading(false);
+                    }
                 } else {
                     unsubscribeTuneTeaserAuth = onAuthStateChanged(auth, currentUser => {
                         if (currentUser) {
