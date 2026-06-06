@@ -6,24 +6,53 @@ vi.mock('firebase-admin/app', () => ({
 
 // We need to mock getFirestore and getStorage before importing index
 const mockDocDelete = vi.fn();
+const mockDocGet = vi.fn();
+const mockDocUpdate = vi.fn();
 const mockCollectionGet = vi.fn();
 const mockBatchDelete = vi.fn();
+const mockBatchSet = vi.fn();
 const mockBatchCommit = vi.fn();
+const mockTransactionGet = vi.fn();
+const mockTransactionSet = vi.fn();
+const mockTransactionUpdate = vi.fn();
+const mockTransactionDelete = vi.fn();
+const mockRunTransaction = vi.fn();
 
 vi.mock('firebase-admin/firestore', () => ({
     getFirestore: vi.fn(() => ({
         collection: vi.fn(() => ({
             doc: vi.fn(() => ({
                 delete: mockDocDelete,
+                get: mockDocGet,
+                update: mockDocUpdate,
                 collection: vi.fn(() => ({
-                    get: mockCollectionGet
+                    get: mockCollectionGet,
+                    doc: vi.fn(() => ({
+                        get: mockDocGet,
+                        update: mockDocUpdate,
+                        delete: mockDocDelete
+                    }))
                 }))
             }))
         })),
         batch: vi.fn(() => ({
             delete: mockBatchDelete,
+            set: mockBatchSet,
             commit: mockBatchCommit
-        }))
+        })),
+        runTransaction: mockRunTransaction
+    }))
+}));
+
+const mockGetUser = vi.fn();
+const mockListUsers = vi.fn();
+const mockDeleteUsers = vi.fn();
+
+vi.mock('firebase-admin/auth', () => ({
+    getAuth: vi.fn(() => ({
+        getUser: mockGetUser,
+        listUsers: mockListUsers,
+        deleteUsers: mockDeleteUsers
     }))
 }));
 
@@ -70,6 +99,10 @@ vi.mock('firebase-functions/v1', () => ({
     }
 }));
 
+vi.mock('firebase-functions/v2/scheduler', () => ({
+    onSchedule: vi.fn((schedule, handler) => handler)
+}));
+
 // Mock spotify.ts
 vi.mock('./spotify', () => ({
     getSpotifyAccessToken: vi.fn(() => Promise.resolve('mock-token')),
@@ -86,12 +119,201 @@ import {
     getUserPlaylists, 
     importSpotifyPlaylist, 
     getManualPlaylistTracks, 
-    cleanupUserOnDelete 
+    cleanupUserOnDelete,
+    createMultiplayerRoom,
+    joinMultiplayerRoom,
+    updateMultiplayerRoomSettings,
+    startMultiplayerGame,
+    kickMultiplayerPlayer
 } from './index';
 
 describe('Cloud Functions (index.ts)', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        mockGetUser.mockResolvedValue({ displayName: 'Player One' });
+        mockBatchCommit.mockResolvedValue(undefined);
+        mockDocUpdate.mockResolvedValue(undefined);
+        mockRunTransaction.mockImplementation(async callback => {
+            return callback({
+                get: mockTransactionGet,
+                set: mockTransactionSet,
+                update: mockTransactionUpdate,
+                delete: mockTransactionDelete
+            });
+        });
+    });
+
+    describe('createMultiplayerRoom', () => {
+        it('throws unauthenticated if no auth', async () => {
+            await expect((createMultiplayerRoom as any)({ data: { roomName: 'Party' }, auth: undefined }))
+                .rejects.toThrow('You must be logged in to use multiplayer');
+        });
+
+        it('creates a lobby room and host player', async () => {
+            mockDocGet.mockResolvedValueOnce({ exists: false });
+
+            const result = await (createMultiplayerRoom as any)({ data: { roomName: ' Party Room ' }, auth: { uid: 'host123' } });
+
+            expect(result.roomId).toMatch(/^[A-Z2-9]{6}$/);
+            expect(mockBatchSet).toHaveBeenCalledTimes(2);
+            expect(mockBatchSet.mock.calls[0][1]).toMatchObject({
+                id: result.roomId,
+                roomName: 'Party Room',
+                hostUid: 'host123',
+                status: 'lobby',
+                maxPlayers: 5,
+                playerCount: 1,
+                pointGoal: 100
+            });
+            expect(mockBatchSet.mock.calls[1][1]).toMatchObject({
+                uid: 'host123',
+                displayName: 'Player One',
+                isHost: true,
+                score: 0,
+                state: 'lobby'
+            });
+            expect(mockBatchCommit).toHaveBeenCalled();
+        });
+    });
+
+    describe('joinMultiplayerRoom', () => {
+        it('rejects invalid room codes', async () => {
+            await expect((joinMultiplayerRoom as any)({ data: { roomId: 'short' }, auth: { uid: 'player1' } }))
+                .rejects.toThrow('Enter a valid room code');
+        });
+
+        it('rejects a new player when the room is full', async () => {
+            mockTransactionGet
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({ status: 'lobby', playerCount: 5, maxPlayers: 5 })
+                })
+                .mockResolvedValueOnce({ exists: false });
+
+            await expect((joinMultiplayerRoom as any)({ data: { roomId: 'abc234' }, auth: { uid: 'player1' } }))
+                .rejects.toThrow('This room is full');
+
+            expect(mockTransactionSet).not.toHaveBeenCalled();
+            expect(mockTransactionUpdate).not.toHaveBeenCalled();
+        });
+
+        it('preserves score and joinedAt when an existing player rejoins', async () => {
+            mockTransactionGet
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({ hostUid: 'host123', status: 'lobby', playerCount: 2, maxPlayers: 5 })
+                })
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({ score: 30, joinedAt: 12345 })
+                });
+
+            const result = await (joinMultiplayerRoom as any)({ data: { roomId: 'abc234' }, auth: { uid: 'player1' } });
+
+            expect(result).toEqual({ roomId: 'ABC234' });
+            expect(mockTransactionSet.mock.calls[0][1]).toMatchObject({
+                uid: 'player1',
+                displayName: 'Player One',
+                isHost: false,
+                score: 30,
+                joinedAt: 12345
+            });
+            expect(mockTransactionUpdate.mock.calls[0][1]).toMatchObject({ playerCount: 2 });
+        });
+    });
+
+    describe('updateMultiplayerRoomSettings', () => {
+        it('rejects non-host updates', async () => {
+            mockDocGet.mockResolvedValueOnce({
+                exists: true,
+                data: () => ({ hostUid: 'host123', status: 'lobby' })
+            });
+
+            await expect((updateMultiplayerRoomSettings as any)({
+                data: { roomId: 'ABC234', playlistId: 'playlist1', playlistName: 'Hits', pointGoal: 100 },
+                auth: { uid: 'player1' }
+            })).rejects.toThrow('Only the host can do that');
+        });
+
+        it('saves host settings from the lobby', async () => {
+            mockDocGet.mockResolvedValueOnce({
+                exists: true,
+                data: () => ({ hostUid: 'host123', status: 'lobby' })
+            });
+
+            const result = await (updateMultiplayerRoomSettings as any)({
+                data: { roomId: 'ABC234', playlistId: ' playlist1 ', playlistName: ' Hits ', pointGoal: 250 },
+                auth: { uid: 'host123' }
+            });
+
+            expect(result).toEqual({ roomId: 'ABC234' });
+            expect(mockDocUpdate).toHaveBeenCalledWith(expect.objectContaining({
+                playlistId: 'playlist1',
+                playlistName: 'Hits',
+                pointGoal: 250,
+                status: 'lobby'
+            }));
+        });
+    });
+
+    describe('startMultiplayerGame', () => {
+        it('requires a selected playlist', async () => {
+            mockDocGet.mockResolvedValueOnce({
+                exists: true,
+                data: () => ({ hostUid: 'host123', status: 'lobby', playlistId: null, playlistName: null })
+            });
+
+            await expect((startMultiplayerGame as any)({
+                data: { roomId: 'ABC234' },
+                auth: { uid: 'host123' }
+            })).rejects.toThrow('Pick a playlist before starting');
+        });
+
+        it('marks the room as playing when the host starts', async () => {
+            mockDocGet.mockResolvedValueOnce({
+                exists: true,
+                data: () => ({ hostUid: 'host123', status: 'lobby', playlistId: 'playlist1', playlistName: 'Hits' })
+            });
+
+            const result = await (startMultiplayerGame as any)({
+                data: { roomId: 'ABC234' },
+                auth: { uid: 'host123' }
+            });
+
+            expect(result).toEqual({ roomId: 'ABC234' });
+            expect(mockDocUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'playing' }));
+        });
+    });
+
+    describe('kickMultiplayerPlayer', () => {
+        it('does not allow the host to kick themselves', async () => {
+            await expect((kickMultiplayerPlayer as any)({
+                data: { roomId: 'ABC234', targetUid: 'host123' },
+                auth: { uid: 'host123' }
+            })).rejects.toThrow('Choose another player to kick');
+        });
+
+        it('deletes the target player and decrements player count', async () => {
+            mockDocGet.mockResolvedValueOnce({
+                exists: true,
+                data: () => ({ hostUid: 'host123', status: 'lobby' })
+            });
+            mockTransactionGet
+                .mockResolvedValueOnce({ exists: true })
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({ playerCount: 3 })
+                });
+
+            const result = await (kickMultiplayerPlayer as any)({
+                data: { roomId: 'ABC234', targetUid: 'player1' },
+                auth: { uid: 'host123' }
+            });
+
+            expect(result).toEqual({ roomId: 'ABC234' });
+            expect(mockTransactionDelete).toHaveBeenCalled();
+            expect(mockTransactionUpdate.mock.calls[0][1]).toMatchObject({ playerCount: 2 });
+        });
     });
 
     describe('resolveSpotifyTracks', () => {
