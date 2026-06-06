@@ -1,6 +1,6 @@
 /**
  * Login.tsx
- * Handles users logging in with a Spotify account.
+ * Handles users logging in with TuneTeaser, Spotify, or guest mode.
  * @version 2026.05.24
  */
 import React, { useEffect, useState } from 'react';

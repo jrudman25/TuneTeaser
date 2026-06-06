@@ -48,7 +48,7 @@ const Privacy = () => {
                         <span className="eyebrow">Legal Information</span>
                         <h1 className="section-title">Privacy Policy</h1>
                         <p className="body-copy" style={{ color: 'var(--ink-soft)' }}>
-                            Last Updated: {new Date().toLocaleDateString()}
+                            Last Updated: June 2026
                         </p>
                     </div>
 
@@ -58,7 +58,7 @@ const Privacy = () => {
                             <h3 className="subsection-title" style={{ margin: 0, fontSize: '1.25rem', color: 'var(--teal)' }}>What information do we collect?</h3>
                             <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                 <p className="body-copy" style={{ fontSize: '1.05rem' }}>
-                                    We collect information you provide directly to us when you create an account, such as your email address and display name (via Firebase Authentication). If you play in Guest Mode, your playlists are stored locally on your device and are not uploaded to our databases.
+                                    We collect information you provide directly to us when you create an account, such as your email address and display name (via Firebase Authentication). If you play in Guest Mode, playlist metadata is stored locally on your device, while track snapshots may be uploaded to cloud storage so the game can load imported playlists.
                                 </p>
                             </div>
                         </article>
@@ -80,8 +80,8 @@ const Privacy = () => {
                             <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                 <p className="body-copy" style={{ fontSize: '1.05rem' }}>We utilize the following third-party services that may collect data in accordance with their respective privacy policies:</p>
                                 <ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px', fontWeight: 700, color: 'var(--ink-soft)' }}>
-                                    <li><strong>Google Firebase:</strong> Used for secure authentication, database storage (leaderboard and user playlists), and hosting.</li>
-                                    <li><strong>Spotify API:</strong> Used to fetch public playlist information. TuneTeaser only accesses public playlists via URLs provided by the user and does not access your personal Spotify account data.</li>
+                                    <li><strong>Google Firebase:</strong> Used for secure authentication, database storage (leaderboard and user playlist metadata), cloud storage for imported track snapshots, and hosting.</li>
+                                    <li><strong>Spotify API:</strong> Used to fetch public playlist information from links you provide, profile URLs you provide, or your Spotify library if you use invite-only Spotify login.</li>
                                     <li><strong>Apple iTunes API:</strong> Used anonymously to search for and retrieve the 30-second song preview snippets.</li>
                                 </ul>
                             </div>
@@ -91,7 +91,7 @@ const Privacy = () => {
                             <h3 className="subsection-title" style={{ margin: 0, fontSize: '1.25rem', color: 'var(--teal)' }}>Data Security and Retention</h3>
                             <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                 <p className="body-copy" style={{ fontSize: '1.05rem' }}>
-                                    We implement standard security measures to protect your information. Your passwords and authentication tokens are handled securely by Google Firebase. We retain your profile and playlist data for as long as your account is active.
+                                    We implement standard security measures to protect your information. TuneTeaser email passwords are handled by Google Firebase. Invite-only Spotify login tokens are stored in browser storage so the app can refresh your session. We retain your profile and playlist data for as long as your account is active.
                                 </p>
                             </div>
                         </article>

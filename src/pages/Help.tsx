@@ -143,7 +143,7 @@ const Help = () => {
                                         <li><strong>Select a Playlist:</strong> Choose a playlist from your library or featured guest playlists.</li>
                                         <li><strong>Hear the Snippet:</strong> A random track is chosen, and a short audio preview will play.</li>
                                         <li><strong>Race the Clock:</strong> You have a limited time to guess the correct song title. Type your answer and select from the instant results.</li>
-                                        <li><strong>Earn Points:</strong> Correct guesses reward points, and answering quickly gives you a higher score multiplier.</li>
+                                        <li><strong>Earn Points:</strong> Correct guesses can reward points for registered TuneTeaser accounts, and answering quickly earns more.</li>
                                     </ul>
                                 </div>
                             )}
@@ -274,7 +274,7 @@ const Help = () => {
                                     <ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px', fontWeight: 700, color: 'var(--ink-soft)' }}>
                                         <li><strong>Eligible Playlists:</strong> To qualify for the global leaderboard, you must play on a playlist containing at least <strong>10</strong> tracks. Smaller mixes can be played for fun, but scores will not be uploaded.</li>
                                         <li><strong>Speed Bonus:</strong> Points are calculated based on your guess speed. Guessing a track title immediately awards 25 points, which decreases by 1 point for every additional 2 seconds of snippet length you need (4s = 24 points, 6s = 23 points, etc.).</li>
-                                        <li><strong>Account Required:</strong> You must be signed into a registered email or Spotify account to upload scores. Guest Mode games do not submit scores to the cloud leaderboard.</li>
+                                        <li><strong>Account Required:</strong> You must be signed into a registered TuneTeaser email account to upload scores. Guest Mode and invite-only Spotify login games do not submit scores to the cloud leaderboard yet.</li>
                                     </ul>
                                 </div>
                             )}
@@ -310,8 +310,8 @@ const Help = () => {
                                     </p>
                                     <ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px', fontWeight: 700, color: 'var(--ink-soft)' }}>
                                         <li><strong>TuneTeaser Account:</strong> Sign up with an email and password to back up your custom lists, sync multiple devices, and climb the leaderboard.</li>
-                                        <li><strong>Spotify Login:</strong> Log in directly via Spotify to easily resolve your public playlists without pasting links manually. Only available via invite.</li>
-                                        <li><strong>Guest Mode:</strong> Play immediately. We sign you in anonymously behind the scenes using secure isolated tokens to separate your data. Playlists are saved in your local browser storage. No email is collected and no scores go to the global leaderboard.</li>
+                                        <li><strong>Spotify Login:</strong> Log in directly via Spotify to use your Spotify library without pasting links manually. Only available via invite, and leaderboard scoring is not enabled for Spotify-only sessions yet.</li>
+                                        <li><strong>Guest Mode:</strong> Play immediately. We sign you in anonymously behind the scenes using secure isolated tokens to separate your session. Playlist metadata is saved in your local browser storage, while track snapshots may be uploaded to cloud storage so the game can load them. No email is collected and no scores go to the global leaderboard.</li>
                                     </ul>
                                 </div>
                             )}
