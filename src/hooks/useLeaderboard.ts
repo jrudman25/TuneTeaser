@@ -11,21 +11,30 @@ import {
     onSnapshot,
     orderBy,
     query,
-    setDoc,
     limit,
     where,
-    getCountFromServer,
-    serverTimestamp,
-    increment
+    getCountFromServer
 } from 'firebase/firestore';
 import { User } from 'firebase/auth';
-import { db } from '../backend/FirebaseConfig';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '../backend/FirebaseConfig';
 
 export interface LeaderboardEntry {
     uid: string;
     displayName: string;
     totalPoints: number;
     gamesWon: number;
+}
+
+export interface LeaderboardScoreSubmission {
+    playlistId: string;
+    songId: string;
+    playlistTrackCount: number;
+    snippetDurationMs: number;
+}
+
+interface SubmitLeaderboardScoreResponse {
+    points: number;
 }
 
 const LEADERBOARD_COLLECTION = 'leaderboard';
@@ -101,26 +110,21 @@ export const useLeaderboard = (user: User | null) => {
 
     /**
      * Submit points for a correct guess.
-     * Reads the existing doc (if any), increments totals, and writes back.
+     * Delegates validation and leaderboard increments to a callable Cloud Function.
      */
-    const submitScore = useCallback(async (points: number) => {
-        if (!user || user.isAnonymous) return;
-
-        const userDocRef = doc(db, LEADERBOARD_COLLECTION, user.uid);
+    const submitScore = useCallback(async (submission: LeaderboardScoreSubmission): Promise<number | null> => {
+        if (!user || user.isAnonymous) return null;
 
         try {
-            const displayName = user.displayName
-                || user.email?.split('@')[0]
-                || 'Anonymous';
-
-            await setDoc(userDocRef, {
-                displayName,
-                totalPoints: increment(points),
-                gamesWon: increment(1),
-                lastUpdated: serverTimestamp()
-            }, { merge: true });
+            const callable = httpsCallable<LeaderboardScoreSubmission, SubmitLeaderboardScoreResponse>(
+                functions,
+                'submitLeaderboardScore'
+            );
+            const result = await callable(submission);
+            return result.data.points;
         } catch (error) {
             console.error('Failed to submit score:', error);
+            return null;
         }
     }, [user]);
 

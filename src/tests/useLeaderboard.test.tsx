@@ -2,6 +2,7 @@ import { renderHook, act } from '@testing-library/react';
 import { useLeaderboard } from '../hooks/useLeaderboard';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as firestore from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 
 vi.mock('firebase/firestore', async () => {
     const actual = await vi.importActual('firebase/firestore');
@@ -14,15 +15,17 @@ vi.mock('firebase/firestore', async () => {
         query: vi.fn(() => 'mock-query'),
         limit: vi.fn(),
         where: vi.fn(),
-        setDoc: vi.fn(),
-        getCountFromServer: vi.fn(),
-        serverTimestamp: vi.fn(() => 'server-timestamp'),
-        increment: vi.fn((val) => ({ _increment: val }))
+        getCountFromServer: vi.fn()
     };
 });
 
+vi.mock('firebase/functions', () => ({
+    httpsCallable: vi.fn()
+}));
+
 vi.mock('../backend/FirebaseConfig', () => ({
-    db: {}
+    db: {},
+    functions: 'mock-functions'
 }));
 
 describe('useLeaderboard', () => {
@@ -113,23 +116,25 @@ describe('useLeaderboard', () => {
         expect(result.current.currentUserRank).toBeNull();
     });
 
-    it('submitScore increments score', async () => {
+    it('submitScore calls the leaderboard score function', async () => {
+        const mockCallable = vi.fn().mockResolvedValue({ data: { points: 25 } });
+        vi.mocked(httpsCallable).mockReturnValue(mockCallable);
         const { result } = renderHook(() => useLeaderboard(mockUser));
+        const submission = {
+            playlistId: 'playlist123',
+            songId: 'song123',
+            playlistTrackCount: 10,
+            snippetDurationMs: 2000
+        };
+        let points: number | null = null;
 
         await act(async () => {
-            await result.current.submitScore(10);
+            points = await result.current.submitScore(submission);
         });
 
-        expect(firestore.setDoc).toHaveBeenCalledWith(
-            'mock-doc-ref',
-            expect.objectContaining({
-                displayName: 'Test User',
-                totalPoints: { _increment: 10 },
-                gamesWon: { _increment: 1 },
-                lastUpdated: 'server-timestamp'
-            }),
-            { merge: true }
-        );
+        expect(httpsCallable).toHaveBeenCalledWith('mock-functions', 'submitLeaderboardScore');
+        expect(mockCallable).toHaveBeenCalledWith(submission);
+        expect(points).toBe(25);
     });
 
     it('submitScore does nothing for anonymous user', async () => {
@@ -137,9 +142,14 @@ describe('useLeaderboard', () => {
         const { result } = renderHook(() => useLeaderboard(anonymousUser));
 
         await act(async () => {
-            await result.current.submitScore(10);
+            await result.current.submitScore({
+                playlistId: 'playlist123',
+                songId: 'song123',
+                playlistTrackCount: 10,
+                snippetDurationMs: 2000
+            });
         });
 
-        expect(firestore.setDoc).not.toHaveBeenCalled();
+        expect(httpsCallable).not.toHaveBeenCalled();
     });
 });

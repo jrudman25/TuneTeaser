@@ -8,6 +8,7 @@ import {
     createMultiplayerRoom,
     joinMultiplayerRoom,
     kickMultiplayerPlayer,
+    leaveMultiplayerRoom,
     startMultiplayerGame,
     subscribeToMultiplayerRoom,
     updateMultiplayerRoomSettings
@@ -15,6 +16,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
     signInAnonymously: vi.fn(),
+    signOut: vi.fn(),
     roomSnapshot: null as Record<string, unknown> | null,
     playersSnapshot: [] as Array<Record<string, unknown>>,
     authState: {
@@ -37,7 +39,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../components/NavBar', () => ({
-    default: () => <nav>Nav</nav>
+    default: ({ actionButtons }: { actionButtons?: React.ReactNode }) => <nav>{actionButtons}</nav>
 }));
 
 vi.mock('../hooks/useTuneTeaserAuth', () => ({
@@ -58,6 +60,8 @@ vi.mock('../utils/multiplayer', () => ({
     updateMultiplayerRoomSettings: vi.fn(),
     startMultiplayerGame: vi.fn(),
     kickMultiplayerPlayer: vi.fn(),
+    leaveMultiplayerRoom: vi.fn(),
+    getFunctionsUrl: vi.fn(() => 'http://localhost:5001/tuneteaser/us-central1/leaveMultiplayerRoom'),
     subscribeToMultiplayerRoom: vi.fn((_roomId, onRoom) => {
         onRoom(mocks.roomSnapshot);
         return vi.fn();
@@ -69,11 +73,12 @@ vi.mock('../utils/multiplayer', () => ({
 }));
 
 vi.mock('firebase/auth', () => ({
-    signInAnonymously: mocks.signInAnonymously
+    signInAnonymously: mocks.signInAnonymously,
+    signOut: mocks.signOut
 }));
 
 vi.mock('../backend/FirebaseConfig', () => ({
-    auth: { currentUser: { uid: 'host-1' } }
+    auth: { currentUser: { uid: 'host-1', getIdToken: vi.fn().mockResolvedValue('mock-token') } }
 }));
 
 const room = {
@@ -141,6 +146,7 @@ describe('Multiplayer page', () => {
         vi.mocked(updateMultiplayerRoomSettings).mockResolvedValue({ roomId: 'ABC123' });
         vi.mocked(startMultiplayerGame).mockResolvedValue({ roomId: 'ABC123' });
         vi.mocked(kickMultiplayerPlayer).mockResolvedValue({ roomId: 'ABC123' });
+        vi.mocked(leaveMultiplayerRoom).mockResolvedValue({ roomId: 'ABC123' });
     });
 
     it('creates a room, stores the room name, and navigates into the lobby route', async () => {
@@ -172,6 +178,9 @@ describe('Multiplayer page', () => {
             expect(screen.getByText('Friday Party')).toBeInTheDocument();
             expect(screen.getByText('Guest User')).toBeInTheDocument();
         });
+        expect(screen.getByRole('link', { name: /manage playlists/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /logout/i })).toBeInTheDocument();
+        expect(screen.getAllByRole('button', { name: /close room/i }).length).toBeGreaterThan(0);
 
         await user.click(screen.getByRole('button', { name: /chill mix/i }));
         await waitFor(() => {
@@ -216,5 +225,67 @@ describe('Multiplayer page', () => {
             expect(joinMultiplayerRoom).toHaveBeenCalledWith('ABC123');
         });
         expect(screen.getByText(/joined room/i)).toBeInTheDocument();
+    });
+
+    it('lets a player leave a lobby room', async () => {
+        const user = userEvent.setup();
+        mocks.authState.user = { uid: 'guest-1', isAnonymous: false };
+        mocks.roomSnapshot = room;
+        mocks.playersSnapshot = [hostPlayer, guestPlayer];
+
+        renderPage('/multiplayer/ABC123');
+
+        await waitFor(() => {
+            expect(screen.getByText('Friday Party')).toBeInTheDocument();
+        });
+
+        await user.click(screen.getAllByRole('button', { name: /leave room/i })[0]);
+
+        await waitFor(() => {
+            expect(leaveMultiplayerRoom).toHaveBeenCalledWith('ABC123');
+        });
+        expect(screen.getByText(/you left the room/i)).toBeInTheDocument();
+    });
+
+    it('leaves the lobby before navigating home from a room', async () => {
+        const user = userEvent.setup();
+        mocks.authState.user = { uid: 'guest-1', isAnonymous: false };
+        mocks.roomSnapshot = room;
+        mocks.playersSnapshot = [hostPlayer, guestPlayer];
+
+        renderPage('/multiplayer/ABC123');
+
+        await waitFor(() => {
+            expect(screen.getByText('Friday Party')).toBeInTheDocument();
+        });
+
+        await user.click(screen.getByRole('link', { name: /back home/i }));
+
+        await waitFor(() => {
+            expect(leaveMultiplayerRoom).toHaveBeenCalledWith('ABC123');
+            expect(screen.getByText('Home Route')).toBeInTheDocument();
+        });
+    });
+
+    it('removes a joined lobby player when navigating away', async () => {
+        mocks.authState.user = { uid: 'guest-1', isAnonymous: false };
+        mocks.roomSnapshot = room;
+        mocks.playersSnapshot = [hostPlayer, guestPlayer];
+
+        const { unmount } = render(
+            <MemoryRouter initialEntries={['/multiplayer/ABC123']}>
+                <Routes>
+                    <Route path="/multiplayer/:roomCode" element={<Multiplayer />} />
+                </Routes>
+            </MemoryRouter>
+        );
+
+        await waitFor(() => {
+            expect(screen.getByText('Friday Party')).toBeInTheDocument();
+        });
+
+        unmount();
+
+        expect(leaveMultiplayerRoom).toHaveBeenCalledWith('ABC123');
     });
 });

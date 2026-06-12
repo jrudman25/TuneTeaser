@@ -1,11 +1,12 @@
 import { initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getStorage } from 'firebase-admin/storage';
-import { getFirestore } from 'firebase-admin/firestore';
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import * as functionsV1 from 'firebase-functions/v1';
+import { createHash } from 'crypto';
 import { fetchPlaylistName, fetchPlaylistTracks, fetchSpotifyTracks, fetchUserPlaylists, getSpotifyAccessToken, normalizeTrackIds } from './spotify';
 
 initializeApp();
@@ -15,6 +16,10 @@ const spotifyClientSecret = defineSecret('SPOTIFY_CLIENT_SECRET');
 const MULTIPLAYER_ROOM_LIMIT_FREE = 5;
 const MULTIPLAYER_ROOM_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MULTIPLAYER_ROOM_CODE_LENGTH = 6;
+const MIN_TRACKS_FOR_LEADERBOARD_POINTS = 10;
+const LEADERBOARD_SCORE_COOLDOWN_MS = 10 * 60 * 1000;
+const MIN_SNIPPET_DURATION_MS = 2000;
+const MAX_SNIPPET_DURATION_MS = 30000;
 
 const makeRoomCode = () => {
     let code = '';
@@ -53,6 +58,94 @@ const getPlayerDisplayName = async (uid: string) => {
         || userRecord.email?.split('@')[0]
         || `Guest ${uid.slice(0, 6).toUpperCase()}`;
 };
+
+const calculateLeaderboardPoints = (snippetDurationMs: number) => {
+    const base = 10;
+    const maxBonus = 15;
+    const clamped = Math.max(MIN_SNIPPET_DURATION_MS, Math.min(MAX_SNIPPET_DURATION_MS, snippetDurationMs));
+    const fraction = 1 - (clamped - MIN_SNIPPET_DURATION_MS) / (MAX_SNIPPET_DURATION_MS - MIN_SNIPPET_DURATION_MS);
+    return base + Math.round(maxBonus * fraction);
+};
+
+const getScoreString = (value: unknown, fieldName: string, maxLength: number) => {
+    const normalized = typeof value === 'string' ? value.trim() : '';
+    if (!normalized || normalized.length > maxLength || normalized.includes('/')) {
+        throw new HttpsError('invalid-argument', `${fieldName} is invalid.`);
+    }
+    return normalized;
+};
+
+const getScoreInteger = (value: unknown, fieldName: string) => {
+    if (!Number.isInteger(value)) {
+        throw new HttpsError('invalid-argument', `${fieldName} is invalid.`);
+    }
+    return value as number;
+};
+
+const getScoreCooldownId = (playlistId: string, songId: string) => {
+    return createHash('sha256').update(`${playlistId}:${songId}`).digest('hex');
+};
+
+export const submitLeaderboardScore = onCall({
+    timeoutSeconds: 15,
+    memory: '256MiB',
+    invoker: 'public'
+}, async (request) => {
+    const uid = getAuthedUid(request);
+    const signInProvider = request.auth?.token?.firebase?.sign_in_provider;
+
+    if (signInProvider === 'anonymous') {
+        throw new HttpsError('permission-denied', 'Anonymous users cannot submit leaderboard scores.');
+    }
+
+    const playlistId = getScoreString(request.data?.playlistId, 'Playlist ID', 160);
+    const songId = getScoreString(request.data?.songId, 'Song ID', 160);
+    const playlistTrackCount = getScoreInteger(request.data?.playlistTrackCount, 'Playlist track count');
+    const snippetDurationMs = getScoreInteger(request.data?.snippetDurationMs, 'Snippet duration');
+
+    if (playlistTrackCount < MIN_TRACKS_FOR_LEADERBOARD_POINTS) {
+        throw new HttpsError('failed-precondition', 'This playlist is not eligible for leaderboard points.');
+    }
+
+    if (snippetDurationMs < MIN_SNIPPET_DURATION_MS || snippetDurationMs > MAX_SNIPPET_DURATION_MS) {
+        throw new HttpsError('invalid-argument', 'Snippet duration is invalid.');
+    }
+
+    const userRecord = await getAuth().getUser(uid);
+    const displayName = userRecord.displayName
+        || userRecord.email?.split('@')[0]
+        || 'Anonymous';
+    const points = calculateLeaderboardPoints(snippetDurationMs);
+    const db = getFirestore();
+    const leaderboardRef = db.collection('leaderboard').doc(uid);
+    const cooldownRef = leaderboardRef.collection('recentScores').doc(getScoreCooldownId(playlistId, songId));
+    const now = Date.now();
+
+    await db.runTransaction(async transaction => {
+        const cooldownSnap = await transaction.get(cooldownRef);
+        const lastScoredAt = cooldownSnap.exists ? cooldownSnap.data()?.scoredAtMillis : null;
+
+        if (typeof lastScoredAt === 'number' && now - lastScoredAt < LEADERBOARD_SCORE_COOLDOWN_MS) {
+            throw new HttpsError('failed-precondition', 'This song was scored recently. Try another song.');
+        }
+
+        transaction.set(leaderboardRef, {
+            displayName,
+            totalPoints: FieldValue.increment(points),
+            gamesWon: FieldValue.increment(1),
+            lastUpdated: FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        transaction.set(cooldownRef, {
+            playlistId,
+            songId,
+            scoredAtMillis: now,
+            expiresAtMillis: now + LEADERBOARD_SCORE_COOLDOWN_MS
+        }, { merge: true });
+    });
+
+    return { points };
+});
 
 const getRoomRefForHost = async (roomId: string, uid: string) => {
     const db = getFirestore();
@@ -268,6 +361,61 @@ export const kickMultiplayerPlayer = onCall({
         transaction.update(roomRef, {
             playerCount,
             updatedAt: Date.now()
+        });
+    });
+
+    return { roomId };
+});
+
+export const leaveMultiplayerRoom = onCall({
+    timeoutSeconds: 15,
+    memory: '256MiB',
+    invoker: 'public'
+}, async (request) => {
+    const uid = getAuthedUid(request);
+    const roomId = getRoomId(request.data?.roomId);
+    const db = getFirestore();
+    const roomRef = db.collection('multiplayerRooms').doc(roomId);
+    const playerRef = roomRef.collection('players').doc(uid);
+    const roomSnap = await roomRef.get();
+    const now = Date.now();
+
+    if (!roomSnap.exists) {
+        return { roomId };
+    }
+
+    const room = roomSnap.data();
+
+    if (room?.hostUid === uid) {
+        const playersSnap = await roomRef.collection('players').get();
+        const batch = db.batch();
+        playersSnap.docs.forEach(playerDoc => {
+            batch.delete(playerDoc.ref);
+        });
+        batch.update(roomRef, {
+            status: 'ended',
+            playerCount: 0,
+            updatedAt: now,
+            endedAt: now
+        });
+        await batch.commit();
+        return { roomId };
+    }
+
+    await db.runTransaction(async transaction => {
+        const playerSnap = await transaction.get(playerRef);
+        const currentRoomSnap = await transaction.get(roomRef);
+
+        if (!playerSnap.exists || !currentRoomSnap.exists) {
+            return;
+        }
+
+        const currentRoom = currentRoomSnap.data();
+        const playerCount = Math.max(0, (currentRoom?.playerCount || 1) - 1);
+        transaction.delete(playerRef);
+        transaction.update(roomRef, {
+            playerCount,
+            updatedAt: now
         });
     });
 

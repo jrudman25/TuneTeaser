@@ -8,9 +8,10 @@ import './NavBar.css';
 interface NavBarProps {
     statusBadge?: React.ReactNode;
     actionButtons?: React.ReactNode;
+    onNavigate?: (to: string) => void | Promise<void>;
 }
 
-const NavBar: React.FC<NavBarProps> = ({ statusBadge, actionButtons }) => {
+const NavBar: React.FC<NavBarProps> = ({ statusBadge, actionButtons, onNavigate }) => {
     const location = useLocation();
     const [searchParams] = useSearchParams();
     const { user } = useTuneTeaserAuth();
@@ -25,12 +26,18 @@ const NavBar: React.FC<NavBarProps> = ({ statusBadge, actionButtons }) => {
         }
     };
 
+    const handleNavClick = (to: string) => async (event: React.MouseEvent<HTMLAnchorElement>) => {
+        if (!onNavigate) return;
+        event.preventDefault();
+        await onNavigate(to);
+    };
+
     return (
         <>
             <nav className="site-nav">
                 <div className="site-nav-inner">
                     <div className="site-nav-left">
-                        <Link className="logo-link" to={isLoginPage ? '/' : (isGuest ? '/home?mode=guest' : '/home')} onClick={handleLogoClick} aria-label="TuneTeaser home">
+                        <Link className="logo-link" to={isLoginPage ? '/' : (isGuest ? '/home?mode=guest' : '/home')} onClick={onNavigate ? handleNavClick(isLoginPage ? '/' : (isGuest ? '/home?mode=guest' : '/home')) : handleLogoClick} aria-label="TuneTeaser home">
                             <span className="logo-mark" aria-hidden="true">TT</span>
                         </Link>
                     </div>
@@ -39,14 +46,16 @@ const NavBar: React.FC<NavBarProps> = ({ statusBadge, actionButtons }) => {
                             {isProbablyLoggedIn && (
                                 <>
                                     <Link
-                                        className={`nav-link ${location.pathname === '/multiplayer' ? 'nav-link-active' : ''}`}
+                                        className={`nav-link ${location.pathname.startsWith('/multiplayer') ? 'nav-link-active' : ''}`}
                                         to={isGuest ? "/multiplayer?mode=guest" : "/multiplayer"}
+                                        onClick={handleNavClick(isGuest ? "/multiplayer?mode=guest" : "/multiplayer")}
                                     >
                                         Multiplayer
                                     </Link>
                                     <Link
                                         className={`nav-link ${location.pathname === '/leaderboard' ? 'nav-link-active' : ''}`}
                                         to={isGuest ? "/leaderboard?mode=guest" : "/leaderboard"}
+                                        onClick={handleNavClick(isGuest ? "/leaderboard?mode=guest" : "/leaderboard")}
                                     >
                                         Leaderboard
                                     </Link>
@@ -55,6 +64,7 @@ const NavBar: React.FC<NavBarProps> = ({ statusBadge, actionButtons }) => {
                             <Link
                                 className={`nav-link ${location.pathname === '/help' ? 'nav-link-active' : ''}`}
                                 to={isGuest ? "/help?mode=guest" : "/help"}
+                                onClick={handleNavClick(isGuest ? "/help?mode=guest" : "/help")}
                             >
                                 Help & FAQ
                             </Link>
@@ -63,6 +73,7 @@ const NavBar: React.FC<NavBarProps> = ({ statusBadge, actionButtons }) => {
                             <Link
                                 className="home-button"
                                 to={isGuest ? '/home?mode=guest' : '/home'}
+                                onClick={handleNavClick(isGuest ? '/home?mode=guest' : '/home')}
                                 aria-label="Home"
                                 title="Home"
                             >

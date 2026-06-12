@@ -24,7 +24,7 @@
 *   **Fair Play Safeguards & Storage Safety**:
     *   Guest/anonymous profiles are ineligible for points to prevent scoreboard pollution.
     *   Playlists must contain at least 10 tracks to be eligible for points.
-    *   A 10-minute cooldown prevents spamming the exact same song and playlist combination.
+    *   Leaderboard score writes go through a callable Cloud Function that enforces bounded point calculation and a 10-minute cooldown for the same song and playlist combination.
     *   **Resource Caps**: Libraries are limited to a maximum of 30 playlists per account or guest session to prevent storage expansion, and individual playlists are capped at 5,000 tracks.
     *   **Account Cleanup**: Inactive anonymous users (older than 30 days) are automatically deleted daily to keep the database clean and organized.
     *   **Input Protection**: Strict alphanumeric and safe-symbol constraints are enforced on display names and playlist titles to block scripting/HTML tags. Custom song titles and artists are automatically sanitized.
@@ -69,7 +69,7 @@ To enable the leaderboard system, the Firestore database needs to contain a `lea
     *   `lastUpdated`: `timestamp`
 
 ### Firestore Security Rules
-The deployed rules allow public leaderboard reads, owner-only leaderboard/user playlist writes, signed-in reads for multiplayer lobbies, and Cloud Function-only writes for multiplayer state:
+The deployed rules allow public leaderboard reads, Cloud Function-only leaderboard writes, owner-only user playlist writes, signed-in reads for multiplayer lobbies, and Cloud Function-only writes for multiplayer state:
 ```javascript
 rules_version = '2';
 service cloud.firestore {
@@ -84,7 +84,7 @@ service cloud.firestore {
 
     match /leaderboard/{uid} {
       allow read: if true;
-      allow write: if isOwner(uid);
+      allow write: if false;
     }
 
     match /users/{uid} {

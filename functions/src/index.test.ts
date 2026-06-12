@@ -1,4 +1,4 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 vi.mock('firebase-admin/app', () => ({
     initializeApp: vi.fn(),
@@ -11,14 +11,23 @@ const mockDocUpdate = vi.fn();
 const mockCollectionGet = vi.fn();
 const mockBatchDelete = vi.fn();
 const mockBatchSet = vi.fn();
+const mockBatchUpdate = vi.fn();
 const mockBatchCommit = vi.fn();
 const mockTransactionGet = vi.fn();
 const mockTransactionSet = vi.fn();
 const mockTransactionUpdate = vi.fn();
 const mockTransactionDelete = vi.fn();
 const mockRunTransaction = vi.fn();
+const { mockFieldValueIncrement, mockFieldValueServerTimestamp } = vi.hoisted(() => ({
+    mockFieldValueIncrement: vi.fn((value: number) => ({ _increment: value })),
+    mockFieldValueServerTimestamp: vi.fn(() => 'server-timestamp')
+}));
 
 vi.mock('firebase-admin/firestore', () => ({
+    FieldValue: {
+        increment: mockFieldValueIncrement,
+        serverTimestamp: mockFieldValueServerTimestamp
+    },
     getFirestore: vi.fn(() => ({
         collection: vi.fn(() => ({
             doc: vi.fn(() => ({
@@ -38,6 +47,7 @@ vi.mock('firebase-admin/firestore', () => ({
         batch: vi.fn(() => ({
             delete: mockBatchDelete,
             set: mockBatchSet,
+            update: mockBatchUpdate,
             commit: mockBatchCommit
         })),
         runTransaction: mockRunTransaction
@@ -124,7 +134,9 @@ import {
     joinMultiplayerRoom,
     updateMultiplayerRoomSettings,
     startMultiplayerGame,
-    kickMultiplayerPlayer
+    kickMultiplayerPlayer,
+    leaveMultiplayerRoom,
+    submitLeaderboardScore
 } from './index';
 
 describe('Cloud Functions (index.ts)', () => {
@@ -133,6 +145,8 @@ describe('Cloud Functions (index.ts)', () => {
         mockGetUser.mockResolvedValue({ displayName: 'Player One' });
         mockBatchCommit.mockResolvedValue(undefined);
         mockDocUpdate.mockResolvedValue(undefined);
+        mockFieldValueIncrement.mockImplementation((value: number) => ({ _increment: value }));
+        mockFieldValueServerTimestamp.mockReturnValue('server-timestamp');
         mockRunTransaction.mockImplementation(async callback => {
             return callback({
                 get: mockTransactionGet,
@@ -140,6 +154,87 @@ describe('Cloud Functions (index.ts)', () => {
                 update: mockTransactionUpdate,
                 delete: mockTransactionDelete
             });
+        });
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    describe('submitLeaderboardScore', () => {
+        it('throws unauthenticated if no auth', async () => {
+            await expect((submitLeaderboardScore as any)({ data: {}, auth: undefined }))
+                .rejects.toThrow('You must be logged in');
+        });
+
+        it('rejects anonymous users', async () => {
+            await expect((submitLeaderboardScore as any)({
+                data: {
+                    playlistId: 'playlist1',
+                    songId: 'song1',
+                    playlistTrackCount: 10,
+                    snippetDurationMs: 2000
+                },
+                auth: { uid: 'anon1', token: { firebase: { sign_in_provider: 'anonymous' } } }
+            })).rejects.toThrow('Anonymous users cannot submit leaderboard scores');
+        });
+
+        it('rejects playlists below the scoring threshold', async () => {
+            await expect((submitLeaderboardScore as any)({
+                data: {
+                    playlistId: 'playlist1',
+                    songId: 'song1',
+                    playlistTrackCount: 9,
+                    snippetDurationMs: 2000
+                },
+                auth: { uid: 'user123', token: { firebase: { sign_in_provider: 'password' } } }
+            })).rejects.toThrow('This playlist is not eligible');
+        });
+
+        it('calculates bounded points and writes leaderboard increments in a transaction', async () => {
+            mockTransactionGet.mockResolvedValueOnce({ exists: false });
+
+            const result = await (submitLeaderboardScore as any)({
+                data: {
+                    playlistId: 'playlist1',
+                    songId: 'song1',
+                    playlistTrackCount: 10,
+                    snippetDurationMs: 2000
+                },
+                auth: { uid: 'user123', token: { firebase: { sign_in_provider: 'password' } } }
+            });
+
+            expect(result).toEqual({ points: 25 });
+            expect(mockTransactionSet).toHaveBeenCalledTimes(2);
+            expect(mockTransactionSet.mock.calls[0][1]).toMatchObject({
+                displayName: 'Player One',
+                totalPoints: { _increment: 25 },
+                gamesWon: { _increment: 1 },
+                lastUpdated: 'server-timestamp'
+            });
+            expect(mockTransactionSet.mock.calls[0][2]).toEqual({ merge: true });
+            expect(mockTransactionSet.mock.calls[1][1]).toMatchObject({
+                playlistId: 'playlist1',
+                songId: 'song1'
+            });
+        });
+
+        it('rejects scoring the same song and playlist during cooldown', async () => {
+            vi.spyOn(Date, 'now').mockReturnValue(1000000);
+            mockTransactionGet.mockResolvedValueOnce({
+                exists: true,
+                data: () => ({ scoredAtMillis: 999000 })
+            });
+
+            await expect((submitLeaderboardScore as any)({
+                data: {
+                    playlistId: 'playlist1',
+                    songId: 'song1',
+                    playlistTrackCount: 10,
+                    snippetDurationMs: 2000
+                },
+                auth: { uid: 'user123', token: { firebase: { sign_in_provider: 'password' } } }
+            })).rejects.toThrow('This song was scored recently');
         });
     });
 
@@ -313,6 +408,53 @@ describe('Cloud Functions (index.ts)', () => {
             expect(result).toEqual({ roomId: 'ABC234' });
             expect(mockTransactionDelete).toHaveBeenCalled();
             expect(mockTransactionUpdate.mock.calls[0][1]).toMatchObject({ playerCount: 2 });
+        });
+    });
+
+    describe('leaveMultiplayerRoom', () => {
+        it('deletes a guest player and decrements player count', async () => {
+            mockDocGet.mockResolvedValueOnce({
+                exists: true,
+                data: () => ({ hostUid: 'host123', playerCount: 3 })
+            });
+            mockTransactionGet
+                .mockResolvedValueOnce({ exists: true })
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({ playerCount: 3 })
+                });
+
+            const result = await (leaveMultiplayerRoom as any)({
+                data: { roomId: 'ABC234' },
+                auth: { uid: 'player1' }
+            });
+
+            expect(result).toEqual({ roomId: 'ABC234' });
+            expect(mockTransactionDelete).toHaveBeenCalled();
+            expect(mockTransactionUpdate.mock.calls[0][1]).toMatchObject({ playerCount: 2 });
+        });
+
+        it('closes the room when the host leaves', async () => {
+            mockDocGet.mockResolvedValueOnce({
+                exists: true,
+                data: () => ({ hostUid: 'host123', playerCount: 2 })
+            });
+            mockCollectionGet.mockResolvedValueOnce({
+                docs: [{ ref: 'host-player-ref' }, { ref: 'guest-player-ref' }]
+            });
+
+            const result = await (leaveMultiplayerRoom as any)({
+                data: { roomId: 'ABC234' },
+                auth: { uid: 'host123' }
+            });
+
+            expect(result).toEqual({ roomId: 'ABC234' });
+            expect(mockBatchDelete).toHaveBeenCalledTimes(2);
+            expect(mockBatchUpdate).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+                status: 'ended',
+                playerCount: 0
+            }));
+            expect(mockBatchCommit).toHaveBeenCalled();
         });
     });
 

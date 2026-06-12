@@ -77,6 +77,23 @@
     background: rgba(28, 32, 41, 0.88);
   }
 
+  body.dark-theme .multiplayer-playlist-list {
+    background: rgba(20, 23, 31, 0.6);
+    border-color: var(--ink);
+  }
+
+  body.dark-theme .multiplayer-playlist-item:hover {
+    background: rgba(255, 209, 102, 0.12);
+  }
+
+  body.dark-theme .multiplayer-playlist-item-active {
+    background: rgba(57, 214, 199, 0.14);
+  }
+
+  body.dark-theme .multiplayer-playlist-list::-webkit-scrollbar-thumb {
+    background: rgba(248, 241, 221, 0.3);
+  }
+
   body.dark-theme .text-input,
   body.dark-theme .text-area,
   body.dark-theme .filter-controls .text-input,
@@ -877,12 +894,21 @@
 
   .multiplayer-card {
     display: grid;
+    align-content: start;
     gap: 14px;
     border: 3px solid var(--ink);
-    border-radius: 22px;
+    border-radius: var(--radius-md);
     padding: 18px;
     background: rgba(255, 248, 232, 0.78);
-    box-shadow: 7px 7px 0 var(--ink);
+    box-shadow: 8px 8px 0 var(--ink);
+  }
+
+  .multiplayer-card .eyebrow {
+    justify-self: start;
+    margin-bottom: 0;
+    width: 120px;
+    justify-content: center;
+    box-sizing: border-box;
   }
 
   .multiplayer-card h2 {
@@ -924,9 +950,10 @@
     display: grid;
     gap: 10px;
     border: 3px solid var(--ink);
-    border-radius: 18px;
-    padding: 14px;
+    border-radius: var(--radius-md);
+    padding: 16px;
     background: rgba(255, 248, 232, 0.68);
+    box-shadow: 8px 8px 0 var(--ink);
   }
 
   .multiplayer-player-list {
@@ -957,6 +984,98 @@
     color: var(--ink-soft);
     font-size: 0.9rem;
     font-weight: 900;
+  }
+
+  .multiplayer-playlist-picker {
+    display: grid;
+    gap: 10px;
+  }
+
+  .multiplayer-playlist-picker .text-input {
+    padding: 10px 12px;
+    font-size: 0.9rem;
+  }
+
+  .multiplayer-playlist-list {
+    display: grid;
+    gap: 6px;
+    max-height: 260px;
+    overflow-y: auto;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border: 2px solid var(--ink);
+    border-radius: 14px;
+    padding: 8px;
+    background: rgba(255, 248, 232, 0.5);
+    scrollbar-width: thin;
+  }
+
+  .multiplayer-playlist-list::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .multiplayer-playlist-list::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .multiplayer-playlist-list::-webkit-scrollbar-thumb {
+    background: var(--ink-soft);
+    border-radius: 3px;
+  }
+
+  .multiplayer-playlist-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border: 2px solid transparent;
+    border-radius: 10px;
+    padding: 10px 12px;
+    cursor: pointer;
+    background: none;
+    color: var(--ink);
+    text-align: left;
+    font: inherit;
+    font-weight: 800;
+    transition: background 100ms ease, border-color 100ms ease;
+  }
+
+  .multiplayer-playlist-item:hover {
+    background: rgba(244, 185, 66, 0.18);
+    border-color: var(--ink);
+  }
+
+  .multiplayer-playlist-item-active {
+    background: rgba(22, 140, 132, 0.14);
+    border-color: var(--teal);
+  }
+
+  .multiplayer-playlist-item-name {
+    display: -webkit-box;
+    min-width: 0;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    line-clamp: 1;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+    font-size: 0.95rem;
+  }
+
+  .multiplayer-playlist-item-meta {
+    flex: 0 0 auto;
+    color: var(--ink-soft);
+    font-size: 0.8rem;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+
+  .multiplayer-playlist-empty {
+    padding: 16px;
+    color: var(--ink-soft);
+    font-size: 0.9rem;
+    font-weight: 800;
+    text-align: center;
   }
 
   .record-grid {

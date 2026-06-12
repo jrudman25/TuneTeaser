@@ -11,7 +11,7 @@ service cloud.firestore {
 
     match /leaderboard/{uid} {
       allow read: if true;
-      allow write: if isOwner(uid);
+      allow write: if false;
     }
 
     match /users/{uid} {

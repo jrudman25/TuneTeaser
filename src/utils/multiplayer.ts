@@ -2,6 +2,25 @@ import { httpsCallable } from 'firebase/functions';
 import { collection, doc, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db, functions } from '../backend/FirebaseConfig';
 
+/**
+ * Returns the direct HTTP URL for a Firebase Cloud Function callable.
+ * Used by sendBeacon during page teardown where the SDK's httpsCallable
+ * (which relies on fetch) gets aborted by the browser.
+ */
+export const getFunctionsUrl = (functionName: string): string => {
+    const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'tuneteaser';
+    const isEmulator =
+        import.meta.env.DEV &&
+        import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true';
+
+    if (isEmulator) {
+        return `http://127.0.0.1:5001/${projectId}/us-central1/${functionName}`;
+    }
+
+    return `https://us-central1-${projectId}.cloudfunctions.net/${functionName}`;
+};
+
+
 export type MultiplayerRoomStatus = 'lobby' | 'playing' | 'ended';
 
 export interface MultiplayerRoom {
@@ -47,6 +66,10 @@ export const createMultiplayerRoom = (roomName: string) => {
 
 export const joinMultiplayerRoom = (roomId: string) => {
     return callRoomFunction('joinMultiplayerRoom', { roomId });
+};
+
+export const leaveMultiplayerRoom = (roomId: string) => {
+    return callRoomFunction('leaveMultiplayerRoom', { roomId });
 };
 
 export const updateMultiplayerRoomSettings = (

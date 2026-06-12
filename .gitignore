@@ -31,6 +31,8 @@ yarn-error.log*
 /.idea
 /.vscode
 .windsurf/
+.devin/
 .codex-screenshots/
 firestore-debug.log
 firebase-debug.log
+emulator_data/

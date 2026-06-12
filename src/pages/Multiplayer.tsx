@@ -1,9 +1,10 @@
-import React, { FormEvent, useEffect, useMemo, useState } from 'react';
+import React, { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { getFunctionsUrl } from '../utils/multiplayer';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { signInAnonymously } from 'firebase/auth';
+import { signInAnonymously, signOut } from 'firebase/auth';
 import { FirebaseError } from 'firebase/app';
 import NavBar from '../components/NavBar';
-import PlaylistMenu from '../components/PlaylistMenu';
+
 import { auth } from '../backend/FirebaseConfig';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
 import { useManualPlaylists } from '../hooks/useManualPlaylists';
@@ -14,6 +15,7 @@ import {
     createMultiplayerRoom,
     joinMultiplayerRoom,
     kickMultiplayerPlayer,
+    leaveMultiplayerRoom,
     startMultiplayerGame,
     subscribeToMultiplayerPlayers,
     subscribeToMultiplayerRoom,
@@ -61,6 +63,13 @@ const Multiplayer = () => {
     const [selectedPlaylistId, setSelectedPlaylistId] = useState('');
     const [selectedPlaylistName, setSelectedPlaylistName] = useState('');
     const [pointGoal, setPointGoal] = useState(100);
+    const [playlistSearch, setPlaylistSearch] = useState('');
+
+    const filteredPlaylists = useMemo(() => {
+        if (!playlistSearch.trim()) return playlists;
+        const query = playlistSearch.toLowerCase();
+        return playlists.filter((p: any) => p.name?.toLowerCase().includes(query));
+    }, [playlists, playlistSearch]);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [isBusy, setIsBusy] = useState(false);
@@ -73,6 +82,20 @@ const Multiplayer = () => {
     const isHost = !!room && room.hostUid === user?.uid;
     const shareUrl = activeRoomId ? `${window.location.origin}/multiplayer/${activeRoomId}` : '';
     const modeQuery = effectiveGuest ? '?mode=guest' : '';
+    const activeRoomIdRef = useRef(activeRoomId);
+    const currentPlayerRef = useRef(currentPlayer);
+    const roomRef = useRef(room);
+    const isLeavingRoomRef = useRef(false);
+    const leftRoomIdsRef = useRef<Set<string>>(new Set());
+    const hadCurrentPlayerRef = useRef(false);
+    const homePath = effectiveGuest ? '/home?mode=guest' : '/home';
+    const playlistsPath = effectiveGuest ? '/playlists?mode=guest' : '/playlists';
+
+    useEffect(() => {
+        activeRoomIdRef.current = activeRoomId;
+        currentPlayerRef.current = currentPlayer;
+        roomRef.current = room;
+    }, [activeRoomId, currentPlayer, room]);
 
     useEffect(() => {
         if (queryRoomId && !roomCodeParam) {
@@ -86,6 +109,7 @@ const Multiplayer = () => {
         setRoomCode(routedRoomId);
         setActiveRoomId(routedRoomId);
         setHasJoinedActiveRoom(false);
+        hadCurrentPlayerRef.current = false;
     }, [activeRoomId, roomCodeParam]);
 
     useEffect(() => {
@@ -121,13 +145,102 @@ const Multiplayer = () => {
 
     useEffect(() => {
         if (!hasJoinedActiveRoom || !activeRoomId || !user || isLoadingUser || currentPlayer || players.length === 0) return;
+        if (!hadCurrentPlayerRef.current) return;
         setHasJoinedActiveRoom(false);
+        hadCurrentPlayerRef.current = false;
         setActiveRoomId('');
         setRoom(null);
         setPlayers([]);
         navigate('/multiplayer', { replace: true });
+        setSuccess('');
         setError('You were removed from the room.');
     }, [activeRoomId, currentPlayer, hasJoinedActiveRoom, isLoadingUser, navigate, players.length, user]);
+
+    useEffect(() => {
+        if (currentPlayer) {
+            hadCurrentPlayerRef.current = true;
+        }
+    }, [currentPlayer]);
+
+    const leaveActiveLobby = useCallback(async () => {
+        const roomId = activeRoomIdRef.current;
+        const activePlayer = currentPlayerRef.current;
+        const activeRoom = roomRef.current;
+
+        if (!roomId || !activePlayer || activeRoom?.status !== 'lobby' || isLeavingRoomRef.current || leftRoomIdsRef.current.has(roomId)) return false;
+
+        isLeavingRoomRef.current = true;
+
+        try {
+            await leaveMultiplayerRoom(roomId);
+            leftRoomIdsRef.current.add(roomId);
+            return true;
+        } catch (err) {
+            setError(getFirebaseMessage(err, 'Could not leave room.'));
+            return false;
+        } finally {
+            isLeavingRoomRef.current = false;
+        }
+    }, []);
+
+    useEffect(() => {
+        return () => {
+            void leaveActiveLobby();
+        };
+    }, [leaveActiveLobby]);
+
+    // Pre-cache the auth token so the page-exit handler can fire synchronously.
+    // getIdToken() is async and would not resolve during beforeunload/pagehide.
+    const cachedTokenRef = useRef('');
+    useEffect(() => {
+        if (!activeRoomId || !currentPlayer) {
+            cachedTokenRef.current = '';
+            return;
+        }
+        const refreshToken = () => {
+            auth.currentUser?.getIdToken().then(token => {
+                cachedTokenRef.current = token;
+            }).catch(() => {});
+        };
+        refreshToken();
+        // Firebase tokens expire after ~1 hour; refresh every 50 minutes while in lobby
+        const interval = setInterval(refreshToken, 50 * 60 * 1000);
+        return () => clearInterval(interval);
+    }, [activeRoomId, currentPlayer]);
+
+    // Best-effort leave on full page exit (tab close, refresh, external navigation).
+    // SPA navigation is handled by the cleanup effect above; this covers browser-level exits
+    // where the JS context is torn down before the async leave call can complete.
+    useEffect(() => {
+        const handlePageExit = () => {
+            const roomId = activeRoomIdRef.current;
+            const activePlayer = currentPlayerRef.current;
+            const activeRoom = roomRef.current;
+            const token = cachedTokenRef.current;
+
+            if (!roomId || !activePlayer || activeRoom?.status !== 'lobby' || leftRoomIdsRef.current.has(roomId) || !token) return;
+
+            // fetch with keepalive survives page teardown and supports Authorization headers
+            // (sendBeacon cannot set custom headers).
+            const url = getFunctionsUrl('leaveMultiplayerRoom');
+            const body = JSON.stringify({ data: { roomId } });
+            fetch(url, {
+                method: 'POST',
+                body,
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                keepalive: true
+            }).catch(() => {});
+        };
+
+        // pagehide fires on tab close and navigation; beforeunload is the fallback
+        window.addEventListener('pagehide', handlePageExit);
+        window.addEventListener('beforeunload', handlePageExit);
+
+        return () => {
+            window.removeEventListener('pagehide', handlePageExit);
+            window.removeEventListener('beforeunload', handlePageExit);
+        };
+    }, []);
 
     const ensureSignedIn = async () => {
         if (!auth.currentUser) {
@@ -150,6 +263,7 @@ const Multiplayer = () => {
             localStorage.setItem('multiplayerRoomName', trimmedRoomName);
             await ensureSignedIn();
             const result = await createMultiplayerRoom(trimmedRoomName);
+            leftRoomIdsRef.current.delete(result.roomId);
             setActiveRoomId(result.roomId);
             setRoomCode(result.roomId);
             setHasJoinedActiveRoom(true);
@@ -171,6 +285,7 @@ const Multiplayer = () => {
         try {
             await ensureSignedIn();
             const result = await joinMultiplayerRoom(roomCode);
+            leftRoomIdsRef.current.delete(result.roomId);
             setActiveRoomId(result.roomId);
             setHasJoinedActiveRoom(true);
             navigate(`/multiplayer/${result.roomId}${modeQuery}`, { replace: true });
@@ -192,6 +307,7 @@ const Multiplayer = () => {
         try {
             await ensureSignedIn();
             const result = await joinMultiplayerRoom(activeRoomId);
+            leftRoomIdsRef.current.delete(result.roomId);
             setRoomCode(result.roomId);
             setHasJoinedActiveRoom(true);
             setSuccess('Joined room.');
@@ -280,9 +396,79 @@ const Multiplayer = () => {
         }
     };
 
+    const resetLocalRoomState = useCallback(() => {
+        setHasJoinedActiveRoom(false);
+        setActiveRoomId('');
+        setRoomCode('');
+        setRoom(null);
+        setPlayers([]);
+    }, []);
+
+    const handleLeaveRoom = async () => {
+        if (!activeRoomId || !currentPlayer) return;
+
+        setError('');
+        setSuccess('');
+        setIsBusy(true);
+
+        try {
+            const didLeave = await leaveActiveLobby();
+            if (!didLeave) return;
+            resetLocalRoomState();
+            navigate(`/multiplayer${modeQuery}`, { replace: true });
+            setSuccess(isHost ? 'Room closed.' : 'You left the room.');
+        } finally {
+            setIsBusy(false);
+        }
+    };
+
+    const handleNavigateAway = async (to: string) => {
+        await leaveActiveLobby();
+        navigate(to);
+    };
+
+    const handleLogout = async () => {
+        await leaveActiveLobby();
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('tokenExpiry');
+        localStorage.removeItem('verifier');
+        sessionStorage.removeItem('accessToken');
+
+        try {
+            await signOut(auth);
+        } catch (err) {
+            setError(getFirebaseMessage(err, 'Could not log out.'));
+            return;
+        }
+
+        navigate('/');
+    };
+
+    const navActionButtons = (
+        <div className="action-row">
+            <Link className="button button-secondary" to={playlistsPath} onClick={(event) => {
+                event.preventDefault();
+                void handleNavigateAway(playlistsPath);
+            }}>
+                Manage Playlists
+            </Link>
+            {currentPlayer && room?.status === 'lobby' && (
+                <button className="button button-danger" type="button" disabled={isBusy} onClick={handleLeaveRoom}>
+                    {isHost ? 'Close room' : 'Leave room'}
+                </button>
+            )}
+            {(user || isLoadingUser) && (
+                <button className="button button-danger" type="button" disabled={isBusy} onClick={handleLogout}>
+                    {effectiveGuest ? 'Exit Guest Mode' : 'Logout'}
+                </button>
+            )}
+        </div>
+    );
+
     return (
         <>
-            <NavBar />
+            <NavBar actionButtons={navActionButtons} onNavigate={handleNavigateAway} />
             <main className="page home-page multiplayer-page">
                 <section className="record-bin multiplayer-panel">
                     <span className="eyebrow">Party mode</span>
@@ -301,7 +487,7 @@ const Multiplayer = () => {
                     {!activeRoomId && (
                         <div className="multiplayer-grid">
                             <form className="multiplayer-card" onSubmit={handleCreateRoom}>
-                                <span className="playlist-label">Host</span>
+                                <span className="eyebrow">Host</span>
                                 <h2>Create a room</h2>
                                 <label className="form-label" htmlFor="room-name">Room name</label>
                                 <input
@@ -319,7 +505,7 @@ const Multiplayer = () => {
                             </form>
 
                             <form className="multiplayer-card" onSubmit={handleJoinRoom}>
-                                <span className="playlist-label">Join</span>
+                                <span className="eyebrow">Join</span>
                                 <h2>Enter a code</h2>
                                 <label className="form-label" htmlFor="room-code">Room code</label>
                                 <input
@@ -330,7 +516,7 @@ const Multiplayer = () => {
                                     onChange={event => setRoomCode(event.target.value.toUpperCase())}
                                     placeholder="ABC123"
                                 />
-                                <button className="button button-tertiary" type="submit" disabled={isBusy || isLoadingUser}>
+                                <button className="button button-secondary" type="submit" disabled={isBusy || isLoadingUser}>
                                     Join game
                                 </button>
                             </form>
@@ -341,10 +527,15 @@ const Multiplayer = () => {
                         <section className="multiplayer-lobby">
                             <div className="multiplayer-lobby-header">
                                 <div>
-                                    <span className="eyebrow">Room {activeRoomId}</span>
+                                    <span className="eyebrow">Room code: {activeRoomId}</span>
                                     <h2 className="section-title">{room.roomName || (room.status === 'playing' ? 'Game in progress' : 'Lobby')}</h2>
                                     <p className="body-copy">{room.status === 'playing' ? 'Game in progress' : 'Lobby'}</p>
                                     <p className="body-copy">{room.playerCount} / {room.maxPlayers} players joined</p>
+                                    {currentPlayer && room.status === 'lobby' && (
+                                        <button className="button button-danger" type="button" disabled={isBusy} onClick={handleLeaveRoom}>
+                                            {isHost ? 'Close room' : 'Leave room'}
+                                        </button>
+                                    )}
                                 </div>
                                 <div className="multiplayer-share-box">
                                     <strong>Share link</strong>
@@ -357,10 +548,10 @@ const Multiplayer = () => {
 
                             {!currentPlayer && (
                                 <div className="multiplayer-card">
-                                    <span className="playlist-label">Invite</span>
+                                    <span className="eyebrow">Invite</span>
                                     <h2>Join this room</h2>
                                     <p className="body-copy">You are viewing this room, but you have not joined it yet.</p>
-                                    <button className="button button-tertiary" type="button" disabled={isBusy || isLoadingUser} onClick={handleJoinActiveRoom}>
+                                    <button className="button button-secondary" type="button" disabled={isBusy || isLoadingUser} onClick={handleJoinActiveRoom}>
                                         Join room
                                     </button>
                                 </div>
@@ -369,7 +560,9 @@ const Multiplayer = () => {
                             {currentPlayer && (
                                 <div className="multiplayer-grid">
                                 <div className="multiplayer-card">
-                                    <span className="playlist-label">Players</span>
+                                    <span className="eyebrow">Players</span>
+                                    <h2>Who's here</h2>
+                                    <p className="body-copy">{players.length} of {room.maxPlayers} spots filled.</p>
                                     <ul className="multiplayer-player-list">
                                         {players.map(player => (
                                             <li key={player.uid}>
@@ -388,7 +581,8 @@ const Multiplayer = () => {
                                 </div>
 
                                 <div className="multiplayer-card">
-                                    <span className="playlist-label">Settings</span>
+                                    <span className="eyebrow">Settings</span>
+                                    <h2>Game options</h2>
                                     <label className="form-label" htmlFor="point-goal">Point goal</label>
                                     <input
                                         id="point-goal"
@@ -403,28 +597,70 @@ const Multiplayer = () => {
                                     />
                                     <p className="body-copy">Playlist: <strong>{selectedPlaylistName || 'Not selected yet'}</strong></p>
                                     {isHost ? (
-                                        <div className="action-row">
-                                            <button className="button button-secondary" type="button" disabled={isBusy || !selectedPlaylistId} onClick={handleSaveSettings}>
-                                                Save settings
-                                            </button>
-                                            <button className="button button-tertiary" type="button" disabled={isBusy || !selectedPlaylistId} onClick={handleStartGame}>
-                                                Start game
-                                            </button>
-                                        </div>
+                                        <>
+                                            <div className="multiplayer-playlist-picker">
+                                                <label className="form-label" htmlFor="playlist-search">Choose a playlist</label>
+                                                <input
+                                                    id="playlist-search"
+                                                    className="text-input"
+                                                    type="text"
+                                                    placeholder="Search playlists..."
+                                                    value={playlistSearch}
+                                                    onChange={event => setPlaylistSearch(event.target.value)}
+                                                />
+                                                {(isLoadingPlaylists || isLoadingManualPlaylists) ? (
+                                                    <div className="multiplayer-playlist-empty">Loading playlists...</div>
+                                                ) : filteredPlaylists.length === 0 ? (
+                                                    <div className="multiplayer-playlist-empty">
+                                                        {playlistSearch ? `No playlists matching "${playlistSearch}"` : 'No playlists available.'}
+                                                    </div>
+                                                ) : (
+                                                    <ul className="multiplayer-playlist-list">
+                                                        {!(effectiveGuest || isManualMode) && !playlistSearch && (
+                                                            <li>
+                                                                <button
+                                                                    className={`multiplayer-playlist-item${selectedPlaylistId === 'LIKED_SONGS' ? ' multiplayer-playlist-item-active' : ''}`}
+                                                                    type="button"
+                                                                    onClick={() => handleSelectPlaylist('LIKED_SONGS')}
+                                                                    disabled={isBusy}
+                                                                >
+                                                                    <span className="multiplayer-playlist-item-name">Liked Songs</span>
+                                                                    <span className="multiplayer-playlist-item-meta">Library</span>
+                                                                </button>
+                                                            </li>
+                                                        )}
+                                                        {filteredPlaylists.map((playlist: any) => (
+                                                            <li key={playlist.id}>
+                                                                <button
+                                                                    className={`multiplayer-playlist-item${selectedPlaylistId === playlist.id ? ' multiplayer-playlist-item-active' : ''}`}
+                                                                    type="button"
+                                                                    onClick={() => handleSelectPlaylist(playlist.id)}
+                                                                    disabled={isBusy || playlist.status === 'importing'}
+                                                                >
+                                                                    <span className="multiplayer-playlist-item-name">{playlist.name}</span>
+                                                                    <span className="multiplayer-playlist-item-meta">
+                                                                        {playlist.tracks?.total ?? playlist.tracks?.length ?? 0} tracks
+                                                                    </span>
+                                                                </button>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                )}
+                                            </div>
+                                            <div className="action-row">
+                                                <button className="button button-secondary" type="button" disabled={isBusy || !selectedPlaylistId} onClick={handleSaveSettings}>
+                                                    Save settings
+                                                </button>
+                                                <button className="button button-secondary" type="button" disabled={isBusy || !selectedPlaylistId} onClick={handleStartGame}>
+                                                    Start game
+                                                </button>
+                                            </div>
+                                        </>
                                     ) : (
                                         <p className="body-copy">Waiting for the host to pick a playlist and start.</p>
                                     )}
                                 </div>
                             </div>
-                            )}
-
-                            {currentPlayer && isHost && (
-                                <PlaylistMenu
-                                    playlists={playlists}
-                                    isLoading={isLoadingPlaylists || isLoadingManualPlaylists}
-                                    onSelectPlaylist={handleSelectPlaylist}
-                                    isGuest={effectiveGuest || isManualMode}
-                                />
                             )}
 
                             {room.status === 'playing' && (
@@ -440,7 +676,10 @@ const Multiplayer = () => {
                     )}
 
                     <div className="action-row">
-                        <Link className="button button-quiet" to={effectiveGuest ? '/home?mode=guest' : '/home'}>Back home</Link>
+                        <Link className="button button-quiet" to={homePath} onClick={(event) => {
+                            event.preventDefault();
+                            void handleNavigateAway(homePath);
+                        }}>Back home</Link>
                     </div>
                 </section>
             </main>

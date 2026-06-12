@@ -5,6 +5,7 @@ import {
     createMultiplayerRoom,
     joinMultiplayerRoom,
     kickMultiplayerPlayer,
+    leaveMultiplayerRoom,
     startMultiplayerGame,
     subscribeToMultiplayerPlayers,
     subscribeToMultiplayerRoom,
@@ -53,6 +54,13 @@ describe('multiplayer utils', () => {
         await joinMultiplayerRoom('ABC234');
 
         expect(httpsCallable).toHaveBeenCalledWith('mock-functions', 'joinMultiplayerRoom');
+        expect(mockCallable).toHaveBeenCalledWith({ roomId: 'ABC234' });
+    });
+
+    it('calls leave room with the room code', async () => {
+        await leaveMultiplayerRoom('ABC234');
+
+        expect(httpsCallable).toHaveBeenCalledWith('mock-functions', 'leaveMultiplayerRoom');
         expect(mockCallable).toHaveBeenCalledWith({ roomId: 'ABC234' });
     });
 

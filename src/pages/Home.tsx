@@ -101,6 +101,7 @@ const Home = () => {
         setUserGuess,
         feedbackMessage,
         isLoadingGame,
+        selectedPlaylistId,
         selectedPlaylistName,
         loadPlaylist,
         handleGuessSubmit,
@@ -135,7 +136,7 @@ const Home = () => {
     };
 
     // Wrap handleGuessSubmit to score points inline (event-driven, not effect-driven)
-    const handleGuessWithScoring = (specificGuess?: string) => {
+    const handleGuessWithScoring = async (specificGuess?: string) => {
         const points = handleGuessSubmit(specificGuess);
 
         if (points == null || points <= 0) {
@@ -146,7 +147,7 @@ const Home = () => {
         const isAnonymous = !user || user.isAnonymous;
         const trackCount = currentTracks.length;
         const songId = targetSong?.id;
-        const playlistId = selectedPlaylistName;
+        const playlistId = selectedPlaylistId;
 
         if (!isEligibleForPoints(trackCount, isGuest, isAnonymous)
             || !canScoreSong(playlistId, songId)) {
@@ -154,9 +155,20 @@ const Home = () => {
             return;
         }
 
+        const awardedPoints = await submitScore({
+            playlistId,
+            songId,
+            playlistTrackCount: trackCount,
+            snippetDurationMs: snippetDuration
+        });
+
+        if (awardedPoints == null) {
+            setDisplayedPoints(null);
+            return;
+        }
+
         recordScore(playlistId, songId);
-        submitScore(points);
-        setDisplayedPoints(points);
+        setDisplayedPoints(awardedPoints);
     };
 
     const onSelectPlaylist = (playlistId: string) => {

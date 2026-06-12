@@ -33,6 +33,7 @@ export const useGameLogic = (
     const [gameState, setGameState] = useState<'idle' | 'playing' | 'end'>('idle');
     const [userGuess, setUserGuess] = useState('');
     const [feedbackMessage, setFeedbackMessage] = useState('');
+    const [selectedPlaylistId, setSelectedPlaylistId] = useState('');
     const [selectedPlaylistName, setSelectedPlaylistName] = useState('');
     const [isLoadingGame, setIsLoadingGame] = useState(false);
     const [lastEarnedPoints, setLastEarnedPoints] = useState<number | null>(null);
@@ -188,6 +189,7 @@ export const useGameLogic = (
         setTargetSong(null);
         setCurrentTracks([]);
         setFeedbackMessage('');
+        setSelectedPlaylistId('');
         setSelectedPlaylistName('');
         setFailedTracks([]);
     };
@@ -197,6 +199,7 @@ export const useGameLogic = (
 
 
         setSelectedPlaylistName(playlistName);
+        setSelectedPlaylistId(playlistId);
         setIsLoadingGame(true);
         setFeedbackMessage("Loading tracks... Game will start soon.");
 
@@ -364,6 +367,7 @@ export const useGameLogic = (
         feedbackMessage,
         setFeedbackMessage,
         isLoadingGame,
+        selectedPlaylistId,
         selectedPlaylistName,
         currentTracks,
         loadPlaylist,
