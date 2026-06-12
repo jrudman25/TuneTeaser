@@ -136,15 +136,19 @@ import {
     startMultiplayerGame,
     kickMultiplayerPlayer,
     leaveMultiplayerRoom,
-    submitLeaderboardScore
+    submitLeaderboardScore,
+    cleanupAnonymousUsers
 } from './index';
 
 describe('Cloud Functions (index.ts)', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockGetUser.mockResolvedValue({ displayName: 'Player One' });
+        mockListUsers.mockResolvedValue({ users: [] });
         mockBatchCommit.mockResolvedValue(undefined);
         mockDocUpdate.mockResolvedValue(undefined);
+        mockCollectionGet.mockResolvedValue({ empty: true, size: 0, docs: [] });
+        mockDeleteUsers.mockResolvedValue({ successCount: 0, failureCount: 0, errors: [] });
         mockFieldValueIncrement.mockImplementation((value: number) => ({ _increment: value }));
         mockFieldValueServerTimestamp.mockReturnValue('server-timestamp');
         mockRunTransaction.mockImplementation(async callback => {
@@ -536,19 +540,63 @@ describe('Cloud Functions (index.ts)', () => {
     });
 
     describe('cleanupUserOnDelete', () => {
-        it('deletes user docs and storage', async () => {
-            mockCollectionGet.mockResolvedValueOnce({
-                empty: false,
-                size: 2,
-                docs: [{ ref: 'ref1' }, { ref: 'ref2' }]
-            });
+        it('deletes leaderboard data, user playlists, user doc, and storage', async () => {
+            mockCollectionGet
+                .mockResolvedValueOnce({
+                    empty: false,
+                    size: 1,
+                    docs: [{ ref: 'score-ref' }]
+                })
+                .mockResolvedValueOnce({
+                    empty: false,
+                    size: 2,
+                    docs: [{ ref: 'playlist-ref-1' }, { ref: 'playlist-ref-2' }]
+                });
 
             await (cleanupUserOnDelete as any)({ uid: 'user123' });
 
-            expect(mockDocDelete).toHaveBeenCalled();
-            expect(mockBatchDelete).toHaveBeenCalledTimes(2);
-            expect(mockBatchCommit).toHaveBeenCalled();
+            expect(mockDocDelete).toHaveBeenCalledTimes(2);
+            expect(mockBatchDelete).toHaveBeenCalledTimes(3);
+            expect(mockBatchCommit).toHaveBeenCalledTimes(2);
             expect(mockDeleteFiles).toHaveBeenCalledWith({ prefix: 'users/user123/' });
+        });
+    });
+
+    describe('cleanupAnonymousUsers', () => {
+        it('cleans user data before bulk deleting inactive anonymous users', async () => {
+            vi.spyOn(Date, 'now').mockReturnValue(new Date('2026-06-12T00:00:00Z').getTime());
+            mockListUsers.mockResolvedValueOnce({
+                users: [
+                    {
+                        uid: 'anon-old',
+                        providerData: [],
+                        metadata: { lastSignInTime: '2026-04-01T00:00:00Z', creationTime: '2026-04-01T00:00:00Z' }
+                    },
+                    {
+                        uid: 'anon-new',
+                        providerData: [],
+                        metadata: { lastSignInTime: '2026-06-01T00:00:00Z', creationTime: '2026-06-01T00:00:00Z' }
+                    },
+                    {
+                        uid: 'password-old',
+                        providerData: [{ providerId: 'password' }],
+                        metadata: { lastSignInTime: '2026-04-01T00:00:00Z', creationTime: '2026-04-01T00:00:00Z' }
+                    }
+                ],
+                pageToken: undefined
+            });
+            mockCollectionGet
+                .mockResolvedValueOnce({ empty: false, size: 1, docs: [{ ref: 'score-ref' }] })
+                .mockResolvedValueOnce({
+                empty: false,
+                size: 2,
+                docs: [{ ref: 'playlist-ref-1' }, { ref: 'playlist-ref-2' }]
+            });
+
+            await (cleanupAnonymousUsers as any)();
+
+            expect(mockDeleteFiles).toHaveBeenCalledWith({ prefix: 'users/anon-old/' });
+            expect(mockDeleteUsers).toHaveBeenCalledWith(['anon-old']);
         });
     });
 });

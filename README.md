@@ -34,6 +34,7 @@
 *   React & TypeScript
 *   Vite
 *   Firebase (Authentication & Firestore)
+*   Firebase Storage
 *   Google Cloud Functions
 *   Spotify API
 *   iTunes API
@@ -49,6 +50,8 @@
 *   **Run unit tests**: `npm run test`
 *   **Build production code**: `npm run build`
 *   **Deploy to Firebase Hosting**: `npm run deploy`
+*   **Deploy Firestore rules**: `npm run deploy-rules`
+*   **Deploy Storage rules**: `npm run deploy-storage-rules`
 
 ### Local Firebase Emulator Testing
 Use two terminals for local Firebase testing:
@@ -56,7 +59,7 @@ Use two terminals for local Firebase testing:
 2.  Run `npm run dev:emulator` from the project root.
 3.  Open the Vite URL for the app and `http://127.0.0.1:4000` for the Firebase Emulator UI.
 
-The `dev:emulator` script loads `.env.emulator`, which sets `VITE_USE_FIREBASE_EMULATORS=true`. In that mode, Auth, Firestore, and Functions use local emulators instead of production Firebase.
+The `dev:emulator` script loads `.env.emulator`, which sets `VITE_USE_FIREBASE_EMULATORS=true`. In that mode, Auth, Firestore, Functions, and Storage use local emulators instead of production Firebase.
 
 ### Firestore Leaderboard Schema
 To enable the leaderboard system, the Firestore database needs to contain a `leaderboard` collection:
@@ -68,8 +71,8 @@ To enable the leaderboard system, the Firestore database needs to contain a `lea
     *   `gamesWon`: `number`
     *   `lastUpdated`: `timestamp`
 
-### Firestore Security Rules
-The deployed rules allow public leaderboard reads, Cloud Function-only leaderboard writes, owner-only user playlist writes, signed-in reads for multiplayer lobbies, and Cloud Function-only writes for multiplayer state:
+### Firebase Security Rules
+Firestore rules allow public leaderboard reads, Cloud Function-only leaderboard writes, owner-only user playlist writes, signed-in room-code lookup for multiplayer lobbies, denied multiplayer room listing, and Cloud Function-only writes for multiplayer state:
 ```javascript
 rules_version = '2';
 service cloud.firestore {
@@ -96,7 +99,8 @@ service cloud.firestore {
     }
 
     match /multiplayerRooms/{roomId} {
-      allow read: if isSignedIn();
+      allow get: if isSignedIn();
+      allow list: if false;
       allow write: if false;
 
       match /players/{uid} {
@@ -107,6 +111,8 @@ service cloud.firestore {
   }
 }
 ```
+
+Storage rules are version-controlled in `storage.rules` and deployed through `firebase.json`. Playlist track snapshots are restricted to `users/{uid}/playlists/{playlistId}.json`, where `request.auth.uid` must match `uid`; JSON uploads are capped at 5 MiB and all other Storage paths are denied.
 
 ### Firestore Multiplayer Schema
 Local multiplayer uses a `multiplayerRooms` collection and `players` subcollection:
@@ -129,7 +135,7 @@ Local multiplayer uses a `multiplayerRooms` collection and `players` subcollecti
     *   `state`: `string`
 
 ## Requirements
-*   **TuneTeaser Account or Guest Session**: Required to save imported playlists and custom mixes. Registered accounts persist playlist metadata in Firestore. Guest sessions keep playlist metadata in browser local storage and upload track snapshots under a guest storage path.
+*   **TuneTeaser Account or Guest Session**: Required to save imported playlists and custom mixes. Registered accounts persist playlist metadata in Firestore. Guest sessions keep playlist metadata in browser local storage and upload track snapshots under the guest's anonymous Firebase UID.
 *   **Spotify Public Playlists**: Profile linking uses Spotify client credentials and only sees public playlists. Private or collaborative playlists require Spotify OAuth.
 *   **Modern Browser**: Chrome, Edge, or Firefox (with DRM enabled).
 

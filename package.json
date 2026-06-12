@@ -28,10 +28,11 @@
     "preview": "vite preview",
     "test": "vitest",
     "test-functions": "cd functions && npm run test",
-    "emulators": "set FUNCTIONS_DISCOVERY_TIMEOUT=120 && firebase emulators:start --only auth,firestore,functions --import=./emulator_data --export-on-exit=./emulator_data",
+    "emulators": "set FUNCTIONS_DISCOVERY_TIMEOUT=120 && firebase emulators:start --only auth,firestore,functions,storage --import=./emulator_data --export-on-exit=./emulator_data",
     "deploy": "npm run build && firebase deploy --only hosting",
     "deploy-functions": "cd functions && npm run deploy",
-    "deploy-rules": "firebase deploy --only firestore:rules"
+    "deploy-rules": "firebase deploy --only firestore:rules",
+    "deploy-storage-rules": "firebase deploy --only storage"
   },
   "devDependencies": {
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11",

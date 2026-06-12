@@ -42,6 +42,10 @@ describe('useManualPlaylists', () => {
         uid: 'user123',
         isAnonymous: false
     } as unknown as import('firebase/auth').User;
+    const mockGuestUser = {
+        uid: 'guest123',
+        isAnonymous: true
+    } as unknown as import('firebase/auth').User;
 
     beforeEach(() => {
         vi.resetAllMocks();
@@ -69,7 +73,7 @@ describe('useManualPlaylists', () => {
         });
 
         it('adds a new playlist for guest to localStorage', async () => {
-            const { result } = renderHook(() => useManualPlaylists(null, true));
+            const { result } = renderHook(() => useManualPlaylists(mockGuestUser, true));
 
             await act(async () => {
                 await result.current.addManualPlaylist(
@@ -84,6 +88,7 @@ describe('useManualPlaylists', () => {
             expect(stored[0].name).toBe('New Guest Playlist');
             expect(stored[0].tracksUrl).toBe('https://mock-url.com');
             expect(storage.uploadBytes).toHaveBeenCalled();
+            expect(storage.ref).toHaveBeenCalledWith({}, expect.stringMatching(/^users\/guest123\/playlists\/guest_manual_\d+\.json$/));
         });
 
         it('deletes a guest playlist from localStorage', async () => {
@@ -91,7 +96,7 @@ describe('useManualPlaylists', () => {
                 { id: 'playlist-1', name: 'Guest Playlist' }
             ]));
 
-            const { result } = renderHook(() => useManualPlaylists(null, true));
+            const { result } = renderHook(() => useManualPlaylists(mockGuestUser, true));
 
             await act(async () => {
                 await result.current.deleteManualPlaylist('playlist-1');
@@ -99,6 +104,7 @@ describe('useManualPlaylists', () => {
 
             const stored = JSON.parse(localStorage.getItem('guestPlaylists') || '[]');
             expect(stored).toHaveLength(0);
+            expect(storage.ref).toHaveBeenCalledWith({}, 'users/guest123/playlists/playlist-1.json');
         });
     });
 
@@ -157,7 +163,7 @@ describe('useManualPlaylists', () => {
         });
 
         it('accepts valid playlist names', async () => {
-            const { result } = renderHook(() => useManualPlaylists(null, true));
+            const { result } = renderHook(() => useManualPlaylists(mockGuestUser, true));
             const validNames = [
                 'My Playlist',
                 'Rock_Classics-2026',
@@ -227,7 +233,7 @@ describe('useManualPlaylists', () => {
         });
 
         it('enforces TRACK_LIMIT by capping the tracks array', async () => {
-            const { result } = renderHook(() => useManualPlaylists(null, true));
+            const { result } = renderHook(() => useManualPlaylists(mockGuestUser, true));
 
             const tooManyTracks = Array.from({ length: TRACK_LIMIT + 10 }).map((_, i) => ({
                 id: `t${i}`, name: `Track ${i}`, artists: [{ name: 'A' }], album: { name: '', images: [] }

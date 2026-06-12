@@ -83,17 +83,21 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
 
     // Helper to upload tracks JSON to Storage
     const uploadTracksToStorage = useCallback(async (playlistId: string, tracks: ManualTrack[]): Promise<string> => {
-        const userId = user ? user.uid : 'guest';
+        if (!user) {
+            throw new Error('You must be signed in to save playlist tracks.');
+        }
+
         const blob = new Blob([JSON.stringify(tracks)], { type: 'application/json' });
-        const storageRef = ref(storage, `users/${userId}/playlists/${playlistId}.json`);
+        const storageRef = ref(storage, `users/${user.uid}/playlists/${playlistId}.json`);
         await uploadBytes(storageRef, blob);
         return await getDownloadURL(storageRef);
     }, [user]);
 
     // Helper to delete tracks JSON from Storage
     const deleteTracksFromStorage = useCallback(async (playlistId: string) => {
-        const userId = user ? user.uid : 'guest';
-        const storageRef = ref(storage, `users/${userId}/playlists/${playlistId}.json`);
+        if (!user) return;
+
+        const storageRef = ref(storage, `users/${user.uid}/playlists/${playlistId}.json`);
         try {
             await deleteObject(storageRef);
         } catch (e) {

@@ -86,6 +86,46 @@ const getScoreCooldownId = (playlistId: string, songId: string) => {
     return createHash('sha256').update(`${playlistId}:${songId}`).digest('hex');
 };
 
+const deleteCollectionDocs = async (docs: any[]) => {
+    if (docs.length === 0) return;
+
+    const db = getFirestore();
+
+    for (let i = 0; i < docs.length; i += 500) {
+        const batch = db.batch();
+        docs.slice(i, i + 500).forEach(doc => {
+            batch.delete(doc.ref);
+        });
+        await batch.commit();
+    }
+};
+
+const cleanupUserData = async (uid: string) => {
+    const db = getFirestore();
+    const bucket = getStorage().bucket();
+
+    console.log(`[cleanupUserData] Starting cleanup for user: ${uid}`);
+
+    const leaderboardRef = db.collection('leaderboard').doc(uid);
+    const recentScoresSnapshot = await leaderboardRef.collection('recentScores').get();
+    await deleteCollectionDocs(recentScoresSnapshot.docs);
+    console.log(`[cleanupUserData] Deleted ${recentScoresSnapshot.size || 0} recent score docs for user: ${uid}`);
+
+    await leaderboardRef.delete();
+    console.log(`[cleanupUserData] Deleted leaderboard doc for user: ${uid}`);
+
+    const userRef = db.collection('users').doc(uid);
+    const playlistsSnapshot = await userRef.collection('playlists').get();
+    await deleteCollectionDocs(playlistsSnapshot.docs);
+    console.log(`[cleanupUserData] Deleted ${playlistsSnapshot.size || 0} playlists for user: ${uid}`);
+
+    await userRef.delete();
+    console.log(`[cleanupUserData] Deleted user doc: ${uid}`);
+
+    await bucket.deleteFiles({ prefix: `users/${uid}/` });
+    console.log(`[cleanupUserData] Deleted Storage files for user: ${uid}`);
+};
+
 export const submitLeaderboardScore = onCall({
     timeoutSeconds: 15,
     memory: '256MiB',
@@ -579,35 +619,9 @@ export const getManualPlaylistTracks = onCall({
 
 export const cleanupUserOnDelete = functionsV1.auth.user().onDelete(async (userRecord: any) => {
     const uid = userRecord.uid;
-    const db = getFirestore();
-    const bucket = getStorage().bucket();
-
-    console.log(`[cleanupUserOnDelete] Starting cleanup for user: ${uid}`);
 
     try {
-        // 1. Delete leaderboard doc
-        await db.collection('leaderboard').doc(uid).delete();
-        console.log(`[cleanupUserOnDelete] Deleted leaderboard doc for user: ${uid}`);
-
-        // 2. Delete all playlists in the users/{uid}/playlists subcollection
-        const playlistsSnapshot = await db.collection('users').doc(uid).collection('playlists').get();
-        if (!playlistsSnapshot.empty) {
-            const batch = db.batch();
-            playlistsSnapshot.docs.forEach((doc) => {
-                batch.delete(doc.ref);
-            });
-            await batch.commit();
-            console.log(`[cleanupUserOnDelete] Deleted ${playlistsSnapshot.size} playlists for user: ${uid}`);
-        }
-
-        // 3. Delete the user document itself
-        await db.collection('users').doc(uid).delete();
-        console.log(`[cleanupUserOnDelete] Deleted user doc: ${uid}`);
-
-        // 4. Delete the user's Storage folder
-        await bucket.deleteFiles({ prefix: `users/${uid}/` });
-        console.log(`[cleanupUserOnDelete] Deleted Storage files for user: ${uid}`);
-
+        await cleanupUserData(uid);
     } catch (error) {
         console.error(`[cleanupUserOnDelete] Error cleaning up user ${uid}:`, error);
         throw error;
@@ -634,6 +648,9 @@ export const cleanupAnonymousUsers = onSchedule('every 24 hours', async () => {
 
             if (usersToDelete.length > 0) {
                 const uidsToDelete = usersToDelete.map(user => user.uid);
+                for (const uid of uidsToDelete) {
+                    await cleanupUserData(uid);
+                }
                 // Firebase Admin SDK supports deleting up to 1000 users at once
                 await auth.deleteUsers(uidsToDelete);
                 deletedCount += uidsToDelete.length;
