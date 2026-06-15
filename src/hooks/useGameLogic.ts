@@ -135,7 +135,12 @@ export const useGameLogic = (
         const checkTargetOption = normalizeString(targetOption);
 
         const isExactOptionMatch = checkTargetOption === checkGuess && checkGuess.length > 0;
-        const isTitleMatch = (checkTitle.includes(checkGuess) && checkGuess.length > 2) || (checkTitle === checkGuess && checkGuess.length > 0);
+        const guessCoversEnoughOfTitle = checkTitle.length > 0 && checkGuess.length / checkTitle.length >= 0.5;
+        const isTitleMatch = checkTitle === checkGuess || (
+            checkGuess.length > 2
+            && guessCoversEnoughOfTitle
+            && checkTitle.includes(checkGuess)
+        );
 
         const isCorrect = isExactOptionMatch || isTitleMatch;
 

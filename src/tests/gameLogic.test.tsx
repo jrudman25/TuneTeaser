@@ -80,6 +80,21 @@ describe('useGameLogic - Guess Matching', () => {
         expect(result.current.feedbackMessage).toContain('Correct');
     });
 
+    it('rejects short common substrings even when they appear in the title', async () => {
+        const { result } = renderHook(() => useGameLogic('fake-token', false));
+        const mockTracks = [{ track: { id: '1', name: 'Love in the Dark', uri: 'spotify:track:1', artists: [{ name: 'Adele' }] } }];
+
+        await act(async () => {
+            await result.current.startGame(mockTracks);
+        });
+
+        act(() => { result.current.setUserGuess('love'); });
+        act(() => { result.current.handleGuessSubmit(); });
+
+        expect(result.current.gameState).toBe('playing');
+        expect(result.current.feedbackMessage).toContain('Incorrect');
+    });
+
     it('correctly identifies a correct guess (no punctuation)', async () => {
         const { result } = renderHook(() => useGameLogic('fake-token', false));
         const mockTracks = [{ track: { id: '1', name: 'Why Can\'t We Be Friends?', uri: 'spotify:track:1', artists: [{ name: 'War' }] } }];

@@ -7,7 +7,7 @@
     "build": "tsc",
     "serve": "npm run build && firebase emulators:start --only functions",
     "deploy": "npm run build && firebase deploy --only functions",
-    "test": "vitest run --config vitest.config.ts"
+    "test": "vitest run --config vitest.config.ts --configLoader runner"
   },
   "engines": {
     "node": "22"
