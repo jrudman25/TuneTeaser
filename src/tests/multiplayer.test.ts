@@ -3,12 +3,17 @@ import { httpsCallable } from 'firebase/functions';
 import { collection, doc, onSnapshot, orderBy, query } from 'firebase/firestore';
 import {
     createMultiplayerRoom,
+    getMultiplayerRoundData,
+    giveUpMultiplayerRound,
     joinMultiplayerRoom,
     kickMultiplayerPlayer,
     leaveMultiplayerRoom,
+    playMultiplayerAgain,
+    returnMultiplayerToLobby,
     startMultiplayerGame,
     subscribeToMultiplayerPlayers,
     subscribeToMultiplayerRoom,
+    submitMultiplayerGuess,
     updateMultiplayerRoomSettings
 } from '../utils/multiplayer';
 
@@ -88,6 +93,43 @@ describe('multiplayer utils', () => {
 
         expect(httpsCallable).toHaveBeenCalledWith('mock-functions', 'kickMultiplayerPlayer');
         expect(mockCallable).toHaveBeenCalledWith({ roomId: 'ABC234', targetUid: 'player1' });
+    });
+
+    it('gets round data with the room and round IDs', async () => {
+        mockCallable.mockResolvedValueOnce({ data: { roundId: 'round1', previewUrl: 'url', choices: [], artworkUrl: null, artistName: 'Artist', albumName: 'Album' } });
+
+        const result = await getMultiplayerRoundData('ABC234', 'round1');
+
+        expect(httpsCallable).toHaveBeenCalledWith('mock-functions', 'getMultiplayerRoundData');
+        expect(mockCallable).toHaveBeenCalledWith({ roomId: 'ABC234', roundId: 'round1' });
+        expect(result.roundId).toBe('round1');
+    });
+
+    it('submits a multiplayer guess with snippet duration', async () => {
+        mockCallable.mockResolvedValueOnce({ data: { correct: true, points: 25, snippetDurationMs: 2000, done: true } });
+
+        const result = await submitMultiplayerGuess('ABC234', 'round1', 'Song - Artist', 2000);
+
+        expect(httpsCallable).toHaveBeenCalledWith('mock-functions', 'submitMultiplayerGuess');
+        expect(mockCallable).toHaveBeenCalledWith({
+            roomId: 'ABC234',
+            roundId: 'round1',
+            guess: 'Song - Artist',
+            snippetDurationMs: 2000
+        });
+        expect(result.points).toBe(25);
+    });
+
+    it('calls round and end-game controls with room context', async () => {
+        await giveUpMultiplayerRound('ABC234', 'round1');
+        await playMultiplayerAgain('ABC234');
+        await returnMultiplayerToLobby('ABC234');
+
+        expect(httpsCallable).toHaveBeenCalledWith('mock-functions', 'giveUpMultiplayerRound');
+        expect(httpsCallable).toHaveBeenCalledWith('mock-functions', 'playMultiplayerAgain');
+        expect(httpsCallable).toHaveBeenCalledWith('mock-functions', 'returnMultiplayerToLobby');
+        expect(mockCallable).toHaveBeenCalledWith({ roomId: 'ABC234', roundId: 'round1' });
+        expect(mockCallable).toHaveBeenCalledWith({ roomId: 'ABC234' });
     });
 
     it('subscribes to a room document and returns null for missing rooms', () => {

@@ -6,11 +6,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Multiplayer from '../pages/Multiplayer';
 import {
     createMultiplayerRoom,
+    getMultiplayerRoundData,
+    giveUpMultiplayerRound,
     joinMultiplayerRoom,
     kickMultiplayerPlayer,
     leaveMultiplayerRoom,
+    playMultiplayerAgain,
+    returnMultiplayerToLobby,
     startMultiplayerGame,
     subscribeToMultiplayerRoom,
+    submitMultiplayerGuess,
     updateMultiplayerRoomSettings
 } from '../utils/multiplayer';
 
@@ -23,6 +28,7 @@ const mocks = vi.hoisted(() => ({
         user: { uid: 'host-1', isAnonymous: false },
         isLoadingUser: false
     },
+    getIdToken: vi.fn(),
     manualState: {
         manualPlaylists: [] as Array<Record<string, unknown>>,
         isLoadingManualPlaylists: false,
@@ -54,6 +60,17 @@ vi.mock('../hooks/usePlaylists', () => ({
     usePlaylists: () => mocks.playlistState
 }));
 
+vi.mock('../hooks/usePreviewPlayer', () => ({
+    default: () => ({
+        playPreview: vi.fn(),
+        pause: vi.fn(),
+        isPlaying: false,
+        error: null,
+        volume: 0.5,
+        setVolume: vi.fn()
+    })
+}));
+
 vi.mock('../utils/multiplayer', () => ({
     createMultiplayerRoom: vi.fn(),
     joinMultiplayerRoom: vi.fn(),
@@ -61,6 +78,11 @@ vi.mock('../utils/multiplayer', () => ({
     startMultiplayerGame: vi.fn(),
     kickMultiplayerPlayer: vi.fn(),
     leaveMultiplayerRoom: vi.fn(),
+    getMultiplayerRoundData: vi.fn(),
+    submitMultiplayerGuess: vi.fn(),
+    giveUpMultiplayerRound: vi.fn(),
+    playMultiplayerAgain: vi.fn(),
+    returnMultiplayerToLobby: vi.fn(),
     getFunctionsUrl: vi.fn(() => 'http://localhost:5001/tuneteaser/us-central1/leaveMultiplayerRoom'),
     subscribeToMultiplayerRoom: vi.fn((_roomId, onRoom) => {
         onRoom(mocks.roomSnapshot);
@@ -78,7 +100,7 @@ vi.mock('firebase/auth', () => ({
 }));
 
 vi.mock('../backend/FirebaseConfig', () => ({
-    auth: { currentUser: { uid: 'host-1', getIdToken: vi.fn().mockResolvedValue('mock-token') } }
+    auth: { currentUser: { uid: 'host-1', getIdToken: mocks.getIdToken } }
 }));
 
 const room = {
@@ -117,6 +139,54 @@ const guestPlayer = {
     updatedAt: 2
 };
 
+const playingRoom = {
+    ...room,
+    status: 'playing',
+    currentRound: {
+        id: 'round-1',
+        trackId: 'track-1',
+        artistName: 'Artist One',
+        albumName: 'Album One',
+        artworkUrl: null,
+        answerHash: 'hash',
+        startedAt: 10,
+        snippetDurationMs: 2000,
+        state: 'playing',
+        roundNumber: 1
+    }
+};
+
+const guessingHostPlayer = {
+    ...hostPlayer,
+    state: 'guessing',
+    currentRoundId: 'round-1',
+    roundSnippetDurationMs: 2000
+};
+
+const correctGuestPlayer = {
+    ...guestPlayer,
+    score: 25,
+    state: 'correct',
+    currentRoundId: 'round-1',
+    roundSnippetDurationMs: 2000,
+    lastEarnedPoints: 25
+};
+
+const endedRoom = {
+    ...room,
+    status: 'ended',
+    winnerUid: 'guest-1',
+    winnerDisplayName: 'Guest User',
+    revealedRound: {
+        id: 'round-3',
+        trackId: 'track-3',
+        title: 'Winning Song',
+        artistName: 'Winner Artist',
+        albumName: 'Winner Album',
+        artworkUrl: null
+    }
+};
+
 const renderPage = (initialEntry = '/multiplayer') => {
     render(
         <MemoryRouter initialEntries={[initialEntry]}>
@@ -137,6 +207,7 @@ describe('Multiplayer page', () => {
         mocks.authState.isLoadingUser = false;
         mocks.roomSnapshot = null;
         mocks.playersSnapshot = [];
+        mocks.getIdToken.mockResolvedValue('mock-token');
         mocks.playlistState.playlists = [
             { id: 'playlist-1', name: 'Party Mix', tracks: { total: 20 } },
             { id: 'playlist-2', name: 'Chill Mix', tracks: { total: 10 } }
@@ -147,6 +218,23 @@ describe('Multiplayer page', () => {
         vi.mocked(startMultiplayerGame).mockResolvedValue({ roomId: 'ABC123' });
         vi.mocked(kickMultiplayerPlayer).mockResolvedValue({ roomId: 'ABC123' });
         vi.mocked(leaveMultiplayerRoom).mockResolvedValue({ roomId: 'ABC123' });
+        vi.mocked(getMultiplayerRoundData).mockResolvedValue({
+            roundId: 'round-1',
+            previewUrl: 'https://example.com/preview.m4a',
+            choices: [{ id: 'track-1', name: 'First Song', artistName: 'Artist One' }],
+            artworkUrl: null,
+            artistName: 'Artist One',
+            albumName: 'Album One'
+        });
+        vi.mocked(submitMultiplayerGuess).mockResolvedValue({
+            correct: true,
+            points: 25,
+            snippetDurationMs: 2000,
+            done: true
+        });
+        vi.mocked(giveUpMultiplayerRound).mockResolvedValue({ roomId: 'ABC123' });
+        vi.mocked(playMultiplayerAgain).mockResolvedValue({ roomId: 'ABC123' });
+        vi.mocked(returnMultiplayerToLobby).mockResolvedValue({ roomId: 'ABC123' });
     });
 
     it('creates a room, stores the room name, and navigates into the lobby route', async () => {
@@ -162,6 +250,10 @@ describe('Multiplayer page', () => {
         await waitFor(() => {
             expect(createMultiplayerRoom).toHaveBeenCalledWith('Friday Party');
         });
+        expect(mocks.getIdToken).toHaveBeenCalled();
+        expect(mocks.getIdToken.mock.invocationCallOrder[0]).toBeLessThan(
+            vi.mocked(createMultiplayerRoom).mock.invocationCallOrder[0]
+        );
         expect(localStorage.getItem('multiplayerRoomName')).toBe('Friday Party');
         expect(screen.getByText(/room created/i)).toBeInTheDocument();
         expect(subscribeToMultiplayerRoom).toHaveBeenCalledWith('XYZ789', expect.any(Function), expect.any(Function));
@@ -225,6 +317,48 @@ describe('Multiplayer page', () => {
             expect(joinMultiplayerRoom).toHaveBeenCalledWith('ABC123');
         });
         expect(screen.getByText(/joined room/i)).toBeInTheDocument();
+    });
+
+    it('renders active gameplay and submits a round guess', async () => {
+        const user = userEvent.setup();
+        mocks.roomSnapshot = playingRoom;
+        mocks.playersSnapshot = [guessingHostPlayer, correctGuestPlayer];
+
+        renderPage('/multiplayer/ABC123');
+
+        await waitFor(() => {
+            expect(getMultiplayerRoundData).toHaveBeenCalledWith('ABC123', 'round-1');
+            expect(screen.getByText(/first to 100/i)).toBeInTheDocument();
+        });
+
+        expect(screen.getByText(/correct/i)).toBeInTheDocument();
+        await user.type(screen.getByPlaceholderText(/enter song title/i), 'First Song');
+        await user.click(screen.getByRole('button', { name: /^guess$/i }));
+
+        await waitFor(() => {
+            expect(submitMultiplayerGuess).toHaveBeenCalledWith('ABC123', 'round-1', 'First Song', 2000);
+            expect(screen.getByText(/correct! \+25 pts/i)).toBeInTheDocument();
+        });
+    });
+
+    it('renders the win screen and host end-game controls', async () => {
+        const user = userEvent.setup();
+        mocks.roomSnapshot = endedRoom;
+        mocks.playersSnapshot = [hostPlayer, { ...guestPlayer, score: 100 }];
+
+        renderPage('/multiplayer/ABC123');
+
+        await waitFor(() => {
+            expect(screen.getByText(/guest user wins/i)).toBeInTheDocument();
+        });
+
+        await user.click(screen.getByRole('button', { name: /play again/i }));
+        await user.click(screen.getByRole('button', { name: /return to lobby/i }));
+
+        await waitFor(() => {
+            expect(playMultiplayerAgain).toHaveBeenCalledWith('ABC123');
+            expect(returnMultiplayerToLobby).toHaveBeenCalledWith('ABC123');
+        });
     });
 
     it('lets a player leave a lobby room', async () => {

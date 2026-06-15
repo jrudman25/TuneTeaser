@@ -18,15 +18,20 @@ const mockTransactionSet = vi.fn();
 const mockTransactionUpdate = vi.fn();
 const mockTransactionDelete = vi.fn();
 const mockRunTransaction = vi.fn();
-const { mockFieldValueIncrement, mockFieldValueServerTimestamp } = vi.hoisted(() => ({
+const { mockOnCallConfigs } = vi.hoisted(() => ({
+    mockOnCallConfigs: [] as any[]
+}));
+const { mockFieldValueIncrement, mockFieldValueServerTimestamp, mockFieldValueDelete } = vi.hoisted(() => ({
     mockFieldValueIncrement: vi.fn((value: number) => ({ _increment: value })),
-    mockFieldValueServerTimestamp: vi.fn(() => 'server-timestamp')
+    mockFieldValueServerTimestamp: vi.fn(() => 'server-timestamp'),
+    mockFieldValueDelete: vi.fn(() => ({ _delete: true }))
 }));
 
 vi.mock('firebase-admin/firestore', () => ({
     FieldValue: {
         increment: mockFieldValueIncrement,
-        serverTimestamp: mockFieldValueServerTimestamp
+        serverTimestamp: mockFieldValueServerTimestamp,
+        delete: mockFieldValueDelete
     },
     getFirestore: vi.fn(() => ({
         collection: vi.fn(() => ({
@@ -92,6 +97,7 @@ vi.mock('firebase-functions/v2/https', () => {
     return {
         HttpsError,
         onCall: vi.fn((config, handler) => {
+            mockOnCallConfigs.push(config);
             return handler; // Just return the handler so we can call it directly
         })
     };
@@ -134,10 +140,13 @@ import {
     joinMultiplayerRoom,
     updateMultiplayerRoomSettings,
     startMultiplayerGame,
+    getMultiplayerRoundData,
+    submitMultiplayerGuess,
     kickMultiplayerPlayer,
     leaveMultiplayerRoom,
     submitLeaderboardScore,
-    cleanupAnonymousUsers
+    cleanupAnonymousUsers,
+    shouldEnforceAppCheck
 } from './index';
 
 describe('Cloud Functions (index.ts)', () => {
@@ -147,10 +156,27 @@ describe('Cloud Functions (index.ts)', () => {
         mockListUsers.mockResolvedValue({ users: [] });
         mockBatchCommit.mockResolvedValue(undefined);
         mockDocUpdate.mockResolvedValue(undefined);
+        mockTransactionGet.mockResolvedValue({ exists: false, data: () => ({}) });
         mockCollectionGet.mockResolvedValue({ empty: true, size: 0, docs: [] });
         mockDeleteUsers.mockResolvedValue({ successCount: 0, failureCount: 0, errors: [] });
         mockFieldValueIncrement.mockImplementation((value: number) => ({ _increment: value }));
         mockFieldValueServerTimestamp.mockReturnValue('server-timestamp');
+        mockFieldValueDelete.mockReturnValue({ _delete: true });
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+            ok: true,
+            json: vi.fn().mockResolvedValue({
+                resultCount: 1,
+                results: [
+                    {
+                        previewUrl: 'https://example.com/preview.m4a',
+                        artworkUrl100: 'https://example.com/100x100.jpg',
+                        trackName: 'First Song',
+                        artistName: 'Artist One',
+                        collectionName: 'Album One'
+                    }
+                ]
+            })
+        }));
         mockRunTransaction.mockImplementation(async callback => {
             return callback({
                 get: mockTransactionGet,
@@ -163,6 +189,24 @@ describe('Cloud Functions (index.ts)', () => {
 
     afterEach(() => {
         vi.restoreAllMocks();
+        vi.unstubAllGlobals();
+    });
+
+    it('enforces App Check on public callable functions', () => {
+        expect(mockOnCallConfigs.length).toBeGreaterThan(0);
+        expect(mockOnCallConfigs.every(config => config.enforceAppCheck === true)).toBe(true);
+    });
+
+    it('disables App Check enforcement in the Functions emulator', () => {
+        const originalValue = process.env.FUNCTIONS_EMULATOR;
+        process.env.FUNCTIONS_EMULATOR = 'true';
+        expect(shouldEnforceAppCheck()).toBe(false);
+        if (originalValue === undefined) {
+            delete process.env.FUNCTIONS_EMULATOR;
+        } else {
+            process.env.FUNCTIONS_EMULATOR = originalValue;
+        }
+        expect(shouldEnforceAppCheck()).toBe(true);
     });
 
     describe('submitLeaderboardScore', () => {
@@ -245,7 +289,7 @@ describe('Cloud Functions (index.ts)', () => {
     describe('createMultiplayerRoom', () => {
         it('throws unauthenticated if no auth', async () => {
             await expect((createMultiplayerRoom as any)({ data: { roomName: 'Party' }, auth: undefined }))
-                .rejects.toThrow('You must be logged in to use multiplayer');
+                .rejects.toThrow('You must be logged in');
         });
 
         it('creates a lobby room and host player', async () => {
@@ -368,11 +412,22 @@ describe('Cloud Functions (index.ts)', () => {
             })).rejects.toThrow('Pick a playlist before starting');
         });
 
-        it('marks the room as playing when the host starts', async () => {
-            mockDocGet.mockResolvedValueOnce({
-                exists: true,
-                data: () => ({ hostUid: 'host123', status: 'lobby', playlistId: 'playlist1', playlistName: 'Hits' })
-            });
+        it('starts the first authoritative round when the host starts', async () => {
+            mockDocGet
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({ hostUid: 'host123', status: 'lobby', playlistId: 'playlist1', playlistName: 'Hits' })
+                })
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({
+                        tracks: [
+                            { id: 'track1', name: 'First Song', artists: [{ name: 'Artist One' }], album: { name: 'Album One', images: [{ url: 'https://example.com/one.jpg' }] } },
+                            { id: 'track2', name: 'Second Song', artists: [{ name: 'Artist Two' }], album: { name: 'Album Two', images: [] } }
+                        ]
+                    })
+                });
+            vi.spyOn(Math, 'random').mockReturnValue(0);
 
             const result = await (startMultiplayerGame as any)({
                 data: { roomId: 'ABC234' },
@@ -380,7 +435,177 @@ describe('Cloud Functions (index.ts)', () => {
             });
 
             expect(result).toEqual({ roomId: 'ABC234' });
-            expect(mockDocUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'playing' }));
+            expect(mockBatchSet.mock.calls[0][1]).toMatchObject({
+                title: 'First Song',
+                previewUrl: 'https://example.com/preview.m4a',
+                choices: expect.arrayContaining([
+                    expect.objectContaining({ id: 'track1', name: 'First Song', artistName: 'Artist One' })
+                ])
+            });
+            expect(mockBatchUpdate).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+                status: 'playing',
+                currentRound: expect.objectContaining({
+                    trackId: 'track1',
+                    artistName: 'Artist One',
+                    albumName: 'Album One',
+                    artworkUrl: 'https://example.com/600x600.jpg',
+                    snippetDurationMs: 2000,
+                    state: 'playing',
+                    roundNumber: 1
+                })
+            }));
+            expect(mockBatchUpdate.mock.calls[0][1].currentRound).not.toHaveProperty('name');
+            expect(mockBatchUpdate.mock.calls[0][1].currentRound).not.toHaveProperty('answerHash');
+            expect(mockBatchSet.mock.calls[0][1]).toMatchObject({ answerHash: expect.any(String) });
+        });
+    });
+
+    describe('multiplayer gameplay', () => {
+        it('returns playable round data only to joined players', async () => {
+            mockDocGet
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({
+                        currentRound: {
+                            id: 'round1',
+                            artworkUrl: null,
+                            artistName: 'Artist One',
+                            albumName: 'Album One'
+                        }
+                    })
+                })
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({ uid: 'player1' })
+                })
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({
+                        previewUrl: 'https://example.com/preview.m4a',
+                        choices: [{ id: 'track1', name: 'First Song', artistName: 'Artist One' }],
+                        artworkUrl: null,
+                        artistName: 'Artist One',
+                        albumName: 'Album One',
+                        title: 'First Song'
+                    })
+                });
+
+            const result = await (getMultiplayerRoundData as any)({
+                data: { roomId: 'ABC234', roundId: 'round1' },
+                auth: { uid: 'player1' }
+            });
+
+            expect(result).toEqual({
+                roundId: 'round1',
+                previewUrl: 'https://example.com/preview.m4a',
+                choices: [{ id: 'track1', name: 'First Song', artistName: 'Artist One' }],
+                artworkUrl: null,
+                artistName: 'Artist One',
+                albumName: 'Album One'
+            });
+            expect(result).not.toHaveProperty('title');
+        });
+
+        it('awards bounded points once for a correct multiplayer guess', async () => {
+            mockTransactionGet
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({
+                        status: 'playing',
+                        pointGoal: 100,
+                        currentRound: { id: 'round1', state: 'playing', roundNumber: 1 }
+                    })
+                })
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({
+                        uid: 'player1',
+                        displayName: 'Player One',
+                        currentRoundId: 'round1',
+                        roundSnippetDurationMs: 2000,
+                        state: 'guessing',
+                        score: 0
+                    })
+                })
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({
+                        id: 'round1',
+                        trackId: 'track1',
+                        title: 'First Song',
+                        artistName: 'Artist One',
+                        albumName: 'Album One',
+                        artworkUrl: null
+                    })
+                })
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({
+                        status: 'playing',
+                        pointGoal: 100,
+                        playlistId: 'playlist1',
+                        hostUid: 'host123',
+                        currentRound: { id: 'round1', state: 'playing', roundNumber: 1 }
+                    })
+                })
+                .mockResolvedValueOnce({
+                    docs: [
+                        {
+                            ref: 'player1-ref',
+                            data: () => ({
+                                uid: 'player1',
+                                displayName: 'Player One',
+                                currentRoundId: 'round1',
+                                state: 'correct',
+                                score: 25
+                            })
+                        },
+                        {
+                            ref: 'player2-ref',
+                            data: () => ({
+                                uid: 'player2',
+                                displayName: 'Player Two',
+                                currentRoundId: 'round1',
+                                state: 'guessing',
+                                score: 0
+                            })
+                        }
+                    ]
+                })
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({
+                        id: 'round1',
+                        trackId: 'track1',
+                        title: 'First Song',
+                        artistName: 'Artist One',
+                        albumName: 'Album One',
+                        artworkUrl: null
+                    })
+                });
+
+            const result = await (submitMultiplayerGuess as any)({
+                data: {
+                    roomId: 'ABC234',
+                    roundId: 'round1',
+                    guess: 'First Song',
+                    snippetDurationMs: 2000
+                },
+                auth: { uid: 'player1' }
+            });
+
+            expect(result).toEqual({
+                correct: true,
+                points: 25,
+                snippetDurationMs: 2000,
+                done: true
+            });
+            expect(mockTransactionUpdate.mock.calls[0][1]).toMatchObject({
+                score: { _increment: 25 },
+                state: 'correct',
+                lastEarnedPoints: 25,
+                roundSnippetDurationMs: 2000
+            });
         });
     });
 
@@ -509,6 +734,21 @@ describe('Cloud Functions (index.ts)', () => {
         it('throws invalid-argument for bad playlist ID', async () => {
             await expect((importSpotifyPlaylist as any)({ data: { playlistId: 'invalid' }, auth: { uid: 'user1' } }))
                 .rejects.toThrow('Invalid Spotify playlist ID');
+        });
+
+        it('rate limits repeated imports per uid', async () => {
+            mockTransactionGet.mockResolvedValueOnce({
+                exists: true,
+                data: () => ({
+                    count: 30,
+                    windowStartedAtMillis: Date.now()
+                })
+            });
+
+            await expect((importSpotifyPlaylist as any)({
+                data: { playlistId: '1234567890123456789012' },
+                auth: { uid: 'user1' }
+            })).rejects.toThrow('Too many requests');
         });
     });
 

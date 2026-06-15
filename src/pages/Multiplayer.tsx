@@ -9,16 +9,23 @@ import { auth } from '../backend/FirebaseConfig';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
 import { useManualPlaylists } from '../hooks/useManualPlaylists';
 import { usePlaylists } from '../hooks/usePlaylists';
+import usePreviewPlayer from '../hooks/usePreviewPlayer';
 import {
+    MultiplayerRoundData,
     MultiplayerPlayer,
     MultiplayerRoom,
     createMultiplayerRoom,
+    getMultiplayerRoundData,
+    giveUpMultiplayerRound,
     joinMultiplayerRoom,
     kickMultiplayerPlayer,
     leaveMultiplayerRoom,
+    playMultiplayerAgain,
+    returnMultiplayerToLobby,
     startMultiplayerGame,
     subscribeToMultiplayerPlayers,
     subscribeToMultiplayerRoom,
+    submitMultiplayerGuess,
     updateMultiplayerRoomSettings
 } from '../utils/multiplayer';
 
@@ -64,6 +71,11 @@ const Multiplayer = () => {
     const [selectedPlaylistName, setSelectedPlaylistName] = useState('');
     const [pointGoal, setPointGoal] = useState(100);
     const [playlistSearch, setPlaylistSearch] = useState('');
+    const [roundData, setRoundData] = useState<MultiplayerRoundData | null>(null);
+    const [roundDataId, setRoundDataId] = useState('');
+    const [userGuess, setUserGuess] = useState('');
+    const [roundFeedback, setRoundFeedback] = useState('');
+    const { playPreview, pause, isPlaying, error: playerError, volume, setVolume } = usePreviewPlayer();
 
     const filteredPlaylists = useMemo(() => {
         if (!playlistSearch.trim()) return playlists;
@@ -78,6 +90,13 @@ const Multiplayer = () => {
     const currentPlayer = useMemo(() => {
         return players.find(player => player.uid === user?.uid) || null;
     }, [players, user?.uid]);
+
+    const sortedPlayers = useMemo(() => {
+        return [...players].sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score;
+            return a.joinedAt - b.joinedAt;
+        });
+    }, [players]);
 
     const isHost = !!room && room.hostUid === user?.uid;
     const shareUrl = activeRoomId ? `${window.location.origin}/multiplayer/${activeRoomId}` : '';
@@ -142,6 +161,43 @@ const Multiplayer = () => {
         setSelectedPlaylistName(room.playlistName || '');
         setPointGoal(room.pointGoal || 100);
     }, [room]);
+
+    useEffect(() => {
+        const roundId = room?.currentRound?.id || '';
+        if (!activeRoomId || !currentPlayer || room?.status !== 'playing' || !roundId) {
+            setRoundData(null);
+            setRoundDataId('');
+            setUserGuess('');
+            setRoundFeedback('');
+            pause();
+            return;
+        }
+
+        if (roundDataId === roundId && roundData) return;
+
+        let isCancelled = false;
+        setRoundData(null);
+        setRoundFeedback('Loading round...');
+        setUserGuess('');
+        pause();
+
+        getMultiplayerRoundData(activeRoomId, roundId)
+            .then(data => {
+                if (isCancelled) return;
+                setRoundData(data);
+                setRoundDataId(roundId);
+                setRoundFeedback('');
+            })
+            .catch(err => {
+                if (isCancelled) return;
+                setError(getFirebaseMessage(err, 'Could not load round.'));
+                setRoundFeedback('');
+            });
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [activeRoomId, currentPlayer, pause, room?.currentRound?.id, room?.status, roundData, roundDataId]);
 
     useEffect(() => {
         if (!hasJoinedActiveRoom || !activeRoomId || !user || isLoadingUser || currentPlayer || players.length === 0) return;
@@ -243,9 +299,9 @@ const Multiplayer = () => {
     }, []);
 
     const ensureSignedIn = async () => {
-        if (!auth.currentUser) {
-            await signInAnonymously(auth);
-        }
+        const currentUser = auth.currentUser || (await signInAnonymously(auth)).user;
+
+        await currentUser.getIdToken();
     };
 
     const handleCreateRoom = async (event: FormEvent) => {
@@ -371,9 +427,98 @@ const Multiplayer = () => {
 
         try {
             await startMultiplayerGame(activeRoomId);
-            setSuccess('Game started. Round gameplay is the next implementation step.');
+            setSuccess('Game started.');
         } catch (err) {
             setError(getFirebaseMessage(err, 'Could not start game.'));
+        } finally {
+            setIsBusy(false);
+        }
+    };
+
+    const handlePlayRoundSnippet = () => {
+        const snippetDuration = currentPlayer?.roundSnippetDurationMs || room?.currentRound?.snippetDurationMs || 2000;
+        if (!roundData?.previewUrl) {
+            setRoundFeedback('Round audio is still loading.');
+            return;
+        }
+
+        setRoundFeedback('');
+        playPreview(roundData.previewUrl, snippetDuration);
+    };
+
+    const handleSubmitRoundGuess = async () => {
+        const roundId = room?.currentRound?.id;
+        const snippetDuration = currentPlayer?.roundSnippetDurationMs || room?.currentRound?.snippetDurationMs || 2000;
+        if (!activeRoomId || !roundId || !currentPlayer) return;
+
+        setError('');
+        setRoundFeedback('');
+        setIsBusy(true);
+
+        try {
+            const result = await submitMultiplayerGuess(activeRoomId, roundId, userGuess, snippetDuration);
+            if (result.correct) {
+                setRoundFeedback(`Correct! +${result.points} pts`);
+            } else if (result.done) {
+                setRoundFeedback('Round complete. Waiting for the next song.');
+            } else {
+                setRoundFeedback(`Incorrect. Snippet is now ${result.snippetDurationMs / 1000} seconds.`);
+            }
+            setUserGuess('');
+        } catch (err) {
+            setError(getFirebaseMessage(err, 'Could not submit guess.'));
+        } finally {
+            setIsBusy(false);
+        }
+    };
+
+    const handleGiveUpRound = async () => {
+        const roundId = room?.currentRound?.id;
+        if (!activeRoomId || !roundId) return;
+
+        setError('');
+        setIsBusy(true);
+
+        try {
+            await giveUpMultiplayerRound(activeRoomId, roundId);
+            setRoundFeedback('You gave up. Waiting for the next song.');
+            pause();
+        } catch (err) {
+            setError(getFirebaseMessage(err, 'Could not give up.'));
+        } finally {
+            setIsBusy(false);
+        }
+    };
+
+    const handlePlayAgain = async () => {
+        if (!activeRoomId) return;
+
+        setError('');
+        setSuccess('');
+        setIsBusy(true);
+
+        try {
+            await playMultiplayerAgain(activeRoomId);
+            setSuccess('Starting a new game.');
+        } catch (err) {
+            setError(getFirebaseMessage(err, 'Could not start again.'));
+        } finally {
+            setIsBusy(false);
+        }
+    };
+
+    const handleReturnToLobby = async () => {
+        if (!activeRoomId) return;
+
+        setError('');
+        setSuccess('');
+        setIsBusy(true);
+
+        try {
+            await returnMultiplayerToLobby(activeRoomId);
+            setSuccess('Returned to lobby.');
+        } catch (err) {
+            setError(getFirebaseMessage(err, 'Could not return to lobby.'));
         } finally {
             setIsBusy(false);
         }
@@ -557,115 +702,248 @@ const Multiplayer = () => {
                                 </div>
                             )}
 
-                            {currentPlayer && (
+                            {currentPlayer && room.status === 'lobby' && (
                                 <div className="multiplayer-grid">
-                                <div className="multiplayer-card">
-                                    <span className="eyebrow">Players</span>
-                                    <h2>Who's here</h2>
-                                    <p className="body-copy">{players.length} of {room.maxPlayers} spots filled.</p>
-                                    <ul className="multiplayer-player-list">
-                                        {players.map(player => (
-                                            <li key={player.uid}>
-                                                <div>
-                                                    <strong>{player.displayName}</strong>
-                                                    <span>{player.isHost ? 'Host' : `${player.score} pts`}</span>
-                                                </div>
-                                                {isHost && !player.isHost && (
-                                                    <button className="button button-danger" type="button" disabled={isBusy} onClick={() => handleKickPlayer(player.uid)}>
-                                                        Kick
-                                                    </button>
-                                                )}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-
-                                <div className="multiplayer-card">
-                                    <span className="eyebrow">Settings</span>
-                                    <h2>Game options</h2>
-                                    <label className="form-label" htmlFor="point-goal">Point goal</label>
-                                    <input
-                                        id="point-goal"
-                                        className="text-input"
-                                        type="number"
-                                        min="10"
-                                        max="1000"
-                                        step="5"
-                                        value={pointGoal}
-                                        disabled={!isHost}
-                                        onChange={event => setPointGoal(Number(event.target.value))}
-                                    />
-                                    <p className="body-copy">Playlist: <strong>{selectedPlaylistName || 'Not selected yet'}</strong></p>
-                                    {isHost ? (
-                                        <>
-                                            <div className="multiplayer-playlist-picker">
-                                                <label className="form-label" htmlFor="playlist-search">Choose a playlist</label>
-                                                <input
-                                                    id="playlist-search"
-                                                    className="text-input"
-                                                    type="text"
-                                                    placeholder="Search playlists..."
-                                                    value={playlistSearch}
-                                                    onChange={event => setPlaylistSearch(event.target.value)}
-                                                />
-                                                {(isLoadingPlaylists || isLoadingManualPlaylists) ? (
-                                                    <div className="multiplayer-playlist-empty">Loading playlists...</div>
-                                                ) : filteredPlaylists.length === 0 ? (
-                                                    <div className="multiplayer-playlist-empty">
-                                                        {playlistSearch ? `No playlists matching "${playlistSearch}"` : 'No playlists available.'}
+                                    <div className="multiplayer-card">
+                                        <span className="eyebrow">Players</span>
+                                        <h2>Who's here</h2>
+                                        <p className="body-copy">{players.length} of {room.maxPlayers} spots filled.</p>
+                                        <ul className="multiplayer-player-list">
+                                            {sortedPlayers.map(player => (
+                                                <li key={player.uid}>
+                                                    <div>
+                                                        <strong>{player.displayName}</strong>
+                                                        <span>{player.isHost ? `Host · ${player.score} pts` : `${player.score} pts`}</span>
                                                     </div>
-                                                ) : (
-                                                    <ul className="multiplayer-playlist-list">
-                                                        {!(effectiveGuest || isManualMode) && !playlistSearch && (
-                                                            <li>
-                                                                <button
-                                                                    className={`multiplayer-playlist-item${selectedPlaylistId === 'LIKED_SONGS' ? ' multiplayer-playlist-item-active' : ''}`}
-                                                                    type="button"
-                                                                    onClick={() => handleSelectPlaylist('LIKED_SONGS')}
-                                                                    disabled={isBusy}
-                                                                >
-                                                                    <span className="multiplayer-playlist-item-name">Liked Songs</span>
-                                                                    <span className="multiplayer-playlist-item-meta">Library</span>
-                                                                </button>
-                                                            </li>
-                                                        )}
-                                                        {filteredPlaylists.map((playlist: any) => (
-                                                            <li key={playlist.id}>
-                                                                <button
-                                                                    className={`multiplayer-playlist-item${selectedPlaylistId === playlist.id ? ' multiplayer-playlist-item-active' : ''}`}
-                                                                    type="button"
-                                                                    onClick={() => handleSelectPlaylist(playlist.id)}
-                                                                    disabled={isBusy || playlist.status === 'importing'}
-                                                                >
-                                                                    <span className="multiplayer-playlist-item-name">{playlist.name}</span>
-                                                                    <span className="multiplayer-playlist-item-meta">
-                                                                        {playlist.tracks?.total ?? playlist.tracks?.length ?? 0} tracks
-                                                                    </span>
-                                                                </button>
-                                                            </li>
-                                                        ))}
-                                                    </ul>
-                                                )}
-                                            </div>
-                                            <div className="action-row">
-                                                <button className="button button-secondary" type="button" disabled={isBusy || !selectedPlaylistId} onClick={handleSaveSettings}>
-                                                    Save settings
-                                                </button>
-                                                <button className="button button-secondary" type="button" disabled={isBusy || !selectedPlaylistId} onClick={handleStartGame}>
-                                                    Start game
-                                                </button>
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <p className="body-copy">Waiting for the host to pick a playlist and start.</p>
-                                    )}
+                                                    {isHost && !player.isHost && (
+                                                        <button className="button button-danger" type="button" disabled={isBusy} onClick={() => handleKickPlayer(player.uid)}>
+                                                            Kick
+                                                        </button>
+                                                    )}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+
+                                    <div className="multiplayer-card">
+                                        <span className="eyebrow">Settings</span>
+                                        <h2>Game options</h2>
+                                        <label className="form-label" htmlFor="point-goal">Point goal</label>
+                                        <input
+                                            id="point-goal"
+                                            className="text-input"
+                                            type="number"
+                                            min="10"
+                                            max="1000"
+                                            step="5"
+                                            value={pointGoal}
+                                            disabled={!isHost}
+                                            onChange={event => setPointGoal(Number(event.target.value))}
+                                        />
+                                        <p className="body-copy">Playlist: <strong>{selectedPlaylistName || 'Not selected yet'}</strong></p>
+                                        {isHost ? (
+                                            <>
+                                                <div className="multiplayer-playlist-picker">
+                                                    <label className="form-label" htmlFor="playlist-search">Choose a playlist</label>
+                                                    <input
+                                                        id="playlist-search"
+                                                        className="text-input"
+                                                        type="text"
+                                                        placeholder="Search playlists..."
+                                                        value={playlistSearch}
+                                                        onChange={event => setPlaylistSearch(event.target.value)}
+                                                    />
+                                                    {(isLoadingPlaylists || isLoadingManualPlaylists) ? (
+                                                        <div className="multiplayer-playlist-empty">Loading playlists...</div>
+                                                    ) : filteredPlaylists.length === 0 ? (
+                                                        <div className="multiplayer-playlist-empty">
+                                                            {playlistSearch ? `No playlists matching "${playlistSearch}"` : 'No playlists available.'}
+                                                        </div>
+                                                    ) : (
+                                                        <ul className="multiplayer-playlist-list">
+                                                            {!(effectiveGuest || isManualMode) && !playlistSearch && (
+                                                                <li>
+                                                                    <button
+                                                                        className={`multiplayer-playlist-item${selectedPlaylistId === 'LIKED_SONGS' ? ' multiplayer-playlist-item-active' : ''}`}
+                                                                        type="button"
+                                                                        onClick={() => handleSelectPlaylist('LIKED_SONGS')}
+                                                                        disabled={isBusy}
+                                                                    >
+                                                                        <span className="multiplayer-playlist-item-name">Liked Songs</span>
+                                                                        <span className="multiplayer-playlist-item-meta">Library</span>
+                                                                    </button>
+                                                                </li>
+                                                            )}
+                                                            {filteredPlaylists.map((playlist: any) => (
+                                                                <li key={playlist.id}>
+                                                                    <button
+                                                                        className={`multiplayer-playlist-item${selectedPlaylistId === playlist.id ? ' multiplayer-playlist-item-active' : ''}`}
+                                                                        type="button"
+                                                                        onClick={() => handleSelectPlaylist(playlist.id)}
+                                                                        disabled={isBusy || playlist.status === 'importing'}
+                                                                    >
+                                                                        <span className="multiplayer-playlist-item-name">{playlist.name}</span>
+                                                                        <span className="multiplayer-playlist-item-meta">
+                                                                            {playlist.tracks?.total ?? playlist.tracks?.length ?? 0} tracks
+                                                                        </span>
+                                                                    </button>
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    )}
+                                                </div>
+                                                <div className="action-row">
+                                                    <button className="button button-secondary" type="button" disabled={isBusy || !selectedPlaylistId} onClick={handleSaveSettings}>
+                                                        Save settings
+                                                    </button>
+                                                    <button className="button button-secondary" type="button" disabled={isBusy || !selectedPlaylistId} onClick={handleStartGame}>
+                                                        Start game
+                                                    </button>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <p className="body-copy">Waiting for the host to pick a playlist and start.</p>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
                             )}
 
-                            {room.status === 'playing' && (
-                                <div className="success-banner">
-                                    Lobby state is live. The next step is adding synchronized rounds, guesses, scoring, and game-end handling.
+                            {currentPlayer && room.status === 'playing' && (
+                                <div className="multiplayer-grid">
+                                    <div className="multiplayer-card multiplayer-game-card">
+                                        <span className="eyebrow">Round {room.currentRound?.roundNumber || 1}</span>
+                                        <h2>Guess the song</h2>
+                                        <p className="body-copy">Playlist: <strong>{room.playlistName}</strong></p>
+                                        <span className="snippet-meter">
+                                            Snippet length: {(currentPlayer.roundSnippetDurationMs || room.currentRound?.snippetDurationMs || 2000) / 1000} seconds
+                                        </span>
+
+                                        <div className="volume-console">
+                                            <label className="form-label" htmlFor="multiplayer-volume">Volume</label>
+                                            <input
+                                                id="multiplayer-volume"
+                                                type="range"
+                                                min="0"
+                                                max="100"
+                                                value={Math.round(volume * 100)}
+                                                onChange={event => setVolume(Number(event.target.value) / 100)}
+                                            />
+                                        </div>
+
+                                        {playerError && <div className="error-banner"><strong>Error:</strong> {playerError}</div>}
+
+                                        <div className="play-row">
+                                            <button className="button button-large" type="button" disabled={isPlaying || !roundData?.previewUrl} onClick={handlePlayRoundSnippet}>
+                                                Play Snippet
+                                            </button>
+                                            {isPlaying && <span className="playing-badge">Playing...</span>}
+                                        </div>
+
+                                        <div className="guess-row">
+                                            <input
+                                                className="text-input guess-input"
+                                                list="multiplayer-song-options"
+                                                value={userGuess}
+                                                disabled={isBusy || ['correct', 'gave-up', 'timed-out'].includes(currentPlayer.state)}
+                                                onChange={event => setUserGuess(event.target.value)}
+                                                onKeyDown={event => {
+                                                    if (event.key === 'Enter') {
+                                                        event.preventDefault();
+                                                        void handleSubmitRoundGuess();
+                                                    }
+                                                }}
+                                                placeholder="Enter song title..."
+                                            />
+                                            <datalist id="multiplayer-song-options">
+                                                {roundData?.choices.map(choice => (
+                                                    <option key={choice.id} value={`${choice.name} - ${choice.artistName}`} />
+                                                ))}
+                                            </datalist>
+                                            <button
+                                                className="button button-tertiary"
+                                                type="button"
+                                                disabled={isBusy || ['correct', 'gave-up', 'timed-out'].includes(currentPlayer.state)}
+                                                onClick={handleSubmitRoundGuess}
+                                            >
+                                                Guess
+                                            </button>
+                                        </div>
+
+                                        {room.revealedRound && (
+                                            <div className="feedback-pill">
+                                                Answer: {room.revealedRound.title} by {room.revealedRound.artistName}
+                                            </div>
+                                        )}
+                                        {roundFeedback && <div className="feedback-pill">{roundFeedback}</div>}
+
+                                        <button
+                                            className="button button-quiet"
+                                            type="button"
+                                            disabled={isBusy || ['correct', 'gave-up', 'timed-out'].includes(currentPlayer.state)}
+                                            onClick={handleGiveUpRound}
+                                        >
+                                            Give Up
+                                        </button>
+                                    </div>
+
+                                    <div className="multiplayer-card">
+                                        <span className="eyebrow">Scoreboard</span>
+                                        <h2>First to {room.pointGoal}</h2>
+                                        <ul className="multiplayer-player-list">
+                                            {sortedPlayers.map(player => (
+                                                <li key={player.uid}>
+                                                    <div>
+                                                        <strong>{player.displayName}</strong>
+                                                        <span>
+                                                            {player.score} pts
+                                                            {player.currentRoundId === room.currentRound?.id && player.state === 'correct' ? ' · Correct' : ''}
+                                                            {player.currentRoundId === room.currentRound?.id && player.state === 'gave-up' ? ' · Gave up' : ''}
+                                                            {player.currentRoundId === room.currentRound?.id && player.state === 'timed-out' ? ' · Timed out' : ''}
+                                                        </span>
+                                                    </div>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </div>
+                            )}
+
+                            {currentPlayer && room.status === 'ended' && (
+                                <div className="multiplayer-grid">
+                                    <div className="multiplayer-card">
+                                        <span className="eyebrow">Game over</span>
+                                        <h2>{room.winnerDisplayName || 'A player'} wins!</h2>
+                                        {room.revealedRound && (
+                                            <p className="body-copy">Final answer: <strong>{room.revealedRound.title}</strong> by {room.revealedRound.artistName}</p>
+                                        )}
+                                        {isHost ? (
+                                            <div className="action-row">
+                                                <button className="button button-secondary" type="button" disabled={isBusy} onClick={handlePlayAgain}>
+                                                    Play again
+                                                </button>
+                                                <button className="button button-tertiary" type="button" disabled={isBusy} onClick={handleReturnToLobby}>
+                                                    Return to lobby
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <p className="body-copy">Waiting for the host to choose what happens next.</p>
+                                        )}
+                                    </div>
+
+                                    <div className="multiplayer-card">
+                                        <span className="eyebrow">Final scores</span>
+                                        <h2>Scoreboard</h2>
+                                        <ul className="multiplayer-player-list">
+                                            {sortedPlayers.map(player => (
+                                                <li key={player.uid}>
+                                                    <div>
+                                                        <strong>{player.displayName}</strong>
+                                                        <span>{player.score} pts</span>
+                                                    </div>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
                                 </div>
                             )}
                         </section>

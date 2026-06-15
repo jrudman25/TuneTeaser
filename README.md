@@ -19,7 +19,7 @@
 *   **Account Clarity**: Signed-in pages show which TuneTeaser account is active.
 *   **Retro Arcade Design**: A record-shop inspired interface with arcade-style game panels, responsive layouts, and accessible focus states.
 *   **Real-Time Leaderboard**: Compete with other music experts! A real-time scoreboard shows the top 10 players and your current position/rank.
-*   **Local Multiplayer Lobby Foundation**: Create a private party room, share a short code or `/multiplayer/{roomCode}` link, let players join with their TuneTeaser usernames, pick a playlist, set a point goal, and manage players before starting.
+*   **Online Multiplayer Rooms**: Create a private room, share a short code or `/multiplayer/{roomCode}` link, let players join with their TuneTeaser usernames, pick a playlist, set a point goal, and play synchronized rounds with a shared scoreboard.
 *   **Dynamic Scoring**: Points are based on correct guesses and speed. Solve a song in the initial 2-second snippet for a maximum score of 25 points. Slower answers scale down linearly to a base of 10 points.
 *   **Fair Play Safeguards & Storage Safety**:
     *   Guest/anonymous profiles are ineligible for points to prevent scoreboard pollution.
@@ -115,7 +115,7 @@ service cloud.firestore {
 Storage rules are version-controlled in `storage.rules` and deployed through `firebase.json`. Playlist track snapshots are restricted to `users/{uid}/playlists/{playlistId}.json`, where `request.auth.uid` must match `uid`; JSON uploads are capped at 5 MiB and all other Storage paths are denied.
 
 ### Firestore Multiplayer Schema
-Local multiplayer uses a `multiplayerRooms` collection and `players` subcollection:
+Online multiplayer uses a `multiplayerRooms` collection with player and private round subcollections. Room and player writes are controlled by Cloud Functions:
 *   **Collection**: `multiplayerRooms`
 *   **Document ID**: `{roomCode}` six-character private room code
 *   **Fields**:
@@ -127,12 +127,22 @@ Local multiplayer uses a `multiplayerRooms` collection and `players` subcollecti
     *   `playerCount`: `number`
     *   `playlistId`: `string | null`
     *   `playlistName`: `string | null`
+    *   `currentRound`: non-answer round metadata while playing
+    *   `revealedRound`: answer metadata after a round completes
+    *   `winnerUid`: `string | null`
+    *   `winnerDisplayName`: `string | null`
     *   `expiresAt`: `number`
 *   **Subcollection**: `multiplayerRooms/{roomCode}/players/{uid}`
     *   `displayName`: `string`
     *   `isHost`: `boolean`
     *   `score`: `number`
-    *   `state`: `string`
+    *   `state`: `"lobby" | "guessing" | "correct" | "gave-up" | "timed-out"`
+    *   `currentRoundId`: `string | null`
+    *   `roundSnippetDurationMs`: `number | null`
+    *   `lastEarnedPoints`: `number | null`
+*   **Private subcollection**: `multiplayerRooms/{roomCode}/rounds/{roundId}`
+    *   Stores playable preview URLs, answer titles, and round choices for callable use.
+    *   Firestore rules do not expose this subcollection directly to clients.
 
 ## Requirements
 *   **TuneTeaser Account or Guest Session**: Required to save imported playlists and custom mixes. Registered accounts persist playlist metadata in Firestore. Guest sessions keep playlist metadata in browser local storage and upload track snapshots under the guest's anonymous Firebase UID.

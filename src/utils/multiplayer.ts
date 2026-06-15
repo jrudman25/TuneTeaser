@@ -38,6 +38,11 @@ export interface MultiplayerRoom {
     updatedAt: number;
     expiresAt: number;
     startedAt?: number;
+    endedAt?: number;
+    winnerUid?: string;
+    winnerDisplayName?: string;
+    currentRound?: MultiplayerRound;
+    revealedRound?: MultiplayerRevealedRound;
 }
 
 export interface MultiplayerPlayer {
@@ -48,6 +53,54 @@ export interface MultiplayerPlayer {
     state: 'lobby' | 'guessing' | 'correct' | 'incorrect' | 'gave-up' | 'timed-out';
     joinedAt: number;
     updatedAt: number;
+    currentRoundId?: string | null;
+    roundSnippetDurationMs?: number | null;
+    roundCompletedAt?: number | null;
+    lastEarnedPoints?: number | null;
+}
+
+export interface MultiplayerRound {
+    id: string;
+    trackId: string;
+    artistName: string;
+    albumName: string;
+    artworkUrl: string | null;
+    startedAt: number;
+    snippetDurationMs: number;
+    state: 'playing' | 'advancing' | 'completed';
+    roundNumber: number;
+    completedAt?: number;
+}
+
+export interface MultiplayerRevealedRound {
+    id: string;
+    trackId: string;
+    title: string;
+    artistName: string;
+    albumName: string;
+    artworkUrl: string | null;
+}
+
+export interface MultiplayerRoundChoice {
+    id: string;
+    name: string;
+    artistName: string;
+}
+
+export interface MultiplayerRoundData {
+    roundId: string;
+    previewUrl: string;
+    choices: MultiplayerRoundChoice[];
+    artworkUrl: string | null;
+    artistName: string;
+    albumName: string;
+}
+
+export interface SubmitMultiplayerGuessResponse {
+    correct: boolean;
+    points: number;
+    snippetDurationMs: number;
+    done: boolean;
 }
 
 interface RoomResponse {
@@ -92,6 +145,41 @@ export const startMultiplayerGame = (roomId: string) => {
 
 export const kickMultiplayerPlayer = (roomId: string, targetUid: string) => {
     return callRoomFunction('kickMultiplayerPlayer', { roomId, targetUid });
+};
+
+export const getMultiplayerRoundData = async (roomId: string, roundId: string) => {
+    const callable = httpsCallable<{ roomId: string; roundId: string }, MultiplayerRoundData>(
+        functions,
+        'getMultiplayerRoundData'
+    );
+    const result = await callable({ roomId, roundId });
+    return result.data;
+};
+
+export const submitMultiplayerGuess = async (
+    roomId: string,
+    roundId: string,
+    guess: string,
+    snippetDurationMs: number
+) => {
+    const callable = httpsCallable<
+        { roomId: string; roundId: string; guess: string; snippetDurationMs: number },
+        SubmitMultiplayerGuessResponse
+    >(functions, 'submitMultiplayerGuess');
+    const result = await callable({ roomId, roundId, guess, snippetDurationMs });
+    return result.data;
+};
+
+export const giveUpMultiplayerRound = (roomId: string, roundId: string) => {
+    return callRoomFunction('giveUpMultiplayerRound', { roomId, roundId });
+};
+
+export const playMultiplayerAgain = (roomId: string) => {
+    return callRoomFunction('playMultiplayerAgain', { roomId });
+};
+
+export const returnMultiplayerToLobby = (roomId: string) => {
+    return callRoomFunction('returnMultiplayerToLobby', { roomId });
 };
 
 export const subscribeToMultiplayerRoom = (
