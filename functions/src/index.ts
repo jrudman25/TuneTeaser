@@ -728,15 +728,29 @@ export const joinMultiplayerRoom = onCall(PUBLIC_CALLABLE_OPTIONS, async (reques
             throw new HttpsError('resource-exhausted', 'This room is full.');
         }
 
-        transaction.set(playerRef, {
+        const existingPlayer = playerSnap.exists ? playerSnap.data() || {} : {};
+        const isRejoiningCurrentRound = playerSnap.exists
+            && room?.status === 'playing'
+            && room?.currentRound?.id
+            && existingPlayer.currentRoundId === room.currentRound.id;
+        const playerData: any = {
             uid,
             displayName,
             isHost: room?.hostUid === uid,
-            score: playerSnap.exists ? playerSnap.data()?.score || 0 : 0,
-            state: 'lobby',
-            joinedAt: playerSnap.exists ? playerSnap.data()?.joinedAt || now : now,
+            score: playerSnap.exists ? existingPlayer.score || 0 : 0,
+            state: isRejoiningCurrentRound ? existingPlayer.state : 'lobby',
+            joinedAt: playerSnap.exists ? existingPlayer.joinedAt || now : now,
             updatedAt: now
-        }, { merge: true });
+        };
+
+        if (isRejoiningCurrentRound) {
+            playerData.currentRoundId = existingPlayer.currentRoundId;
+            playerData.roundSnippetDurationMs = existingPlayer.roundSnippetDurationMs || MIN_SNIPPET_DURATION_MS;
+            playerData.roundCompletedAt = existingPlayer.roundCompletedAt || null;
+            playerData.lastEarnedPoints = existingPlayer.lastEarnedPoints || null;
+        }
+
+        transaction.set(playerRef, playerData, { merge: true });
 
         transaction.update(roomRef, {
             playerCount: playerSnap.exists ? playerCount : playerCount + 1,
@@ -895,6 +909,9 @@ export const submitMultiplayerGuess = onCall(PUBLIC_CALLABLE_OPTIONS, async (req
                 done: true
             };
             return;
+        }
+        if (playerState !== 'guessing') {
+            throw new HttpsError('failed-precondition', 'You are not active in this round.');
         }
 
         const currentSnippetDurationMs = typeof player?.roundSnippetDurationMs === 'number'

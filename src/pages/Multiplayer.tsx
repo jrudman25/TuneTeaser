@@ -74,6 +74,7 @@ const Multiplayer = () => {
     const [roundData, setRoundData] = useState<MultiplayerRoundData | null>(null);
     const [roundDataId, setRoundDataId] = useState('');
     const [userGuess, setUserGuess] = useState('');
+    const [isGuessFocused, setIsGuessFocused] = useState(false);
     const [roundFeedback, setRoundFeedback] = useState('');
     const { playPreview, pause, isPlaying, error: playerError, volume, setVolume } = usePreviewPlayer();
 
@@ -97,10 +98,19 @@ const Multiplayer = () => {
             return a.joinedAt - b.joinedAt;
         });
     }, [players]);
+    const guessSuggestions = useMemo(() => {
+        const query = userGuess.trim().toLowerCase();
+        if (query.length < 2) return [];
+
+        return (roundData?.choices || [])
+            .filter(choice => `${choice.name} ${choice.artistName}`.toLowerCase().includes(query))
+            .slice(0, 6);
+    }, [roundData?.choices, userGuess]);
 
     const isHost = !!room && room.hostUid === user?.uid;
     const shareUrl = activeRoomId ? `${window.location.origin}/multiplayer/${activeRoomId}` : '';
     const modeQuery = effectiveGuest ? '?mode=guest' : '';
+    const isCurrentPlayerGuessing = currentPlayer?.state === 'guessing';
     const activeRoomIdRef = useRef(activeRoomId);
     const currentPlayerRef = useRef(currentPlayer);
     const roomRef = useRef(room);
@@ -840,29 +850,48 @@ const Multiplayer = () => {
                                         </div>
 
                                         <div className="guess-row">
-                                            <input
-                                                className="text-input guess-input"
-                                                list="multiplayer-song-options"
-                                                value={userGuess}
-                                                disabled={isBusy || ['correct', 'gave-up', 'timed-out'].includes(currentPlayer.state)}
-                                                onChange={event => setUserGuess(event.target.value)}
-                                                onKeyDown={event => {
-                                                    if (event.key === 'Enter') {
-                                                        event.preventDefault();
-                                                        void handleSubmitRoundGuess();
-                                                    }
-                                                }}
-                                                placeholder="Enter song title..."
-                                            />
-                                            <datalist id="multiplayer-song-options">
-                                                {roundData?.choices.map(choice => (
-                                                    <option key={choice.id} value={`${choice.name} - ${choice.artistName}`} />
-                                                ))}
-                                            </datalist>
+                                            <div className="guess-input-wrap">
+                                                <input
+                                                    className="text-input guess-input"
+                                                    value={userGuess}
+                                                    disabled={isBusy || !isCurrentPlayerGuessing}
+                                                    onBlur={() => window.setTimeout(() => setIsGuessFocused(false), 120)}
+                                                    onChange={event => setUserGuess(event.target.value)}
+                                                    onFocus={() => setIsGuessFocused(true)}
+                                                    onKeyDown={event => {
+                                                        if (event.key === 'Enter') {
+                                                            event.preventDefault();
+                                                            void handleSubmitRoundGuess();
+                                                        }
+                                                    }}
+                                                    placeholder="Enter song title..."
+                                                />
+                                                {isGuessFocused && guessSuggestions.length > 0 && (
+                                                    <ul className="guess-suggestion-list">
+                                                        {guessSuggestions.map(choice => {
+                                                            const value = `${choice.name} - ${choice.artistName}`;
+                                                            return (
+                                                                <li key={choice.id}>
+                                                                    <button
+                                                                        type="button"
+                                                                        onMouseDown={event => event.preventDefault()}
+                                                                        onClick={() => {
+                                                                            setUserGuess(value);
+                                                                            setIsGuessFocused(false);
+                                                                        }}
+                                                                    >
+                                                                        {value}
+                                                                    </button>
+                                                                </li>
+                                                            );
+                                                        })}
+                                                    </ul>
+                                                )}
+                                            </div>
                                             <button
                                                 className="button button-tertiary"
                                                 type="button"
-                                                disabled={isBusy || ['correct', 'gave-up', 'timed-out'].includes(currentPlayer.state)}
+                                                disabled={isBusy || !isCurrentPlayerGuessing}
                                                 onClick={handleSubmitRoundGuess}
                                             >
                                                 Guess
@@ -876,14 +905,17 @@ const Multiplayer = () => {
                                         )}
                                         {roundFeedback && <div className="feedback-pill">{roundFeedback}</div>}
 
-                                        <button
-                                            className="button button-quiet"
-                                            type="button"
-                                            disabled={isBusy || ['correct', 'gave-up', 'timed-out'].includes(currentPlayer.state)}
-                                            onClick={handleGiveUpRound}
-                                        >
-                                            Give Up
-                                        </button>
+                                        <div className="give-up-zone">
+                                            <span className="helper-text">Stuck on this round?</span>
+                                            <button
+                                                className="button button-danger"
+                                                type="button"
+                                                disabled={isBusy || !isCurrentPlayerGuessing}
+                                                onClick={handleGiveUpRound}
+                                            >
+                                                Give Up
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <div className="multiplayer-card">

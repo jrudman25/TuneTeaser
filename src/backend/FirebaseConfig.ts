@@ -4,6 +4,7 @@
  * @version 2026.02.23
  */
 import { initializeApp } from "firebase/app";
+import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
 import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
 import { connectAuthEmulator, getAuth } from "firebase/auth";
 import { connectStorageEmulator, getStorage } from "firebase/storage";
@@ -20,6 +21,19 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+const appCheckSiteKey = import.meta.env.VITE_FIREBASE_APPCHECK_SITE_KEY;
+
+if (
+    import.meta.env.PROD
+    && typeof appCheckSiteKey === 'string'
+    && appCheckSiteKey.trim()
+) {
+    initializeAppCheck(app, {
+        provider: new ReCaptchaV3Provider(appCheckSiteKey),
+        isTokenAutoRefreshEnabled: true
+    });
+}
+
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 export const storage = getStorage(app);

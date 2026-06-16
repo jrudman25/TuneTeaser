@@ -53,6 +53,9 @@
 *   **Deploy Firestore rules**: `npm run deploy-rules`
 *   **Deploy Storage rules**: `npm run deploy-storage-rules`
 
+### Production App Check
+Production callable Cloud Functions enforce Firebase App Check. Before deploying Hosting, register the web app in Firebase App Check with reCAPTCHA v3, add the site key as `VITE_FIREBASE_APPCHECK_SITE_KEY` in the production build environment, then rebuild and redeploy Hosting. If this key is missing or the app is not registered, production callable requests can fail with `Unauthenticated` before reaching the function handler.
+
 ### Local Firebase Emulator Testing
 Use two terminals for local Firebase testing:
 1.  Run `npm run emulators` from the project root.

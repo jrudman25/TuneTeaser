@@ -221,7 +221,11 @@ describe('Multiplayer page', () => {
         vi.mocked(getMultiplayerRoundData).mockResolvedValue({
             roundId: 'round-1',
             previewUrl: 'https://example.com/preview.m4a',
-            choices: [{ id: 'track-1', name: 'First Song', artistName: 'Artist One' }],
+            choices: [
+                { id: 'track-1', name: 'First Song', artistName: 'Artist One' },
+                { id: 'track-2', name: 'Second Song', artistName: 'Artist Two' },
+                { id: 'track-3', name: 'Third Song', artistName: 'Artist Three' }
+            ],
             artworkUrl: null,
             artistName: 'Artist One',
             albumName: 'Album One'
@@ -339,6 +343,28 @@ describe('Multiplayer page', () => {
             expect(submitMultiplayerGuess).toHaveBeenCalledWith('ABC123', 'round-1', 'First Song', 2000);
             expect(screen.getByText(/correct! \+25 pts/i)).toBeInTheDocument();
         });
+    });
+
+    it('filters song suggestions only after typing in multiplayer gameplay', async () => {
+        const user = userEvent.setup();
+        mocks.roomSnapshot = playingRoom;
+        mocks.playersSnapshot = [guessingHostPlayer, correctGuestPlayer];
+
+        renderPage('/multiplayer/ABC123');
+
+        await waitFor(() => {
+            expect(getMultiplayerRoundData).toHaveBeenCalledWith('ABC123', 'round-1');
+        });
+
+        const guessInput = screen.getByPlaceholderText(/enter song title/i);
+        await user.click(guessInput);
+        expect(screen.queryByRole('button', { name: /first song - artist one/i })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /second song - artist two/i })).not.toBeInTheDocument();
+
+        await user.type(guessInput, 'sec');
+
+        expect(screen.getByRole('button', { name: /second song - artist two/i })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /first song - artist one/i })).not.toBeInTheDocument();
     });
 
     it('renders the win screen and host end-game controls', async () => {

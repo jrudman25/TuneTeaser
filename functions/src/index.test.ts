@@ -363,6 +363,45 @@ describe('Cloud Functions (index.ts)', () => {
             });
             expect(mockTransactionUpdate.mock.calls[0][1]).toMatchObject({ playerCount: 2 });
         });
+
+        it('preserves current round completion state when an existing player rejoins during play', async () => {
+            mockTransactionGet
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({
+                        hostUid: 'host123',
+                        status: 'playing',
+                        playerCount: 2,
+                        maxPlayers: 5,
+                        currentRound: { id: 'round1' }
+                    })
+                })
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({
+                        score: 30,
+                        joinedAt: 12345,
+                        state: 'correct',
+                        currentRoundId: 'round1',
+                        roundSnippetDurationMs: 2000,
+                        roundCompletedAt: 98765,
+                        lastEarnedPoints: 25
+                    })
+                });
+
+            const result = await (joinMultiplayerRoom as any)({ data: { roomId: 'abc234' }, auth: { uid: 'player1' } });
+
+            expect(result).toEqual({ roomId: 'ABC234' });
+            expect(mockTransactionSet.mock.calls[0][1]).toMatchObject({
+                score: 30,
+                state: 'correct',
+                currentRoundId: 'round1',
+                roundSnippetDurationMs: 2000,
+                roundCompletedAt: 98765,
+                lastEarnedPoints: 25
+            });
+            expect(mockTransactionUpdate.mock.calls[0][1]).toMatchObject({ playerCount: 2 });
+        });
     });
 
     describe('updateMultiplayerRoomSettings', () => {
@@ -651,6 +690,49 @@ describe('Cloud Functions (index.ts)', () => {
                 lastEarnedPoints: 25,
                 roundSnippetDurationMs: 2000
             });
+        });
+
+        it('rejects guesses from a player whose current round state is not active', async () => {
+            mockTransactionGet
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({
+                        status: 'playing',
+                        pointGoal: 100,
+                        currentRound: { id: 'round1', state: 'playing', roundNumber: 1 }
+                    })
+                })
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({
+                        uid: 'player1',
+                        currentRoundId: 'round1',
+                        roundSnippetDurationMs: 2000,
+                        state: 'lobby',
+                        score: 25
+                    })
+                })
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({
+                        id: 'round1',
+                        trackId: 'track1',
+                        title: 'First Song',
+                        artistName: 'Artist One'
+                    })
+                });
+
+            await expect((submitMultiplayerGuess as any)({
+                data: {
+                    roomId: 'ABC234',
+                    roundId: 'round1',
+                    guess: 'First Song',
+                    snippetDurationMs: 2000
+                },
+                auth: { uid: 'player1' }
+            })).rejects.toThrow('You are not active in this round');
+
+            expect(mockTransactionUpdate).not.toHaveBeenCalled();
         });
 
         it('accepts a multiplayer guess before trailing remaster metadata', async () => {
