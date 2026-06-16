@@ -6,7 +6,7 @@
 import { useState, useRef, useEffect } from 'react';
 import usePreviewPlayer from './usePreviewPlayer';
 import { getItunesPreview } from '../utils/itunes';
-import { normalizeString } from '../utils/stringUtils';
+import { normalizeSongTitleForGuess, normalizeString } from '../utils/stringUtils';
 import { GUEST_TRACKS } from '../utils/guestData';
 import { ManualPlaylist, ManualTrack, manualTracksToGameItems } from '../utils/manualPlaylists';
 import { calculatePoints } from '../utils/scoreUtils';
@@ -128,7 +128,7 @@ export const useGameLogic = (
         if (!targetSong) return null;
 
         const checkGuess = normalizeString(guessToCheck);
-        const checkTitle = normalizeString(targetSong.name);
+        const checkTitle = normalizeSongTitleForGuess(targetSong.name);
 
         const targetArtist = targetSong.artists?.[0]?.name;
         const targetOption = targetArtist ? `${targetSong.name} - ${targetArtist}` : targetSong.name;

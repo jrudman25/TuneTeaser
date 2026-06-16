@@ -80,6 +80,21 @@ describe('useGameLogic - Guess Matching', () => {
         expect(result.current.feedbackMessage).toContain('Correct');
     });
 
+    it('correctly identifies a song title before remaster metadata', async () => {
+        const { result } = renderHook(() => useGameLogic('fake-token', false));
+        const mockTracks = [{ track: { id: '1', name: 'Any Time At All - Remastered 2009', uri: 'spotify:track:1', artists: [{ name: 'The Beatles' }] } }];
+
+        await act(async () => {
+            await result.current.startGame(mockTracks);
+        });
+
+        act(() => { result.current.setUserGuess('Any Time At All'); });
+        act(() => { result.current.handleGuessSubmit(); });
+
+        expect(result.current.gameState).toBe('end');
+        expect(result.current.feedbackMessage).toContain('Correct');
+    });
+
     it('rejects short common substrings even when they appear in the title', async () => {
         const { result } = renderHook(() => useGameLogic('fake-token', false));
         const mockTracks = [{ track: { id: '1', name: 'Love in the Dark', uri: 'spotify:track:1', artists: [{ name: 'Adele' }] } }];

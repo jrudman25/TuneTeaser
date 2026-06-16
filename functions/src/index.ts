@@ -8,6 +8,7 @@ import { defineSecret } from 'firebase-functions/params';
 import * as functionsV1 from 'firebase-functions/v1';
 import { createHash } from 'crypto';
 import { fetchPlaylistName, fetchPlaylistTracks, fetchSpotifyTracks, fetchUserPlaylists, getSpotifyAccessToken, normalizeTrackIds } from './spotify';
+import { GUEST_TRACKS } from './premadePlaylists';
 
 initializeApp();
 
@@ -36,6 +37,17 @@ const PUBLIC_CALLABLE_OPTIONS = {
 
 const normalizeAnswer = (value: unknown) => {
     return typeof value === 'string' ? value.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+};
+
+const songVersionKeywordPattern = /(remaster(?:ed)?|version|edit|mix|live|demo|mono|stereo|anniversary|deluxe|radio)/i;
+
+const normalizeSongTitleForGuess = (value: unknown) => {
+    const title = typeof value === 'string' ? value.trim() : '';
+    const withoutBracketedVersion = title.replace(/\s*[\[(][^\])]*(remaster(?:ed)?|version|edit|mix|live|demo|mono|stereo|anniversary|deluxe|radio)[^\])]*[\])]\s*$/i, '').trim();
+    const bracketCleaned = withoutBracketedVersion || title;
+    const withoutDashVersion = bracketCleaned.replace(/\s+-\s+.*(remaster(?:ed)?|version|edit|mix|live|demo|mono|stereo|anniversary|deluxe|radio).*$/i, '').trim();
+    const cleaned = songVersionKeywordPattern.test(bracketCleaned) ? withoutDashVersion || bracketCleaned : bracketCleaned;
+    return normalizeAnswer(cleaned);
 };
 
 const getTrackArtistName = (track: any) => {
@@ -199,7 +211,7 @@ const calculateLeaderboardPoints = (snippetDurationMs: number) => {
 
 const isCorrectGuess = (guess: string, title: string, artistName: string) => {
     const checkGuess = normalizeAnswer(guess);
-    const checkTitle = normalizeAnswer(title);
+    const checkTitle = normalizeSongTitleForGuess(title);
     const targetOption = artistName ? `${title} - ${artistName}` : title;
     const checkTargetOption = normalizeAnswer(targetOption);
     const isExactOptionMatch = checkTargetOption === checkGuess && checkGuess.length > 0;
@@ -385,6 +397,10 @@ const getRoomRefForHost = async (roomId: string, uid: string) => {
 };
 
 const getHostPlaylistTracks = async (uid: string, playlistId: string) => {
+    if (Array.isArray(GUEST_TRACKS[playlistId])) {
+        return GUEST_TRACKS[playlistId].map((item: any) => item.track);
+    }
+
     const db = getFirestore();
     const playlistRef = db.collection('users').doc(uid).collection('playlists').doc(playlistId);
     const playlistSnap = await playlistRef.get();
@@ -502,6 +518,7 @@ const startNextMultiplayerRound = async (
 
     batch.set(roomRef.collection('rounds').doc(roundId), {
         id: roundId,
+        trackId: roundTrack.id,
         title: getTrackName(roundTrack),
         artistName,
         albumName,

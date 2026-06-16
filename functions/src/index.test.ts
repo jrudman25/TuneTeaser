@@ -436,6 +436,7 @@ describe('Cloud Functions (index.ts)', () => {
 
             expect(result).toEqual({ roomId: 'ABC234' });
             expect(mockBatchSet.mock.calls[0][1]).toMatchObject({
+                trackId: 'track1',
                 title: 'First Song',
                 previewUrl: 'https://example.com/preview.m4a',
                 choices: expect.arrayContaining([
@@ -457,6 +458,50 @@ describe('Cloud Functions (index.ts)', () => {
             expect(mockBatchUpdate.mock.calls[0][1].currentRound).not.toHaveProperty('name');
             expect(mockBatchUpdate.mock.calls[0][1].currentRound).not.toHaveProperty('answerHash');
             expect(mockBatchSet.mock.calls[0][1]).toMatchObject({ answerHash: expect.any(String) });
+        });
+
+        it('starts a game with a premade playlist', async () => {
+            vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+                ok: true,
+                json: vi.fn().mockResolvedValue({
+                    resultCount: 1,
+                    results: [
+                        {
+                            previewUrl: 'https://example.com/as-it-was.m4a',
+                            artworkUrl100: 'https://example.com/100x100.jpg',
+                            trackName: 'As It Was',
+                            artistName: 'Harry Styles',
+                            collectionName: 'Harry\'s House'
+                        }
+                    ]
+                })
+            }));
+            mockDocGet.mockResolvedValueOnce({
+                exists: true,
+                data: () => ({
+                    hostUid: 'host123',
+                    status: 'lobby',
+                    playlistId: 'guest_top_hits',
+                    playlistName: 'Top Hits'
+                })
+            });
+            mockCollectionGet.mockResolvedValueOnce({ docs: [] });
+            vi.spyOn(Math, 'random').mockReturnValue(0);
+
+            const result = await (startMultiplayerGame as any)({
+                data: { roomId: 'ABC234' },
+                auth: { uid: 'host123' }
+            });
+
+            expect(result).toEqual({ roomId: 'ABC234' });
+            expect(mockBatchSet.mock.calls[0][1]).toMatchObject({
+                trackId: expect.any(String),
+                title: expect.any(String),
+                previewUrl: 'https://example.com/as-it-was.m4a'
+            });
+            expect(mockBatchUpdate).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+                status: 'playing'
+            }));
         });
     });
 
@@ -605,6 +650,102 @@ describe('Cloud Functions (index.ts)', () => {
                 state: 'correct',
                 lastEarnedPoints: 25,
                 roundSnippetDurationMs: 2000
+            });
+        });
+
+        it('accepts a multiplayer guess before trailing remaster metadata', async () => {
+            mockTransactionGet
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({
+                        status: 'playing',
+                        pointGoal: 100,
+                        currentRound: { id: 'round1', state: 'playing', roundNumber: 1 }
+                    })
+                })
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({
+                        uid: 'player1',
+                        displayName: 'Player One',
+                        currentRoundId: 'round1',
+                        roundSnippetDurationMs: 2000,
+                        state: 'guessing',
+                        score: 0
+                    })
+                })
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({
+                        id: 'round1',
+                        trackId: 'track1',
+                        title: 'Any Time At All - Remastered 2009',
+                        artistName: 'The Beatles',
+                        albumName: 'A Hard Day\'s Night',
+                        artworkUrl: null
+                    })
+                })
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({
+                        status: 'playing',
+                        pointGoal: 100,
+                        playlistId: 'playlist1',
+                        hostUid: 'host123',
+                        currentRound: { id: 'round1', state: 'playing', roundNumber: 1 }
+                    })
+                })
+                .mockResolvedValueOnce({
+                    docs: [
+                        {
+                            ref: 'player1-ref',
+                            data: () => ({
+                                uid: 'player1',
+                                displayName: 'Player One',
+                                currentRoundId: 'round1',
+                                state: 'correct',
+                                score: 25
+                            })
+                        },
+                        {
+                            ref: 'player2-ref',
+                            data: () => ({
+                                uid: 'player2',
+                                displayName: 'Player Two',
+                                currentRoundId: 'round1',
+                                state: 'guessing',
+                                score: 0
+                            })
+                        }
+                    ]
+                })
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({
+                        id: 'round1',
+                        trackId: 'track1',
+                        title: 'Any Time At All - Remastered 2009',
+                        artistName: 'The Beatles',
+                        albumName: 'A Hard Day\'s Night',
+                        artworkUrl: null
+                    })
+                });
+
+            const result = await (submitMultiplayerGuess as any)({
+                data: {
+                    roomId: 'ABC234',
+                    roundId: 'round1',
+                    guess: 'Any Time At All',
+                    snippetDurationMs: 2000
+                },
+                auth: { uid: 'player1' }
+            });
+
+            expect(result.correct).toBe(true);
+            expect(result.points).toBe(25);
+            expect(mockTransactionUpdate.mock.calls[0][1]).toMatchObject({
+                score: { _increment: 25 },
+                state: 'correct'
             });
         });
     });
