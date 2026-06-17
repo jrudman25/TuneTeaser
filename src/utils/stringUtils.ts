@@ -18,7 +18,7 @@ const songVersionKeywordPattern = /(remaster(?:ed)?|version|edit|mix|live|demo|m
 
 export const normalizeSongTitleForGuess = (str: string): string => {
     const trimmed = str.trim();
-    const withoutBracketedVersion = trimmed.replace(/\s*[\[(][^\])]*(remaster(?:ed)?|version|edit|mix|live|demo|mono|stereo|anniversary|deluxe|radio)[^\])]*[\])]\s*$/i, '').trim();
+    const withoutBracketedVersion = trimmed.replace(/\s*[[(][^\])]*(remaster(?:ed)?|version|edit|mix|live|demo|mono|stereo|anniversary|deluxe|radio)[^\])]*[\])]\s*$/i, '').trim();
     const bracketCleaned = withoutBracketedVersion || trimmed;
     const withoutDashVersion = bracketCleaned.replace(/\s+-\s+.*(remaster(?:ed)?|version|edit|mix|live|demo|mono|stereo|anniversary|deluxe|radio).*$/i, '').trim();
     const cleaned = songVersionKeywordPattern.test(bracketCleaned) ? withoutDashVersion || bracketCleaned : bracketCleaned;

@@ -137,6 +137,7 @@ const Multiplayer = () => {
     useEffect(() => {
         const routedRoomId = (roomCodeParam || '').toUpperCase();
         if (!routedRoomId || routedRoomId === activeRoomId) return;
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setRoomCode(routedRoomId);
         setActiveRoomId(routedRoomId);
         setHasJoinedActiveRoom(false);
@@ -169,6 +170,7 @@ const Multiplayer = () => {
 
     useEffect(() => {
         if (!room) return;
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSelectedPlaylistId(room.playlistId || '');
         setSelectedPlaylistName(room.playlistName || '');
         setPointGoal(room.pointGoal || 100);
@@ -179,6 +181,7 @@ const Multiplayer = () => {
     useEffect(() => {
         const endsAt = room?.currentRound?.endsAt;
         if (!endsAt || room?.status !== 'playing' || room?.currentRound?.state !== 'playing') {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setTimeRemaining(null);
             return;
         }
@@ -211,6 +214,7 @@ const Multiplayer = () => {
     useEffect(() => {
         const roundId = room?.currentRound?.id || '';
         if (!activeRoomId || !currentPlayer || room?.status !== 'playing' || !roundId) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setRoundData(null);
             setRoundDataId('');
             setUserGuess('');
@@ -267,7 +271,6 @@ const Multiplayer = () => {
     const leaveActiveLobby = useCallback(async () => {
         const roomId = activeRoomIdRef.current;
         const activePlayer = currentPlayerRef.current;
-        const activeRoom = roomRef.current;
 
         if (!roomId || !activePlayer || isLeavingRoomRef.current || leftRoomIdsRef.current.has(roomId)) return false;
 
@@ -302,7 +305,7 @@ const Multiplayer = () => {
         const refreshToken = () => {
             auth.currentUser?.getIdToken().then(token => {
                 cachedTokenRef.current = token;
-            }).catch(() => {});
+            }).catch(() => { });
         };
         refreshToken();
         // Firebase tokens expire after ~1 hour; refresh every 50 minutes while in lobby
@@ -317,7 +320,6 @@ const Multiplayer = () => {
         const handlePageExit = () => {
             const roomId = activeRoomIdRef.current;
             const activePlayer = currentPlayerRef.current;
-            const activeRoom = roomRef.current;
             const token = cachedTokenRef.current;
 
             if (!roomId || !activePlayer || leftRoomIdsRef.current.has(roomId) || !token) return;
@@ -331,7 +333,7 @@ const Multiplayer = () => {
                 body,
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 keepalive: true
-            }).catch(() => {});
+            }).catch(() => { });
         };
 
         // pagehide fires on tab close and navigation; beforeunload is the fallback

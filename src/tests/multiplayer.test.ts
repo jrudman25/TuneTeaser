@@ -70,14 +70,15 @@ describe('multiplayer utils', () => {
     });
 
     it('calls update settings with playlist and point goal values', async () => {
-        await updateMultiplayerRoomSettings('ABC234', 'playlist1', 'Hits', 250);
+        await updateMultiplayerRoomSettings('ABC234', 'playlist1', 'Hits', 250, 90);
 
         expect(httpsCallable).toHaveBeenCalledWith('mock-functions', 'updateMultiplayerRoomSettings');
         expect(mockCallable).toHaveBeenCalledWith({
             roomId: 'ABC234',
             playlistId: 'playlist1',
             playlistName: 'Hits',
-            pointGoal: 250
+            pointGoal: 250,
+            roundTimerSeconds: 90
         });
     });
 

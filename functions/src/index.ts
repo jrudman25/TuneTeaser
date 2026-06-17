@@ -46,7 +46,7 @@ const songVersionKeywordPattern = /(remaster(?:ed)?|version|edit|mix|live|demo|m
 
 const normalizeSongTitleForGuess = (value: unknown) => {
     const title = typeof value === 'string' ? value.trim() : '';
-    const withoutBracketedVersion = title.replace(/\s*[\[(][^\])]*(remaster(?:ed)?|version|edit|mix|live|demo|mono|stereo|anniversary|deluxe|radio)[^\])]*[\])]\s*$/i, '').trim();
+    const withoutBracketedVersion = title.replace(/\s*[[(][^\])]*(remaster(?:ed)?|version|edit|mix|live|demo|mono|stereo|anniversary|deluxe|radio)[^\])]*[\])]\s*$/i, '').trim();
     const bracketCleaned = withoutBracketedVersion || title;
     const withoutDashVersion = bracketCleaned.replace(/\s+-\s+.*(remaster(?:ed)?|version|edit|mix|live|demo|mono|stereo|anniversary|deluxe|radio).*$/i, '').trim();
     const cleaned = songVersionKeywordPattern.test(bracketCleaned) ? withoutDashVersion || bracketCleaned : bracketCleaned;
@@ -575,7 +575,7 @@ const settleRoundIfComplete = async (
 ) => {
     const db = getFirestore();
     const roomRef = db.collection('multiplayerRooms').doc(roomId);
-    let nextRoundInput: { hostUid: string; playlistId: string; roundNumber: number } | null = null;
+    let nextRoundInput: { hostUid: string; playlistId: string; roundNumber: number; roundTimerSeconds: number } | null = null;
 
     await db.runTransaction(async transaction => {
         const roomSnap = await transaction.get(roomRef);
@@ -635,11 +635,12 @@ const settleRoundIfComplete = async (
         nextRoundInput = {
             hostUid: room.hostUid,
             playlistId: room.playlistId,
-            roundNumber: (room.currentRound?.roundNumber || 1) + 1
+            roundNumber: (room.currentRound?.roundNumber || 1) + 1,
+            roundTimerSeconds: room.roundTimerSeconds || DEFAULT_ROUND_TIMER_SECONDS
         };
     });
 
-    const roundToStart = nextRoundInput as { hostUid: string; playlistId: string; roundNumber: number } | null;
+    const roundToStart = nextRoundInput as { hostUid: string; playlistId: string; roundNumber: number; roundTimerSeconds: number } | null;
     if (roundToStart) {
         await startNextMultiplayerRound(
             db,
@@ -648,7 +649,7 @@ const settleRoundIfComplete = async (
             roundToStart.hostUid,
             roundToStart.playlistId,
             roundToStart.roundNumber,
-            room.roundTimerSeconds || DEFAULT_ROUND_TIMER_SECONDS
+            roundToStart.roundTimerSeconds
         );
     }
 };
