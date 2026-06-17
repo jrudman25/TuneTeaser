@@ -31,6 +31,7 @@ export interface MultiplayerRoom {
     visibility: 'private' | 'public';
     maxPlayers: number;
     pointGoal: number;
+    roundTimerSeconds: number;
     playerCount: number;
     playlistId: string | null;
     playlistName: string | null;
@@ -66,6 +67,8 @@ export interface MultiplayerRound {
     albumName: string;
     artworkUrl: string | null;
     startedAt: number;
+    endsAt: number;
+    roundTimerSeconds: number;
     snippetDurationMs: number;
     state: 'playing' | 'advancing' | 'completed';
     roundNumber: number;
@@ -129,13 +132,15 @@ export const updateMultiplayerRoomSettings = (
     roomId: string,
     playlistId: string,
     playlistName: string,
-    pointGoal: number
+    pointGoal: number,
+    roundTimerSeconds: number
 ) => {
     return callRoomFunction('updateMultiplayerRoomSettings', {
         roomId,
         playlistId,
         playlistName,
-        pointGoal
+        pointGoal,
+        roundTimerSeconds
     });
 };
 

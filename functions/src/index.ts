@@ -18,6 +18,9 @@ const MULTIPLAYER_ROOM_LIMIT_FREE = 5;
 const MULTIPLAYER_ROOM_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MULTIPLAYER_ROOM_CODE_LENGTH = 6;
 const MIN_TRACKS_FOR_LEADERBOARD_POINTS = 10;
+const DEFAULT_ROUND_TIMER_SECONDS = 90;
+const MIN_ROUND_TIMER_SECONDS = 15;
+const MAX_ROUND_TIMER_SECONDS = 300;
 const LEADERBOARD_SCORE_COOLDOWN_MS = 10 * 60 * 1000;
 const MIN_SNIPPET_DURATION_MS = 2000;
 const MAX_SNIPPET_DURATION_MS = 30000;
@@ -456,7 +459,8 @@ const startNextMultiplayerRound = async (
     roomId: string,
     hostUid: string,
     playlistId: string,
-    roundNumber: number
+    roundNumber: number,
+    roundTimerSeconds: number
 ) => {
     const tracks = await getHostPlaylistTracks(hostUid, playlistId);
     const playableTracks = getPlayableTracks(tracks);
@@ -496,6 +500,8 @@ const startNextMultiplayerRound = async (
         albumName,
         artworkUrl,
         startedAt: now,
+        endsAt: now + roundTimerSeconds * 1000,
+        roundTimerSeconds,
         snippetDurationMs: MIN_SNIPPET_DURATION_MS,
         state: 'playing',
         roundNumber
@@ -641,7 +647,8 @@ const settleRoundIfComplete = async (
             roomId,
             roundToStart.hostUid,
             roundToStart.playlistId,
-            roundToStart.roundNumber
+            roundToStart.roundNumber,
+            room.roundTimerSeconds || DEFAULT_ROUND_TIMER_SECONDS
         );
     }
 };
@@ -670,6 +677,7 @@ export const createMultiplayerRoom = onCall(PUBLIC_CALLABLE_OPTIONS, async (requ
             visibility: 'private',
             maxPlayers: MULTIPLAYER_ROOM_LIMIT_FREE,
             pointGoal: 100,
+            roundTimerSeconds: DEFAULT_ROUND_TIMER_SECONDS,
             playerCount: 1,
             playlistId: null,
             playlistName: null,
@@ -767,6 +775,7 @@ export const updateMultiplayerRoomSettings = onCall(PUBLIC_CALLABLE_OPTIONS, asy
     const playlistId = typeof request.data?.playlistId === 'string' ? request.data.playlistId.trim().slice(0, 128) : '';
     const playlistName = typeof request.data?.playlistName === 'string' ? request.data.playlistName.trim().slice(0, 128) : '';
     const pointGoal = Number(request.data?.pointGoal);
+    const roundTimerSeconds = Number(request.data?.roundTimerSeconds);
 
     if (!playlistId || !playlistName) {
         throw new HttpsError('invalid-argument', 'Pick a playlist before starting multiplayer.');
@@ -774,6 +783,10 @@ export const updateMultiplayerRoomSettings = onCall(PUBLIC_CALLABLE_OPTIONS, asy
 
     if (!Number.isInteger(pointGoal) || pointGoal < 10 || pointGoal > 1000) {
         throw new HttpsError('invalid-argument', 'Point goal must be between 10 and 1000.');
+    }
+
+    if (!Number.isInteger(roundTimerSeconds) || roundTimerSeconds < MIN_ROUND_TIMER_SECONDS || roundTimerSeconds > MAX_ROUND_TIMER_SECONDS) {
+        throw new HttpsError('invalid-argument', `Round timer must be between ${MIN_ROUND_TIMER_SECONDS} and ${MAX_ROUND_TIMER_SECONDS} seconds.`);
     }
 
     const { roomRef, room } = await getRoomRefForHost(roomId, uid);
@@ -786,6 +799,7 @@ export const updateMultiplayerRoomSettings = onCall(PUBLIC_CALLABLE_OPTIONS, asy
         playlistId,
         playlistName,
         pointGoal,
+        roundTimerSeconds,
         status: 'lobby',
         updatedAt: Date.now()
     });
@@ -802,7 +816,7 @@ export const startMultiplayerGame = onCall(PUBLIC_CALLABLE_OPTIONS, async (reque
         throw new HttpsError('failed-precondition', 'Pick a playlist before starting.');
     }
 
-    await startNextMultiplayerRound(db, roomRef, roomId, uid, room.playlistId, 1);
+    await startNextMultiplayerRound(db, roomRef, roomId, uid, room.playlistId, 1, room.roundTimerSeconds || DEFAULT_ROUND_TIMER_SECONDS);
 
     return { roomId };
 });
@@ -1030,7 +1044,7 @@ export const playMultiplayerAgain = onCall(PUBLIC_CALLABLE_OPTIONS, async (reque
     });
     await batch.commit();
 
-    await startNextMultiplayerRound(db, roomRef, roomId, uid, room.playlistId, 1);
+    await startNextMultiplayerRound(db, roomRef, roomId, uid, room.playlistId, 1, room.roundTimerSeconds || DEFAULT_ROUND_TIMER_SECONDS);
     return { roomId };
 });
 

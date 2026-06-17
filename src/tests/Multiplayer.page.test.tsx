@@ -111,6 +111,7 @@ const room = {
     visibility: 'private',
     maxPlayers: 5,
     pointGoal: 100,
+    roundTimerSeconds: 90,
     playerCount: 2,
     playlistId: 'playlist-1',
     playlistName: 'Party Mix',
@@ -150,6 +151,8 @@ const playingRoom = {
         artworkUrl: null,
         answerHash: 'hash',
         startedAt: 10,
+        endsAt: Date.now() + 90_000,
+        roundTimerSeconds: 90,
         snippetDurationMs: 2000,
         state: 'playing',
         roundNumber: 1
@@ -280,7 +283,7 @@ describe('Multiplayer page', () => {
 
         await user.click(screen.getByRole('button', { name: /chill mix/i }));
         await waitFor(() => {
-            expect(updateMultiplayerRoomSettings).toHaveBeenCalledWith('ABC123', 'playlist-2', 'Chill Mix', 100);
+            expect(updateMultiplayerRoomSettings).toHaveBeenCalledWith('ABC123', 'playlist-2', 'Chill Mix', 100, 90);
         });
 
         await user.clear(screen.getByLabelText(/point goal/i));
@@ -289,7 +292,7 @@ describe('Multiplayer page', () => {
         await user.click(screen.getByRole('button', { name: /start game/i }));
 
         await waitFor(() => {
-            expect(updateMultiplayerRoomSettings).toHaveBeenCalledWith('ABC123', 'playlist-2', 'Chill Mix', 250);
+            expect(updateMultiplayerRoomSettings).toHaveBeenCalledWith('ABC123', 'playlist-2', 'Chill Mix', 250, 90);
             expect(startMultiplayerGame).toHaveBeenCalledWith('ABC123');
         });
 
@@ -447,5 +450,40 @@ describe('Multiplayer page', () => {
         unmount();
 
         expect(leaveMultiplayerRoom).toHaveBeenCalledWith('ABC123');
+    });
+
+    it('displays the round timer during gameplay', async () => {
+        mocks.roomSnapshot = playingRoom;
+        mocks.playersSnapshot = [guessingHostPlayer, correctGuestPlayer];
+
+        renderPage('/multiplayer/ABC123');
+
+        await waitFor(() => {
+            expect(getMultiplayerRoundData).toHaveBeenCalledWith('ABC123', 'round-1');
+        });
+
+        const timer = document.querySelector('.round-timer');
+        expect(timer).not.toBeNull();
+        expect(timer?.textContent).toMatch(/\d+:\d{2}/);
+    });
+
+    it('passes roundTimerSeconds when saving settings', async () => {
+        const user = userEvent.setup();
+        mocks.roomSnapshot = room;
+        mocks.playersSnapshot = [hostPlayer, guestPlayer];
+
+        renderPage('/multiplayer/ABC123');
+
+        await waitFor(() => {
+            expect(screen.getByText('Friday Party')).toBeInTheDocument();
+        });
+
+        await user.clear(screen.getByLabelText(/round timer/i));
+        await user.type(screen.getByLabelText(/round timer/i), '60');
+        await user.click(screen.getByRole('button', { name: /save settings/i }));
+
+        await waitFor(() => {
+            expect(updateMultiplayerRoomSettings).toHaveBeenCalledWith('ABC123', 'playlist-1', 'Party Mix', 100, 60);
+        });
     });
 });

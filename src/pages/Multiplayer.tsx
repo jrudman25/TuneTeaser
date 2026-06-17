@@ -70,6 +70,8 @@ const Multiplayer = () => {
     const [selectedPlaylistId, setSelectedPlaylistId] = useState('');
     const [selectedPlaylistName, setSelectedPlaylistName] = useState('');
     const [pointGoal, setPointGoal] = useState(100);
+    const [roundTimerSeconds, setRoundTimerSeconds] = useState(90);
+    const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
     const [playlistSearch, setPlaylistSearch] = useState('');
     const [roundData, setRoundData] = useState<MultiplayerRoundData | null>(null);
     const [roundDataId, setRoundDataId] = useState('');
@@ -170,7 +172,41 @@ const Multiplayer = () => {
         setSelectedPlaylistId(room.playlistId || '');
         setSelectedPlaylistName(room.playlistName || '');
         setPointGoal(room.pointGoal || 100);
+        setRoundTimerSeconds(room.roundTimerSeconds || 90);
     }, [room]);
+
+    // Countdown timer: computes time remaining from the synced endsAt timestamp
+    useEffect(() => {
+        const endsAt = room?.currentRound?.endsAt;
+        if (!endsAt || room?.status !== 'playing' || room?.currentRound?.state !== 'playing') {
+            setTimeRemaining(null);
+            return;
+        }
+
+        const tick = () => {
+            const remaining = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+            setTimeRemaining(remaining);
+        };
+
+        tick();
+        const interval = setInterval(tick, 1000);
+        return () => clearInterval(interval);
+    }, [room?.currentRound?.endsAt, room?.currentRound?.state, room?.status]);
+
+    // Auto-give-up when timer reaches 0
+    const autoGiveUpFiredRef = useRef('');
+    useEffect(() => {
+        const roundId = room?.currentRound?.id;
+        if (timeRemaining !== 0 || !roundId || !activeRoomId || !isCurrentPlayerGuessing) return;
+        if (autoGiveUpFiredRef.current === roundId) return;
+
+        autoGiveUpFiredRef.current = roundId;
+        setRoundFeedback("Time's up!");
+        pause();
+        giveUpMultiplayerRound(activeRoomId, roundId).catch(err => {
+            setError(getFirebaseMessage(err, 'Could not give up.'));
+        });
+    }, [timeRemaining, room?.currentRound?.id, activeRoomId, isCurrentPlayerGuessing, pause]);
 
     useEffect(() => {
         const roundId = room?.currentRound?.id || '';
@@ -233,7 +269,7 @@ const Multiplayer = () => {
         const activePlayer = currentPlayerRef.current;
         const activeRoom = roomRef.current;
 
-        if (!roomId || !activePlayer || activeRoom?.status !== 'lobby' || isLeavingRoomRef.current || leftRoomIdsRef.current.has(roomId)) return false;
+        if (!roomId || !activePlayer || isLeavingRoomRef.current || leftRoomIdsRef.current.has(roomId)) return false;
 
         isLeavingRoomRef.current = true;
 
@@ -284,7 +320,7 @@ const Multiplayer = () => {
             const activeRoom = roomRef.current;
             const token = cachedTokenRef.current;
 
-            if (!roomId || !activePlayer || activeRoom?.status !== 'lobby' || leftRoomIdsRef.current.has(roomId) || !token) return;
+            if (!roomId || !activePlayer || leftRoomIdsRef.current.has(roomId) || !token) return;
 
             // fetch with keepalive survives page teardown and supports Authorization headers
             // (sendBeacon cannot set custom headers).
@@ -399,7 +435,7 @@ const Multiplayer = () => {
         setIsBusy(true);
 
         try {
-            await updateMultiplayerRoomSettings(activeRoomId, playlistId, playlistName, pointGoal);
+            await updateMultiplayerRoomSettings(activeRoomId, playlistId, playlistName, pointGoal, roundTimerSeconds);
             setSuccess(`Playlist set to ${playlistName}.`);
         } catch (err) {
             setError(getFirebaseMessage(err, 'Could not update room settings.'));
@@ -419,7 +455,7 @@ const Multiplayer = () => {
         setIsBusy(true);
 
         try {
-            await updateMultiplayerRoomSettings(activeRoomId, selectedPlaylistId, selectedPlaylistName, pointGoal);
+            await updateMultiplayerRoomSettings(activeRoomId, selectedPlaylistId, selectedPlaylistName, pointGoal, roundTimerSeconds);
             setSuccess('Room settings saved.');
         } catch (err) {
             setError(getFirebaseMessage(err, 'Could not save settings.'));
@@ -750,6 +786,18 @@ const Multiplayer = () => {
                                             disabled={!isHost}
                                             onChange={event => setPointGoal(Number(event.target.value))}
                                         />
+                                        <label className="form-label" htmlFor="round-timer">Round timer (seconds)</label>
+                                        <input
+                                            id="round-timer"
+                                            className="text-input"
+                                            type="number"
+                                            min="15"
+                                            max="300"
+                                            step="5"
+                                            value={roundTimerSeconds}
+                                            disabled={!isHost}
+                                            onChange={event => setRoundTimerSeconds(Number(event.target.value))}
+                                        />
                                         <p className="body-copy">Playlist: <strong>{selectedPlaylistName || 'Not selected yet'}</strong></p>
                                         {isHost ? (
                                             <>
@@ -827,6 +875,12 @@ const Multiplayer = () => {
                                         <span className="snippet-meter">
                                             Snippet length: {(currentPlayer.roundSnippetDurationMs || room.currentRound?.snippetDurationMs || 2000) / 1000} seconds
                                         </span>
+
+                                        {timeRemaining !== null && (
+                                            <span className={`round-timer${timeRemaining <= 10 ? ' round-timer-urgent' : ''}`}>
+                                                {Math.floor(timeRemaining / 60)}:{String(timeRemaining % 60).padStart(2, '0')}
+                                            </span>
+                                        )}
 
                                         <div className="volume-console">
                                             <label className="form-label" htmlFor="multiplayer-volume">Volume</label>

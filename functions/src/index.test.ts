@@ -412,7 +412,7 @@ describe('Cloud Functions (index.ts)', () => {
             });
 
             await expect((updateMultiplayerRoomSettings as any)({
-                data: { roomId: 'ABC234', playlistId: 'playlist1', playlistName: 'Hits', pointGoal: 100 },
+                data: { roomId: 'ABC234', playlistId: 'playlist1', playlistName: 'Hits', pointGoal: 100, roundTimerSeconds: 90 },
                 auth: { uid: 'player1' }
             })).rejects.toThrow('Only the host can do that');
         });
@@ -424,7 +424,7 @@ describe('Cloud Functions (index.ts)', () => {
             });
 
             const result = await (updateMultiplayerRoomSettings as any)({
-                data: { roomId: 'ABC234', playlistId: ' playlist1 ', playlistName: ' Hits ', pointGoal: 250 },
+                data: { roomId: 'ABC234', playlistId: ' playlist1 ', playlistName: ' Hits ', pointGoal: 250, roundTimerSeconds: 90 },
                 auth: { uid: 'host123' }
             });
 
@@ -433,6 +433,7 @@ describe('Cloud Functions (index.ts)', () => {
                 playlistId: 'playlist1',
                 playlistName: 'Hits',
                 pointGoal: 250,
+                roundTimerSeconds: 90,
                 status: 'lobby'
             }));
         });
