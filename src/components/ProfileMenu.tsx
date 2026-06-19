@@ -77,15 +77,17 @@ const ProfileMenu: React.FC<ProfileMenuProps> = ({
             {isOpen && (
                 <div className="profile-menu-panel" role="menu">
                     <div className="profile-menu-summary">
-                        {!isGuest && (user?.displayName || user?.email) && (
+                        {(isGuest || user?.displayName || user?.email) && (
                             <div className="profile-menu-identity">
-                                <span className="profile-menu-username">{user?.displayName || user?.email?.split('@')[0]}</span>
-                                {user?.email && (
+                                <span className="profile-menu-username">
+                                    {isGuest ? (user?.displayName || 'Guest') : (user?.displayName || user?.email?.split('@')[0])}
+                                </span>
+                                {!isGuest && user?.email && (
                                     <span className="profile-menu-email">{user.email}</span>
                                 )}
                             </div>
                         )}
-                        {statusBadge || <span className="account-badge">{displayLabel}</span>}
+                        {statusBadge || <span className="account-badge">{isGuest ? 'Signed in as Guest' : 'Signed in with TuneTeaser'}</span>}
                     </div>
 
                     {showSettings && (

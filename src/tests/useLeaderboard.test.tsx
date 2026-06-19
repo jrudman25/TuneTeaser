@@ -63,7 +63,7 @@ describe('useLeaderboard', () => {
         expect(firestore.onSnapshot).toHaveBeenCalledTimes(1); // Only top players, since user is null
     });
 
-    it('sets up current user listener if user is logged in', async () => {
+    it('sets up current user listener if user is signed in', async () => {
         let userSnapshotCallback: (snapshot: { exists: () => boolean, data?: () => unknown }) => void;
         (firestore.onSnapshot as ReturnType<typeof vi.fn>).mockImplementation((queryOrDoc, callback) => {
             if (queryOrDoc === 'mock-doc-ref') {

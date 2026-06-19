@@ -139,7 +139,7 @@ const PlaylistCreateCustom = () => {
             </Link>
             {(user || isLoadingUser) && (
                 <button className="button button-danger" onClick={handleLogout}>
-                    Logout
+                    Sign Out
                 </button>
             )}
         </div>

@@ -55,7 +55,7 @@ const Settings = () => {
             <div className="page home-page">
                 <NavBar />
                 <div className="error-card" style={{ marginTop: '32px' }}>
-                    <p className="body-copy">You must be logged in to view settings.</p>
+                    <p className="body-copy">You must be signed in to view settings.</p>
                 </div>
             </div>
         );
@@ -129,12 +129,12 @@ const Settings = () => {
         try {
             await deleteUser(user);
             // User is deleted, the Firebase Function cleanupUserOnDelete will run in the background
-            // and we will be automatically logged out and redirected by the auth state listener.
+            // and we will be automatically signed out and redirected by the auth state listener.
             navigate('/');
         } catch (err: any) {
             console.error("Failed to delete account:", err);
             if (err.code === 'auth/requires-recent-login') {
-                alert("For security reasons, please log out and log back in before deleting your account.");
+                alert("For security reasons, please sign out and sign back in before deleting your account.");
             } else {
                 alert("Failed to delete account: " + err.message);
             }
@@ -178,7 +178,7 @@ const Settings = () => {
             </Link>
             {(user || isLoadingUser) && (
                 <button className="button button-danger" onClick={handleLogout}>
-                    {isGuest ? 'Exit Guest Mode' : 'Logout'}
+                    {isGuest ? 'Exit Guest Mode' : 'Sign Out'}
                 </button>
             )}
         </div>

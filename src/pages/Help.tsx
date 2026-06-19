@@ -36,7 +36,7 @@ const Help = () => {
     };
 
     const backPath = isGuest ? '/home?mode=guest' : user ? '/home' : '/';
-    const backLabel = user || isGuest ? 'Back to Home' : 'Back to Login';
+    const backLabel = user || isGuest ? 'Back to Home' : 'Back to Sign In';
 
     const handleLogout = async () => {
         localStorage.removeItem('accessToken');
@@ -72,7 +72,7 @@ const Help = () => {
             </Link>
             {(user || isLoadingUser) && (
                 <button className="button button-danger" onClick={handleLogout}>
-                    {isGuest ? 'Exit Guest Mode' : 'Logout'}
+                    {isGuest ? 'Exit Guest Mode' : 'Sign Out'}
                 </button>
             )}
         </div>
@@ -309,8 +309,8 @@ const Help = () => {
                                         TuneTeaser supports three distinct modes of interaction:
                                     </p>
                                     <ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px', fontWeight: 700, color: 'var(--ink-soft)' }}>
-                                        <li><strong>TuneTeaser Account:</strong> Sign up with an email and password to back up your custom lists, sync multiple devices, and climb the leaderboard.</li>
-                                        <li><strong>Spotify Login:</strong> Log in directly via Spotify to use your Spotify library without pasting links manually. Only available via invite, and leaderboard scoring is not enabled for Spotify-only sessions yet.</li>
+                                        <li><strong>TuneTeaser Account:</strong> Create an account with an email and password to back up your custom lists, sync multiple devices, and climb the leaderboard.</li>
+                                        <li><strong>Spotify Sign In:</strong> Sign in directly via Spotify to use your Spotify library without pasting links manually. Only available via invite, and leaderboard scoring is not enabled for Spotify-only sessions yet.</li>
                                         <li><strong>Guest Mode:</strong> Play immediately. We sign you in anonymously behind the scenes using secure isolated tokens to separate your session. Playlist metadata is saved in your local browser storage, while track snapshots may be uploaded to cloud storage so the game can load them. No email is collected and no scores go to the global leaderboard.</li>
                                     </ul>
                                 </div>

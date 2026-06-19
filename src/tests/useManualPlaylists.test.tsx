@@ -109,7 +109,7 @@ describe('useManualPlaylists', () => {
     });
 
     describe('Authenticated User Flows', () => {
-        it('fetches playlists from firestore for logged in user', async () => {
+        it('fetches playlists from firestore for signed in user', async () => {
             (firestore.getDocs as ReturnType<typeof vi.fn>).mockResolvedValue({
                 docs: [
                     { id: 'p1', data: () => ({ name: 'Auth Playlist' }) }
@@ -127,7 +127,7 @@ describe('useManualPlaylists', () => {
             expect(firestore.collection).toHaveBeenCalledWith({}, 'users', 'user123', 'playlists');
         });
 
-        it('adds a new playlist for logged in user to firestore', async () => {
+        it('adds a new playlist for signed in user to firestore', async () => {
             // First getDocs is to check limits
             (firestore.getDocs as ReturnType<typeof vi.fn>).mockResolvedValue({ docs: [] });
 

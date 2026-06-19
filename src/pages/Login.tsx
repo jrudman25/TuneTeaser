@@ -40,11 +40,11 @@ const getGracefulAuthErrorMessage = (error: any): string => {
         case 'auth/wrong-password':
             return 'Incorrect email or password. Please verify your credentials and try again.';
         case 'auth/user-not-found':
-            return "No account exists for this email address. Did you mean to Sign Up?";
+            return "No account exists for this email address. Did you mean to Create Account?";
         case 'auth/invalid-email':
             return 'Please enter a valid email address.';
         case 'auth/email-already-in-use':
-            return 'This email address is already in use. Try logging in instead.';
+            return 'This email address is already in use. Try signing in instead.';
         case 'auth/weak-password':
             return 'Your password is too weak. Please use at least 6 characters.';
         case 'auth/too-many-requests':
@@ -333,14 +333,14 @@ const Login = () => {
                                                         className={`button ${authMode === 'login' ? 'button-tertiary' : 'button-secondary'}`}
                                                         onClick={() => handleAuthModeChange('login')}
                                                     >
-                                                        Login
+                                                        Sign In
                                                     </button>
                                                     <button
                                                         type="button"
                                                         className={`button ${authMode === 'signup' ? 'button-tertiary' : 'button-secondary'}`}
                                                         onClick={() => handleAuthModeChange('signup')}
                                                     >
-                                                        Sign Up
+                                                        Create Account
                                                     </button>
                                                 </div>
                                                 <form className="auth-form" onSubmit={handleTuneTeaserAuth}>
@@ -404,7 +404,7 @@ const Login = () => {
                                                     )}
                                                     {tuneTeaserAuthError && <div className="error-banner">{tuneTeaserAuthError}</div>}
                                                     <button className="button button-large" type="submit" disabled={isTuneTeaserSubmitting}>
-                                                        {isTuneTeaserSubmitting ? 'Working...' : authMode === 'signup' ? 'Create Account' : 'Login'}
+                                                        {isTuneTeaserSubmitting ? 'Working...' : authMode === 'signup' ? 'Create Account' : 'Sign In'}
                                                     </button>
                                                 </form>
                                             </div>
@@ -414,7 +414,7 @@ const Login = () => {
                                                 </button>
                                                 <span className="auth-alt-sep">{'\u00B7'}</span>
                                                 <button className="text-link" type="button" onClick={handleLogin}>
-                                                    Login with Spotify (invite only)
+                                                    Sign In with Spotify (invite only)
                                                 </button>
                                             </div>
                                         </>

@@ -360,7 +360,7 @@ const PlaylistImportSpotify = () => {
             </Link>
             {(user || isLoadingUser) && (
                 <button className="button button-danger" onClick={handleLogout}>
-                    {isGuest ? 'Exit Guest Mode' : 'Logout'}
+                    {isGuest ? 'Exit Guest Mode' : 'Sign Out'}
                 </button>
             )}
         </div>

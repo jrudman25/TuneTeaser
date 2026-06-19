@@ -85,7 +85,13 @@ const NavBar: React.FC<NavBarProps> = ({ statusBadge, actionButtons, onNavigate 
                                 user={user}
                                 isGuest={isGuest}
                                 showSettings={isProbablyLoggedIn}
-                                statusBadge={statusBadge}
+                                statusBadge={statusBadge || (
+                                    <div className="status-stack">
+                                        <span className="account-badge">
+                                            {isGuest ? 'Signed in as Guest' : (isSpotifyUser ? 'Signed in with Spotify' : 'Signed in with TuneTeaser')}
+                                        </span>
+                                    </div>
+                                )}
                                 actionButtons={actionButtons}
                             />
                         )}

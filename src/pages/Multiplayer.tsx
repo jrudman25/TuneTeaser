@@ -651,7 +651,7 @@ const Multiplayer = () => {
         try {
             await signOut(auth);
         } catch (err) {
-            setError(getFirebaseMessage(err, 'Could not log out.'));
+            setError(getFirebaseMessage(err, 'Could not sign out.'));
             return;
         }
 
@@ -673,7 +673,7 @@ const Multiplayer = () => {
             )}
             {(user || isLoadingUser) && (
                 <button className="button button-danger" type="button" disabled={isBusy} onClick={handleLogout}>
-                    {effectiveGuest ? 'Exit Guest Mode' : 'Logout'}
+                    {effectiveGuest ? 'Exit Guest Mode' : 'Sign Out'}
                 </button>
             )}
         </div>

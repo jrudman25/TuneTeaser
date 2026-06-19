@@ -56,7 +56,7 @@ export const usePlaylists = (
                 });
 
                 if (response.status === 401) {
-                    setPlaylistError('Your Spotify session has expired. Please log in again.');
+                    setPlaylistError('Your Spotify session has expired. Please sign in again.');
                     break;
                 }
 

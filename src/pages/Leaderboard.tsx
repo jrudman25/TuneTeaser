@@ -42,7 +42,7 @@ const Leaderboard = () => {
     const isInTop10 = isLoggedIn && topPlayers.some(p => p.uid === user?.uid);
 
     const backPath = isProbablyLoggedIn ? (isProbablyGuest ? '/home?mode=guest' : '/home') : '/';
-    const backLabel = isProbablyLoggedIn ? 'Back to Home' : 'Back to Login';
+    const backLabel = isProbablyLoggedIn ? 'Back to Home' : 'Back to Sign In';
 
     const handleLogout = async () => {
         localStorage.removeItem('accessToken');
@@ -78,7 +78,7 @@ const Leaderboard = () => {
             </Link>
             {(user || isLoadingUser) && (
                 <button className="button button-danger" onClick={handleLogout}>
-                    {isProbablyGuest ? 'Exit Guest Mode' : 'Logout'}
+                    {isProbablyGuest ? 'Exit Guest Mode' : 'Sign Out'}
                 </button>
             )}
         </div>
@@ -110,8 +110,8 @@ const Leaderboard = () => {
                             {!isLoggedIn && (
                                 <span style={{ display: 'block', marginTop: '10px', fontSize: '0.95rem', color: 'var(--ink-soft)', fontWeight: 800 }}>
                                     {user?.isAnonymous
-                                        ? 'You are playing in Guest Mode. Log in to a TuneTeaser account to save your stats and join the board!'
-                                        : 'Log in to save your stats and claim a spot on the leaderboard!'}
+                                        ? 'You are playing in Guest Mode. Sign in to a TuneTeaser account to save your stats and join the board!'
+                                        : 'Sign in to save your stats and claim a spot on the leaderboard!'}
                                 </span>
                             )}
                         </p>

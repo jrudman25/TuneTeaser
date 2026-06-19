@@ -217,7 +217,7 @@ const Home = () => {
                 </Link>
             )}
             <button className="button button-danger" onClick={handleLogout}>
-                {isProbablyGuest ? 'Exit Guest Mode' : 'Logout'}
+                {isProbablyGuest ? 'Exit Guest Mode' : 'Sign Out'}
             </button>
         </div>
     );
@@ -227,7 +227,7 @@ const Home = () => {
             <>
                 <NavBar statusBadge={statusBadge} actionButtons={actionButtons} />
                 <main className="page home-page">
-                    <div className="loading-card">{isLoggingOut ? 'Logging out...' : 'Loading...'}</div>
+                    <div className="loading-card">{isLoggingOut ? 'Signing out...' : 'Loading...'}</div>
                 </main>
             </>
         );

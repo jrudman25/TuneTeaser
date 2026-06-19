@@ -152,7 +152,7 @@ const Playlists = () => {
             </Link>
             {(user || isLoadingUser) && (
                 <button className="button button-danger" onClick={handleLogout}>
-                    {isProbablyGuest ? 'Exit Guest Mode' : 'Logout'}
+                    {isProbablyGuest ? 'Exit Guest Mode' : 'Sign Out'}
                 </button>
             )}
         </div>

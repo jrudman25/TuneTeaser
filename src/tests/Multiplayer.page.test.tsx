@@ -278,7 +278,7 @@ describe('Multiplayer page', () => {
             expect(screen.getByText('Guest User')).toBeInTheDocument();
         });
         expect(screen.getByRole('link', { name: /manage playlists/i })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /logout/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument();
         expect(screen.getAllByRole('button', { name: /close room/i }).length).toBeGreaterThan(0);
 
         await user.click(screen.getByRole('button', { name: /chill mix/i }));

@@ -129,12 +129,12 @@ vi.mock('./spotify', () => ({
     normalizeTrackIds: vi.fn((ids) => ids || [])
 }));
 
-import { 
-    resolveSpotifyTracks, 
-    getPlaylistName, 
-    getUserPlaylists, 
-    importSpotifyPlaylist, 
-    getManualPlaylistTracks, 
+import {
+    resolveSpotifyTracks,
+    getPlaylistName,
+    getUserPlaylists,
+    importSpotifyPlaylist,
+    getManualPlaylistTracks,
     cleanupUserOnDelete,
     createMultiplayerRoom,
     joinMultiplayerRoom,
@@ -212,7 +212,7 @@ describe('Cloud Functions (index.ts)', () => {
     describe('submitLeaderboardScore', () => {
         it('throws unauthenticated if no auth', async () => {
             await expect((submitLeaderboardScore as any)({ data: {}, auth: undefined }))
-                .rejects.toThrow('You must be logged in');
+                .rejects.toThrow('You must be signed in');
         });
 
         it('rejects anonymous users', async () => {
@@ -289,7 +289,7 @@ describe('Cloud Functions (index.ts)', () => {
     describe('createMultiplayerRoom', () => {
         it('throws unauthenticated if no auth', async () => {
             await expect((createMultiplayerRoom as any)({ data: { roomName: 'Party' }, auth: undefined }))
-                .rejects.toThrow('You must be logged in');
+                .rejects.toThrow('You must be signed in');
         });
 
         it('creates a lobby room and host player', async () => {
@@ -914,7 +914,7 @@ describe('Cloud Functions (index.ts)', () => {
     describe('resolveSpotifyTracks', () => {
         it('throws unauthenticated if no auth', async () => {
             await expect((resolveSpotifyTracks as any)({ data: {}, auth: undefined }))
-                .rejects.toThrow('You must be logged in');
+                .rejects.toThrow('You must be signed in');
         });
 
         it('returns early if no valid trackIds', async () => {
@@ -927,7 +927,7 @@ describe('Cloud Functions (index.ts)', () => {
     describe('getPlaylistName', () => {
         it('throws unauthenticated if no auth', async () => {
             await expect((getPlaylistName as any)({ data: {}, auth: undefined }))
-                .rejects.toThrow('You must be logged in');
+                .rejects.toThrow('You must be signed in');
         });
 
         it('throws invalid-argument for bad playlist ID', async () => {
@@ -945,7 +945,7 @@ describe('Cloud Functions (index.ts)', () => {
     describe('getUserPlaylists', () => {
         it('throws unauthenticated if no auth', async () => {
             await expect((getUserPlaylists as any)({ data: {}, auth: undefined }))
-                .rejects.toThrow('You must be logged in');
+                .rejects.toThrow('You must be signed in');
         });
 
         it('throws invalid-argument for empty profile URL', async () => {
@@ -979,7 +979,7 @@ describe('Cloud Functions (index.ts)', () => {
     describe('getManualPlaylistTracks', () => {
         it('throws unauthenticated if no auth', async () => {
             await expect((getManualPlaylistTracks as any)({ data: {}, auth: undefined }))
-                .rejects.toThrow('You must be logged in');
+                .rejects.toThrow('You must be signed in');
         });
 
         it('throws invalid-argument for missing playlist ID', async () => {
@@ -1052,10 +1052,10 @@ describe('Cloud Functions (index.ts)', () => {
             mockCollectionGet
                 .mockResolvedValueOnce({ empty: false, size: 1, docs: [{ ref: 'score-ref' }] })
                 .mockResolvedValueOnce({
-                empty: false,
-                size: 2,
-                docs: [{ ref: 'playlist-ref-1' }, { ref: 'playlist-ref-2' }]
-            });
+                    empty: false,
+                    size: 2,
+                    docs: [{ ref: 'playlist-ref-1' }, { ref: 'playlist-ref-2' }]
+                });
 
             await (cleanupAnonymousUsers as any)();
 

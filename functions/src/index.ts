@@ -193,7 +193,7 @@ const getRoomId = (value: unknown) => {
 
 const getAuthedUid = (request: any) => {
     if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'You must be logged in.');
+        throw new HttpsError('unauthenticated', 'You must be signed in.');
     }
     return request.auth.uid;
 };
@@ -1294,7 +1294,7 @@ export const getManualPlaylistTracks = onCall({
     timeoutSeconds: 30
 }, async (request) => {
     if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'You must be logged in.');
+        throw new HttpsError('unauthenticated', 'You must be signed in.');
     }
 
     const playlistId = typeof request.data?.playlistId === 'string'
@@ -1337,7 +1337,7 @@ export const cleanupAnonymousUsers = onSchedule('every 24 hours', async () => {
     const auth = getAuth();
     const now = Date.now();
     const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
-    
+
     let nextPageToken: string | undefined;
     let deletedCount = 0;
 
@@ -1360,7 +1360,7 @@ export const cleanupAnonymousUsers = onSchedule('every 24 hours', async () => {
                 await auth.deleteUsers(uidsToDelete);
                 deletedCount += uidsToDelete.length;
             }
-            
+
             nextPageToken = listUsersResult.pageToken;
         } while (nextPageToken);
 

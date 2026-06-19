@@ -177,7 +177,7 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
         }
 
         const collectionRef = getCollectionRef();
-        if (!collectionRef || !user) throw new Error('You must be logged in to add playlists.');
+        if (!collectionRef || !user) throw new Error('You must be signed in to add playlists.');
 
         // Check for duplicate playlist names and count limit
         const snapshot = await getDocs(collectionRef);
@@ -245,7 +245,7 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
             return;
         }
 
-        if (!user) throw new Error('You must be logged in to update playlists.');
+        if (!user) throw new Error('You must be signed in to update playlists.');
 
         const playlistDocRef = doc(db, 'users', user.uid, 'playlists', playlistId);
         await updateDoc(playlistDocRef, {
@@ -277,7 +277,7 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
             return;
         }
 
-        if (!user) throw new Error('You must be logged in to delete playlists.');
+        if (!user) throw new Error('You must be signed in to delete playlists.');
 
         await deleteDoc(doc(db, 'users', user.uid, 'playlists', playlistId));
         await fetchManualPlaylists(true);
