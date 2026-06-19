@@ -28,11 +28,12 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const SPOTIFY_READ_RATE_LIMIT = 20;
 const SPOTIFY_IMPORT_RATE_LIMIT = 30;
 const MULTIPLAYER_ROUND_LOOKUP_ATTEMPTS = 8;
+const ROUND_REVEAL_DELAY_MS = 5000;
 
 export const shouldEnforceAppCheck = () => process.env.FUNCTIONS_EMULATOR !== 'true';
 
 const PUBLIC_CALLABLE_OPTIONS = {
-    timeoutSeconds: 15,
+    timeoutSeconds: 30,
     memory: '256MiB',
     invoker: 'public',
     enforceAppCheck: shouldEnforceAppCheck()
@@ -622,13 +623,15 @@ const settleRoundIfComplete = async (
             return;
         }
 
+        const advancesAt = now + ROUND_REVEAL_DELAY_MS;
         transaction.update(roomRef, {
             updatedAt: now,
             revealedRound,
             currentRound: {
                 ...room.currentRound,
                 state: 'advancing',
-                completedAt: now
+                completedAt: now,
+                advancesAt
             }
         });
 
@@ -642,6 +645,7 @@ const settleRoundIfComplete = async (
 
     const roundToStart = nextRoundInput as { hostUid: string; playlistId: string; roundNumber: number; roundTimerSeconds: number } | null;
     if (roundToStart) {
+        await new Promise(resolve => setTimeout(resolve, ROUND_REVEAL_DELAY_MS));
         await startNextMultiplayerRound(
             db,
             roomRef,

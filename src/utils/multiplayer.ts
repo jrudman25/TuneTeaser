@@ -73,6 +73,7 @@ export interface MultiplayerRound {
     state: 'playing' | 'advancing' | 'completed';
     roundNumber: number;
     completedAt?: number;
+    advancesAt?: number;
 }
 
 export interface MultiplayerRevealedRound {

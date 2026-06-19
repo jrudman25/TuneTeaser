@@ -1078,6 +1078,69 @@
     text-align: center;
   }
 
+  .round-reveal-banner {
+    display: grid;
+    gap: 6px;
+    justify-items: center;
+    text-align: center;
+    border: 3px solid var(--teal);
+    border-radius: var(--radius-md);
+    padding: 22px 18px;
+    background: rgba(22, 140, 132, 0.1);
+    box-shadow: 6px 6px 0 rgba(22, 140, 132, 0.22);
+    animation: revealSlideIn 400ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+
+  .round-reveal-banner .eyebrow {
+    background: var(--teal);
+    margin-bottom: 4px;
+  }
+
+  .reveal-title {
+    margin: 0;
+    font-family: var(--display);
+    font-size: clamp(1.3rem, 3.5vw, 2rem);
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    text-transform: uppercase;
+    color: var(--ink);
+  }
+
+  .reveal-artist {
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: 1.05rem;
+    font-weight: 800;
+    line-height: 1.4;
+  }
+
+  .reveal-countdown {
+    display: inline-flex;
+    align-items: center;
+    margin-top: 6px;
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--cream);
+    background: var(--teal);
+    box-shadow: 3px 3px 0 var(--ink);
+  }
+
+  @keyframes revealSlideIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
   .record-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));

@@ -196,6 +196,26 @@ const Multiplayer = () => {
         return () => clearInterval(interval);
     }, [room?.currentRound?.endsAt, room?.currentRound?.state, room?.status]);
 
+    // Reveal countdown: ticks down from advancesAt when round is advancing between rounds
+    const [revealTimeRemaining, setRevealTimeRemaining] = useState<number | null>(null);
+    useEffect(() => {
+        const advancesAt = room?.currentRound?.advancesAt;
+        if (!advancesAt || room?.currentRound?.state !== 'advancing') {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            setRevealTimeRemaining(null);
+            return;
+        }
+
+        const tick = () => {
+            const remaining = Math.max(0, Math.ceil((advancesAt - Date.now()) / 1000));
+            setRevealTimeRemaining(remaining);
+        };
+
+        tick();
+        const interval = setInterval(tick, 1000);
+        return () => clearInterval(interval);
+    }, [room?.currentRound?.advancesAt, room?.currentRound?.state]);
+
     // Auto-give-up when timer reaches 0
     const autoGiveUpFiredRef = useRef('');
     useEffect(() => {
@@ -954,24 +974,40 @@ const Multiplayer = () => {
                                             </button>
                                         </div>
 
-                                        {room.revealedRound && (
-                                            <div className="feedback-pill">
-                                                Answer: {room.revealedRound.title} by {room.revealedRound.artistName}
+                                        {room.currentRound?.state === 'advancing' && room.revealedRound ? (
+                                            <div className="round-reveal-banner">
+                                                <span className="eyebrow">Answer revealed</span>
+                                                <h3 className="reveal-title">{room.revealedRound.title}</h3>
+                                                <p className="reveal-artist">by {room.revealedRound.artistName}</p>
+                                                {revealTimeRemaining !== null && revealTimeRemaining > 0 && (
+                                                    <span className="reveal-countdown">Next round in {revealTimeRemaining}...</span>
+                                                )}
+                                                {revealTimeRemaining === 0 && (
+                                                    <span className="reveal-countdown">Starting next round...</span>
+                                                )}
                                             </div>
-                                        )}
-                                        {roundFeedback && <div className="feedback-pill">{roundFeedback}</div>}
+                                        ) : (
+                                            <>
+                                                {room.revealedRound && (
+                                                    <div className="feedback-pill">
+                                                        Answer: {room.revealedRound.title} by {room.revealedRound.artistName}
+                                                    </div>
+                                                )}
+                                                {roundFeedback && <div className="feedback-pill">{roundFeedback}</div>}
 
-                                        <div className="give-up-zone">
-                                            <span className="helper-text">Stuck on this round?</span>
-                                            <button
-                                                className="button button-danger"
-                                                type="button"
-                                                disabled={isBusy || !isCurrentPlayerGuessing}
-                                                onClick={handleGiveUpRound}
-                                            >
-                                                Give Up
-                                            </button>
-                                        </div>
+                                                <div className="give-up-zone">
+                                                    <span className="helper-text">Stuck on this round?</span>
+                                                    <button
+                                                        className="button button-danger"
+                                                        type="button"
+                                                        disabled={isBusy || !isCurrentPlayerGuessing}
+                                                        onClick={handleGiveUpRound}
+                                                    >
+                                                        Give Up
+                                                    </button>
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
 
                                     <div className="multiplayer-card">

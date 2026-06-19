@@ -291,6 +291,17 @@ const Login = () => {
         }
     };
 
+    if (isLoading) {
+        return (
+            <>
+                <NavBar />
+                <main className="page hero-page">
+                    <div className="loading-card">Loading...</div>
+                </main>
+            </>
+        );
+    }
+
     return (
         <>
             <NavBar />
@@ -311,13 +322,9 @@ const Login = () => {
                             </ol>
                         </div>
                         <div className="hero-actions">
-                            {isLoading ? (
-                                <div className="loading-card">Checking authentication...</div>
-                            ) : (
-                                <>
-                                    {accountName ? (
-                                        <p className="lede">Welcome, {accountName}!</p>
-                                    ) : (
+                                {accountName ? (
+                                    <p className="lede">Welcome, {accountName}!</p>
+                                ) : (
                                         <>
                                             <div className="auth-panel">
                                                 <div className="auth-toggle-row">
@@ -412,8 +419,6 @@ const Login = () => {
                                             </div>
                                         </>
                                     )}
-                                </>
-                            )}
                         </div>
                     </div>
                     <div className="record-visual" aria-hidden="true" />
