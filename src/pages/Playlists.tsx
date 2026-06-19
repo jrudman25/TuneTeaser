@@ -128,9 +128,9 @@ const Playlists = () => {
         localStorage.removeItem('verifier');
         sessionStorage.removeItem('accessToken');
 
-        if (!isGuest || (isGuest && user?.isAnonymous)) {
+        try {
             await signOut(auth);
-        }
+        } catch { /* no active Firebase session */ }
 
         navigate('/');
     };

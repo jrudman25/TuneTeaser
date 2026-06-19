@@ -190,9 +190,9 @@ const Home = () => {
         localStorage.removeItem('verifier');
         sessionStorage.removeItem('accessToken');
 
-        if (isManualMode || (isGuest && user?.isAnonymous)) {
+        try {
             await signOut(auth);
-        }
+        } catch { /* no active Firebase session */ }
 
         navigate('/');
     };

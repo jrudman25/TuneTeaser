@@ -5,7 +5,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signInAnonymously, updateProfile } from 'firebase/auth';
+import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signInAnonymously, signOut, updateProfile } from 'firebase/auth';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { auth } from '../backend/FirebaseConfig';
@@ -218,10 +218,20 @@ const Login = () => {
                     return;
                 }
 
-                // 2. Create the user in Auth first so they are authenticated
-                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                // 2. Create the user in Firebase Auth
+                let userCredential;
+                try {
+                    userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                } catch (createError: any) {
+                    setTuneTeaserAuthError(getGracefulAuthErrorMessage(createError));
+                    setIsTuneTeaserSubmitting(false);
+                    return;
+                }
 
-                // 3. Check if username is taken in the leaderboard (now fully authorized since user is authenticated)
+                // 3. Post-creation setup: username check, profile, leaderboard.
+                // If ANY step fails, roll back by deleting the account and signing
+                // out so the user can retry cleanly without hitting
+                // auth/email-already-in-use on their next attempt.
                 try {
                     const q = query(
                         collection(db, 'leaderboard'),
@@ -229,42 +239,46 @@ const Login = () => {
                     );
                     const querySnapshot = await getDocs(q);
                     if (!querySnapshot.empty) {
-                        // Username is taken! Delete the newly created user to roll back
-                        try {
-                            await userCredential.user.delete();
-                        } catch (deleteError) {
-                            console.error("Failed to delete rolled-back user:", deleteError);
-                        }
-                        setTuneTeaserAuthError('This username is already taken. Please choose another one.');
-                        setIsTuneTeaserSubmitting(false);
-                        return;
+                        throw Object.assign(
+                            new Error('This username is already taken. Please choose another one.'),
+                            { _isUserFacing: true }
+                        );
                     }
-                } catch (firestoreError) {
-                    // If Firestore permissions or connection failed, roll back the account and show error
-                    console.error("Firestore username query failed:", firestoreError);
+
+                    await updateProfile(userCredential.user, { displayName: trimmedUsername });
+
+                    // Initialize leaderboard document to reserve the username immediately
+                    const userDocRef = doc(db, 'leaderboard', userCredential.user.uid);
+                    await setDoc(userDocRef, {
+                        displayName: trimmedUsername,
+                        totalPoints: 0,
+                        gamesWon: 0,
+                        lastUpdated: serverTimestamp()
+                    });
+
+                    sessionStorage.removeItem('isSigningUp');
+                    navigate('/home');
+                } catch (setupError: any) {
+                    // Roll back the Firebase Auth account
                     try {
                         await userCredential.user.delete();
                     } catch (deleteError) {
-                        console.error("Failed to delete rolled-back user after Firestore error:", deleteError);
+                        console.error('Failed to roll back user after setup failure:', deleteError);
                     }
-                    setTuneTeaserAuthError('Database check failed. Please try again.');
+                    // Clear auth state so onAuthStateChanged does not redirect
+                    try {
+                        await signOut(auth);
+                    } catch { /* already signed out via delete */ }
+
+                    if (setupError._isUserFacing) {
+                        setTuneTeaserAuthError(setupError.message);
+                    } else {
+                        console.error('Account setup failed:', setupError);
+                        setTuneTeaserAuthError('Account setup failed. Please try again.');
+                    }
                     setIsTuneTeaserSubmitting(false);
                     return;
                 }
-
-                await updateProfile(userCredential.user, { displayName: trimmedUsername });
-
-                // Initialize leaderboard document to reserve the username immediately
-                const userDocRef = doc(db, 'leaderboard', userCredential.user.uid);
-                await setDoc(userDocRef, {
-                    displayName: trimmedUsername,
-                    totalPoints: 0,
-                    gamesWon: 0,
-                    lastUpdated: serverTimestamp()
-                });
-
-                sessionStorage.removeItem('isSigningUp');
-                navigate('/home');
             } else {
                 await signInWithEmailAndPassword(auth, email, password);
                 navigate('/home');
