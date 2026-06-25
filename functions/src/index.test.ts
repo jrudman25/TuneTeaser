@@ -125,6 +125,7 @@ vi.mock('./spotify', () => ({
     fetchSpotifyTracks: vi.fn(() => Promise.resolve({ tracks: [], errors: [] })),
     fetchPlaylistName: vi.fn(() => Promise.resolve('Mock Playlist')),
     fetchUserPlaylists: vi.fn(() => Promise.resolve({ playlists: [] })),
+    searchSpotifyPlaylists: vi.fn(() => Promise.resolve({ playlists: [], total: 0 })),
     fetchPlaylistTracks: vi.fn(() => Promise.resolve({ name: 'P', tracks: [], total: 0, errors: [] })),
     normalizeTrackIds: vi.fn((ids) => ids || [])
 }));
@@ -133,6 +134,7 @@ import {
     resolveSpotifyTracks,
     getPlaylistName,
     getUserPlaylists,
+    searchPublicPlaylists,
     importSpotifyPlaylist,
     getManualPlaylistTracks,
     cleanupUserOnDelete,
@@ -951,6 +953,23 @@ describe('Cloud Functions (index.ts)', () => {
         it('throws invalid-argument for empty profile URL', async () => {
             await expect((getUserPlaylists as any)({ data: { profileUrl: '' }, auth: { uid: 'user1' } }))
                 .rejects.toThrow('Spotify profile URL is required');
+        });
+    });
+
+    describe('searchPublicPlaylists', () => {
+        it('throws unauthenticated if no auth', async () => {
+            await expect((searchPublicPlaylists as any)({ data: {}, auth: undefined }))
+                .rejects.toThrow('You must be signed in');
+        });
+
+        it('throws invalid-argument for short query', async () => {
+            await expect((searchPublicPlaylists as any)({ data: { query: 'a' }, auth: { uid: 'user1' } }))
+                .rejects.toThrow('Search for at least 2 characters');
+        });
+
+        it('returns playlist search results for valid query', async () => {
+            const result = await (searchPublicPlaylists as any)({ data: { query: 'Road Trip', ownerHint: 'Jamie' }, auth: { uid: 'user1' } });
+            expect(result).toEqual({ playlists: [], total: 0 });
         });
     });
 

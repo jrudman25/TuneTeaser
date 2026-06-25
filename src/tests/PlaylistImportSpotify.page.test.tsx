@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import PlaylistImportSpotify from '../pages/PlaylistImportSpotify';
 import { importSpotifyPlaylist } from '../utils/spotifyPlaylistImporter';
+import { searchPublicSpotifyPlaylists } from '../utils/spotifyPlaylistSearch';
 import { fetchSpotifyUserPlaylists } from '../utils/spotifyUserPlaylists';
 
 const mocks = vi.hoisted(() => ({
@@ -46,6 +47,10 @@ vi.mock('../hooks/useManualPlaylists', () => ({
 
 vi.mock('../utils/spotifyPlaylistImporter', () => ({
     importSpotifyPlaylist: vi.fn()
+}));
+
+vi.mock('../utils/spotifyPlaylistSearch', () => ({
+    searchPublicSpotifyPlaylists: vi.fn()
 }));
 
 vi.mock('../utils/spotifyUserPlaylists', async () => {
@@ -132,6 +137,57 @@ describe('PlaylistImportSpotify page', () => {
             );
         });
         expect(screen.getByText(/saved "imported road trip"/i)).toBeInTheDocument();
+    });
+
+    it('searches public playlists and imports selected search results', async () => {
+        const user = userEvent.setup();
+        vi.mocked(searchPublicSpotifyPlaylists).mockResolvedValue({
+            total: 1,
+            playlists: [
+                {
+                    id: 'search-a',
+                    name: 'Road Trip',
+                    ownerName: 'Jamie',
+                    trackCount: 14,
+                    imageUrl: 'https://image.example/cover.jpg',
+                    externalUrl: 'https://open.spotify.com/playlist/search-a'
+                }
+            ]
+        });
+        vi.mocked(importSpotifyPlaylist).mockResolvedValue({
+            name: 'Road Trip',
+            tracks: [track('sa1', 'Search Song One'), track('sa2', 'Search Song Two')],
+            total: 2,
+            errors: []
+        });
+
+        renderPage();
+
+        await user.type(screen.getByLabelText(/^playlist name$/i), 'Road Trip');
+        await user.type(screen.getByLabelText(/owner name or username/i), 'Jamie');
+        await user.click(screen.getByRole('button', { name: /search spotify/i }));
+
+        await waitFor(() => {
+            expect(searchPublicSpotifyPlaylists).toHaveBeenCalledWith('Road Trip', 'Jamie');
+        });
+
+        const resultRow = screen.getByText('Road Trip').closest('label');
+        expect(resultRow).not.toBeNull();
+        await user.click(within(resultRow as HTMLElement).getByRole('checkbox'));
+        await user.click(screen.getByRole('button', { name: /import 1 selected/i }));
+
+        await waitFor(() => {
+            expect(importSpotifyPlaylist).toHaveBeenCalledWith('search-a', 0, 100);
+            expect(mocks.addManualPlaylist).toHaveBeenCalledWith(
+                'Road Trip',
+                'https://open.spotify.com/playlist/search-a',
+                expect.arrayContaining([expect.objectContaining({ id: 'sa1' })]),
+                'ready',
+                2,
+                2
+            );
+        });
+        expect(screen.getByText(/imported road trip/i)).toBeInTheDocument();
     });
 
     it('loads profile playlists, enforces the playlist limit, and imports the remaining selected playlist', async () => {

@@ -7,7 +7,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import * as functionsV1 from 'firebase-functions/v1';
 import { createHash } from 'crypto';
-import { fetchPlaylistName, fetchPlaylistTracks, fetchSpotifyTracks, fetchUserPlaylists, getSpotifyAccessToken, normalizeTrackIds } from './spotify';
+import { fetchPlaylistName, fetchPlaylistTracks, fetchSpotifyTracks, fetchUserPlaylists, getSpotifyAccessToken, normalizeTrackIds, searchSpotifyPlaylists } from './spotify';
 import { GUEST_TRACKS } from './premadePlaylists';
 
 initializeApp();
@@ -1250,6 +1250,44 @@ export const getUserPlaylists = onCall({
         }
         if (message.includes('not found')) {
             throw new HttpsError('not-found', message);
+        }
+        throw new HttpsError('internal', message);
+    }
+});
+
+export const searchPublicPlaylists = onCall({
+    ...PUBLIC_CALLABLE_OPTIONS,
+    secrets: [spotifyClientId, spotifyClientSecret],
+    timeoutSeconds: 30,
+}, async (request) => {
+    const uid = getAuthedUid(request);
+
+    const query = typeof request.data?.query === 'string'
+        ? request.data.query.trim()
+        : '';
+    const ownerHint = typeof request.data?.ownerHint === 'string'
+        ? request.data.ownerHint.trim()
+        : '';
+
+    if (query.length < 2) {
+        throw new HttpsError('invalid-argument', 'Search for at least 2 characters.');
+    }
+    if (query.length > 80) {
+        throw new HttpsError('invalid-argument', 'Search text must be 80 characters or fewer.');
+    }
+    if (ownerHint.length > 80) {
+        throw new HttpsError('invalid-argument', 'Owner hint must be 80 characters or fewer.');
+    }
+
+    await assertUidRateLimit(uid, 'searchPublicPlaylists', SPOTIFY_READ_RATE_LIMIT);
+
+    try {
+        const accessToken = await getSpotifyAccessToken(spotifyClientId.value(), spotifyClientSecret.value());
+        return await searchSpotifyPlaylists(query, ownerHint, accessToken);
+    } catch (error: any) {
+        const message = error.message || 'Could not search Spotify playlists.';
+        if (message.includes('at least 2')) {
+            throw new HttpsError('invalid-argument', message);
         }
         throw new HttpsError('internal', message);
     }

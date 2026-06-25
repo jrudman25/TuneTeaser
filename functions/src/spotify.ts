@@ -27,6 +27,12 @@ export interface SpotifyUserPlaylist {
     name: string;
     trackCount: number;
     externalUrl: string;
+    imageUrl?: string;
+}
+
+export interface SpotifyPlaylistSearchResult extends SpotifyUserPlaylist {
+    ownerName: string;
+    imageUrl: string;
 }
 
 const SPOTIFY_TRACK_ID_PATTERN = /^[A-Za-z0-9]{22}$/;
@@ -34,6 +40,7 @@ const SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token';
 const SPOTIFY_TRACKS_URL = 'https://api.spotify.com/v1/tracks';
 const SPOTIFY_PLAYLISTS_URL = 'https://api.spotify.com/v1/playlists';
 const SPOTIFY_USERS_URL = 'https://api.spotify.com/v1/users';
+const SPOTIFY_SEARCH_URL = 'https://api.spotify.com/v1/search';
 
 let cachedAccessToken = '';
 let cachedAccessTokenExpiresAt = 0;
@@ -169,10 +176,23 @@ export const extractSpotifyUserId = (profileUrl: string): string | null => {
     }
 };
 
+const SPOTIFY_USER_ID_PATTERN = /^[A-Za-z0-9._-]{2,128}$/;
+
+const extractSpotifyUserIdFromSearchInput = (value: string): string | null => {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    const profileUserId = extractSpotifyUserId(trimmed);
+    if (profileUserId) return profileUserId;
+
+    return SPOTIFY_USER_ID_PATTERN.test(trimmed) ? trimmed : null;
+};
+
 interface SpotifyUserPlaylistsPage {
     items?: Array<{
         id?: string;
         name?: string;
+        images?: { url?: string }[];
         tracks?: { total?: number };
         external_urls?: { spotify?: string };
     }>;
@@ -190,7 +210,7 @@ export const fetchUserPlaylists = async (
 
     const headers = { Authorization: `Bearer ${accessToken}` };
     const playlists: SpotifyUserPlaylist[] = [];
-    let nextUrl: string | null = `${SPOTIFY_USERS_URL}/${encodeURIComponent(userId)}/playlists?limit=50&fields=items(id,name,tracks(total),external_urls(spotify)),next`;
+    let nextUrl: string | null = `${SPOTIFY_USERS_URL}/${encodeURIComponent(userId)}/playlists?limit=50&fields=items(id,name,images(url),tracks(total),external_urls(spotify)),next`;
 
     while (nextUrl) {
         const response = await fetch(nextUrl, { headers });
@@ -211,6 +231,7 @@ export const fetchUserPlaylists = async (
                 id: playlist.id,
                 name: playlist.name,
                 trackCount: playlist.tracks?.total || 0,
+                imageUrl: playlist.images?.find(image => typeof image?.url === 'string' && image.url.trim())?.url || '',
                 externalUrl: playlist.external_urls?.spotify || `https://open.spotify.com/playlist/${playlist.id}`
             });
         }
@@ -219,6 +240,178 @@ export const fetchUserPlaylists = async (
     }
 
     return { userId, playlists };
+};
+
+type SpotifyPlaylistSearchItem = {
+    id?: string;
+    name?: string;
+    images?: { url?: string }[];
+    tracks?: { total?: number };
+    owner?: { display_name?: string; id?: string };
+    external_urls?: { spotify?: string };
+};
+
+interface SpotifyPlaylistSearchPage {
+    playlists?: {
+        total?: number;
+        items?: Array<SpotifyPlaylistSearchItem | null>;
+    };
+}
+
+type SpotifyPlaylistSearchCandidate = SpotifyPlaylistSearchResult & {
+    ownerSearchText: string;
+};
+
+const mapSpotifyPlaylistSearchItems = (
+    items: Array<SpotifyPlaylistSearchItem | null> = []
+): SpotifyPlaylistSearchCandidate[] => (
+    items
+        .filter((playlist): playlist is SpotifyPlaylistSearchItem & { id: string; name: string } => Boolean(playlist?.id && playlist?.name))
+        .map((playlist) => {
+            const ownerName = playlist.owner?.display_name || playlist.owner?.id || 'Spotify user';
+            const ownerSearchText = [
+                playlist.owner?.display_name,
+                playlist.owner?.id
+            ]
+                .filter((value): value is string => Boolean(value))
+                .join(' ')
+                .toLowerCase();
+
+            return {
+                id: playlist.id,
+                name: playlist.name,
+                ownerName,
+                ownerSearchText,
+                trackCount: playlist.tracks?.total || 0,
+                imageUrl: playlist.images?.find(image => typeof image?.url === 'string' && image.url.trim())?.url || '',
+                externalUrl: playlist.external_urls?.spotify || `https://open.spotify.com/playlist/${playlist.id}`
+            };
+        })
+);
+
+const stripOwnerSearchText = ({ ownerSearchText, ...playlist }: SpotifyPlaylistSearchCandidate): SpotifyPlaylistSearchResult => playlist;
+
+const mapUserPlaylistSearchResults = (
+    playlists: SpotifyUserPlaylist[],
+    ownerName: string
+): SpotifyPlaylistSearchResult[] => playlists.map((playlist): SpotifyPlaylistSearchResult => ({
+    id: playlist.id,
+    name: playlist.name,
+    ownerName,
+    trackCount: playlist.trackCount,
+    imageUrl: playlist.imageUrl || '',
+    externalUrl: playlist.externalUrl
+}));
+
+const searchSpotifyPlaylistCandidates = async (
+    query: string,
+    accessToken: string
+): Promise<{ playlists: SpotifyPlaylistSearchCandidate[]; total: number }> => {
+    const params = new URLSearchParams({
+        q: query,
+        type: 'playlist',
+        limit: '50'
+    });
+    const response = await fetch(`${SPOTIFY_SEARCH_URL}?${params.toString()}`, {
+        headers: {
+            Authorization: `Bearer ${accessToken}`
+        }
+    });
+
+    if (!response.ok) {
+        throw new Error(`Spotify playlist search failed with ${response.status}.`);
+    }
+
+    const data = await response.json() as SpotifyPlaylistSearchPage;
+    return {
+        playlists: mapSpotifyPlaylistSearchItems(data.playlists?.items),
+        total: data.playlists?.total || 0
+    };
+};
+
+export const searchSpotifyPlaylists = async (
+    query: string,
+    ownerHint: string,
+    accessToken: string
+): Promise<{ playlists: SpotifyPlaylistSearchResult[]; total: number }> => {
+    const trimmedQuery = query.trim();
+    const trimmedOwnerHint = ownerHint.trim().toLowerCase();
+    if (trimmedQuery.length < 2) {
+        throw new Error('Search for at least 2 characters.');
+    }
+
+    const searchResult = await searchSpotifyPlaylistCandidates(trimmedQuery, accessToken);
+    const playlists = searchResult.playlists
+        .filter(playlist => !trimmedOwnerHint || playlist.ownerSearchText.includes(trimmedOwnerHint))
+        .map(stripOwnerSearchText);
+
+    if (playlists.length > 0) {
+        return {
+            playlists,
+            total: searchResult.total || playlists.length
+        };
+    }
+
+    const userId = extractSpotifyUserIdFromSearchInput(ownerHint || query);
+    if (userId) {
+        try {
+            const userPlaylists = await fetchUserPlaylists(`https://open.spotify.com/user/${encodeURIComponent(userId)}`, accessToken);
+            const playlistNameFilter = ownerHint ? trimmedQuery.toLowerCase() : '';
+            const userPlaylistResults = userPlaylists.playlists
+                .filter(playlist => !playlistNameFilter || playlist.name.toLowerCase().includes(playlistNameFilter))
+                .slice(0, 50);
+
+            if (userPlaylistResults.length > 0 || !playlistNameFilter) {
+                return {
+                    playlists: mapUserPlaylistSearchResults(userPlaylistResults, userPlaylists.userId),
+                    total: userPlaylistResults.length
+                };
+            }
+
+            const userPlaylistSuggestions = userPlaylists.playlists
+                .slice(0, 50);
+
+            return {
+                playlists: mapUserPlaylistSearchResults(userPlaylistSuggestions, userPlaylists.userId),
+                total: userPlaylistSuggestions.length
+            };
+        } catch (error: any) {
+            if (!error.message?.includes('not found')) {
+                throw error;
+            }
+        }
+    }
+
+    if (trimmedOwnerHint.length >= 2) {
+        const ownerDisplayNameSearch = await searchSpotifyPlaylistCandidates(trimmedOwnerHint, accessToken);
+        const ownerDisplayNameMatches = ownerDisplayNameSearch.playlists
+            .filter(playlist => playlist.ownerSearchText.includes(trimmedOwnerHint));
+        const playlistNameMatches = ownerDisplayNameMatches
+            .filter(playlist => playlist.name.toLowerCase().includes(trimmedQuery))
+            .map(stripOwnerSearchText);
+
+        if (playlistNameMatches.length > 0) {
+            return {
+                playlists: playlistNameMatches,
+                total: playlistNameMatches.length
+            };
+        }
+
+        const ownerDisplayNameSuggestions = ownerDisplayNameMatches
+            .slice(0, 50)
+            .map(stripOwnerSearchText);
+        if (ownerDisplayNameSuggestions.length > 0) {
+            return {
+                playlists: ownerDisplayNameSuggestions,
+                total: ownerDisplayNameSuggestions.length
+            };
+        }
+    }
+
+    return {
+        playlists,
+        total: searchResult.total || playlists.length
+    };
 };
 
 interface SpotifyPlaylistTracksPage {

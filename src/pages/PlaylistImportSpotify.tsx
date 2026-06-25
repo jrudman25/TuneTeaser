@@ -7,6 +7,7 @@ import { signInAnonymously, signOut } from 'firebase/auth';
 import { auth } from '../backend/FirebaseConfig';
 import { extractSpotifyPlaylistId } from '../utils/spotifyPlaylistName';
 import { importSpotifyPlaylist } from '../utils/spotifyPlaylistImporter';
+import { searchPublicSpotifyPlaylists, SpotifyPlaylistSearchResult } from '../utils/spotifyPlaylistSearch';
 import { extractSpotifyUserId, fetchSpotifyUserPlaylists, SpotifyUserPlaylist } from '../utils/spotifyUserPlaylists';
 import SignedInBadge from '../components/SignedInBadge';
 import NavBar from '../components/NavBar';
@@ -51,6 +52,13 @@ const PlaylistImportSpotify = () => {
     const [authError, setAuthError] = useState('');
     const [profileSearchQuery, setProfileSearchQuery] = useState('');
     const [showLinkInstructions, setShowLinkInstructions] = useState(false);
+    const [publicSearchQuery, setPublicSearchQuery] = useState('');
+    const [publicSearchOwnerHint, setPublicSearchOwnerHint] = useState('');
+    const [publicSearchResults, setPublicSearchResults] = useState<SpotifyPlaylistSearchResult[]>([]);
+    const [publicSearchTotal, setPublicSearchTotal] = useState(0);
+    const [publicSearchPerformedFor, setPublicSearchPerformedFor] = useState('');
+    const [selectedSearchPlaylistIds, setSelectedSearchPlaylistIds] = useState<string[]>([]);
+    const [isSearchingPublicPlaylists, setIsSearchingPublicPlaylists] = useState(false);
 
     const sourcePlaylistId = extractSpotifyPlaylistId(playlistUrl);
     const sourceUserId = extractSpotifyUserId(profileUrl);
@@ -67,7 +75,9 @@ const PlaylistImportSpotify = () => {
 
     const filteredProfilePlaylistIds = filteredProfilePlaylists.map(playlist => playlist.id);
     const selectedProfilePlaylists = currentProfilePlaylists.filter(playlist => selectedPlaylistIds.includes(playlist.id));
+    const selectedSearchPlaylists = publicSearchResults.filter(playlist => selectedSearchPlaylistIds.includes(playlist.id));
     const allFilteredPlaylistsSelected = filteredProfilePlaylists.length > 0 && filteredProfilePlaylists.every(p => selectedPlaylistIds.includes(p.id));
+    const publicSearchHasRun = publicSearchPerformedFor === `${publicSearchQuery.trim()}|${publicSearchOwnerHint.trim()}`;
 
     const profilePlaylistPageCount = Math.ceil(filteredProfilePlaylists.length / PROFILE_PLAYLISTS_PER_PAGE);
     const paginatedProfilePlaylists = filteredProfilePlaylists.slice(
@@ -142,6 +152,58 @@ const PlaylistImportSpotify = () => {
         }
     };
 
+    const handlePublicSearchChange = (value: string) => {
+        setPublicSearchQuery(value);
+        setFormError('');
+        setBatchImportResults([]);
+        setSaveSuccessMessage('');
+        setSelectedSearchPlaylistIds([]);
+        setPublicSearchResults([]);
+        setPublicSearchTotal(0);
+        setPublicSearchPerformedFor('');
+    };
+
+    const handlePublicSearchOwnerHintChange = (value: string) => {
+        setPublicSearchOwnerHint(value);
+        setFormError('');
+        setBatchImportResults([]);
+        setSelectedSearchPlaylistIds([]);
+        setPublicSearchResults([]);
+        setPublicSearchTotal(0);
+        setPublicSearchPerformedFor('');
+    };
+
+    const handleSearchPublicPlaylists = async () => {
+        const query = publicSearchQuery.trim();
+        const ownerHint = publicSearchOwnerHint.trim();
+        if (query.length < 2) {
+            setFormError('Search for at least 2 characters.');
+            return;
+        }
+
+        setFormError('');
+        setImportErrors([]);
+        setBatchImportResults([]);
+        setSaveSuccessMessage('');
+        setSelectedSearchPlaylistIds([]);
+        setIsSearchingPublicPlaylists(true);
+        try {
+            const result = await searchPublicSpotifyPlaylists(query, ownerHint);
+            setPublicSearchResults(result.playlists);
+            setPublicSearchTotal(result.total || result.playlists.length);
+            setPublicSearchPerformedFor(`${query}|${ownerHint}`);
+            if (result.playlists.length === 0) {
+                setFormError(ownerHint
+                    ? 'No public playlist results matched that name and owner hint.'
+                    : 'No public playlist results matched that search.');
+            }
+        } catch (error: any) {
+            setFormError(error.message || 'Could not search Spotify playlists.');
+        } finally {
+            setIsSearchingPublicPlaylists(false);
+        }
+    };
+
     const handleImport = async () => {
         const urlError = validatePlaylistUrl(playlistUrl);
         if (urlError || !sourcePlaylistId) {
@@ -196,6 +258,71 @@ const PlaylistImportSpotify = () => {
             setFormError(error.message || 'Could not load Spotify profile playlists.');
         } finally {
             setIsLoadingProfilePlaylists(false);
+        }
+    };
+
+    const handleToggleSearchPlaylist = (playlistId: string) => {
+        setSelectedSearchPlaylistIds(currentSelection => (
+            currentSelection.includes(playlistId)
+                ? currentSelection.filter(id => id !== playlistId)
+                : [...currentSelection, playlistId]
+        ));
+    };
+
+    const handleImportSearchPlaylists = async () => {
+        if (selectedSearchPlaylists.length === 0) {
+            setFormError('Select at least one playlist to import.');
+            return;
+        }
+
+        setFormError('');
+        setImportErrors([]);
+        setBatchImportResults([]);
+        setSaveSuccessMessage('');
+        setIsBatchImporting(true);
+
+        const results: BatchImportResult[] = [];
+        for (const playlist of selectedSearchPlaylists) {
+            try {
+                const importedPlaylist = await importSpotifyPlaylist(playlist.id, 0, 100);
+                if (importedPlaylist.tracks.length < 2) {
+                    throw new Error('At least 2 tracks are required.');
+                }
+
+                const total = importedPlaylist.total || importedPlaylist.tracks.length;
+                const status = total > importedPlaylist.tracks.length ? 'importing' : 'ready';
+
+                await addManualPlaylist(
+                    importedPlaylist.name || playlist.name,
+                    playlist.externalUrl,
+                    importedPlaylist.tracks,
+                    status,
+                    importedPlaylist.tracks.length,
+                    total
+                );
+                const warningSuffix = importedPlaylist.errors?.length ? ` ${importedPlaylist.errors.join(' ')}` : '';
+                results.push({
+                    playlistId: playlist.id,
+                    message: `Imported ${playlist.name}.${warningSuffix}`,
+                    status: 'success'
+                });
+            } catch (error: any) {
+                results.push({
+                    playlistId: playlist.id,
+                    message: `${playlist.name}: ${error.message || 'Could not import playlist.'}`,
+                    status: 'error'
+                });
+            }
+
+            setBatchImportResults([...results]);
+        }
+
+        setIsBatchImporting(false);
+        if (results.some(result => result.status === 'success')) {
+            setSelectedSearchPlaylistIds(currentSelection => currentSelection.filter(id => !results.some(result => result.playlistId === id && result.status === 'success')));
+            if (isOnboarding || isGuest) {
+                navigate(isGuest ? '/home?mode=guest' : '/home');
+            }
         }
     };
 
@@ -393,7 +520,7 @@ const PlaylistImportSpotify = () => {
                         <span className="eyebrow">{isGuest ? 'Spotify imports' : 'Your Spotify imports'}</span>
                         <h2 className="section-title">Import Playlists</h2>
                         <p className="body-copy" style={{ marginBottom: '16px' }}>
-                            Import one public playlist directly, or paste a Spotify profile URL to choose from that user's public playlists.
+                            Search public Spotify playlists, import one playlist directly, or paste a Spotify profile URL to choose from that user's public playlists.
                         </p>
                     </div>
 
@@ -436,6 +563,98 @@ const PlaylistImportSpotify = () => {
                     </div>
 
                     <form className="playlist-form" onSubmit={handleSubmit}>
+                        <section className="import-flow-card">
+                            <div>
+                                <h3 className="subsection-title">Search public playlists</h3>
+                                <p className="helper-text">Find public Spotify playlists by name or Spotify username. Add an owner name if you need to narrow down common playlist titles.</p>
+                            </div>
+                            <label className="form-label">
+                                Playlist name
+                                <input
+                                    className="text-input"
+                                    value={publicSearchQuery}
+                                    onChange={(event) => handlePublicSearchChange(event.target.value)}
+                                    placeholder="Road Trip, Workout, spotify-user..."
+                                />
+                            </label>
+                            <label className="form-label">
+                                Owner name or username (optional)
+                                <input
+                                    className="text-input"
+                                    value={publicSearchOwnerHint}
+                                    onChange={(event) => handlePublicSearchOwnerHintChange(event.target.value)}
+                                    placeholder="Display name or Spotify username"
+                                />
+                            </label>
+                            <div className="action-row">
+                                <button
+                                    className="button button-tertiary"
+                                    type="button"
+                                    onClick={handleSearchPublicPlaylists}
+                                    disabled={isSearchingPublicPlaylists || isBatchImporting || publicSearchQuery.trim().length < 2 || (isGuest && !user)}
+                                >
+                                    {isSearchingPublicPlaylists ? 'Searching...' : 'Search Spotify'}
+                                </button>
+                                {publicSearchHasRun && publicSearchResults.length > 0 && (
+                                    <span className="snippet-meter">
+                                        {publicSearchResults.length} results shown{publicSearchTotal > publicSearchResults.length ? ` from ${publicSearchTotal.toLocaleString()} matches` : ''}
+                                    </span>
+                                )}
+                            </div>
+
+                            {publicSearchResults.length > 0 && (
+                                <section className="profile-playlist-picker" aria-label="Spotify playlist search results">
+                                    <div className="profile-playlist-picker-header">
+                                        <div>
+                                            <h3 className="subsection-title">Choose search results</h3>
+                                            <p className="helper-text">Only public playlists can be found without Spotify login.</p>
+                                        </div>
+                                    </div>
+
+                                    <ul className="profile-playlist-list">
+                                        {publicSearchResults.map(playlist => (
+                                            <li key={playlist.id}>
+                                                <label className="profile-playlist-option search-playlist-option">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedSearchPlaylistIds.includes(playlist.id)}
+                                                        onChange={() => handleToggleSearchPlaylist(playlist.id)}
+                                                        disabled={isBatchImporting}
+                                                    />
+                                                    {playlist.imageUrl ? (
+                                                        <img src={playlist.imageUrl} alt="" className="playlist-search-cover" />
+                                                    ) : (
+                                                        <div className="playlist-search-cover playlist-search-cover-fallback" aria-hidden="true" />
+                                                    )}
+                                                    <span>
+                                                        <strong>{playlist.name}</strong>
+                                                        <small>{playlist.ownerName} - {playlist.trackCount} tracks</small>
+                                                    </span>
+                                                </label>
+                                            </li>
+                                        ))}
+                                    </ul>
+
+                                    {currentCount + selectedSearchPlaylistIds.length > 30 && (
+                                        <div className="error-banner" style={{ marginTop: '16px', marginBottom: '16px' }}>
+                                            <strong>Limit Exceeded:</strong> Selecting these playlists would put you over your 30 playlist limit (You currently have {currentCount} playlists, and selected {selectedSearchPlaylistIds.length}. Limit is 30). Please deselect some playlists to continue.
+                                        </div>
+                                    )}
+
+                                    <div className="action-row">
+                                        <button
+                                            className="button button-large"
+                                            type="button"
+                                            onClick={handleImportSearchPlaylists}
+                                            disabled={isBatchImporting || selectedSearchPlaylists.length === 0 || (isGuest && !user) || (currentCount + selectedSearchPlaylistIds.length > 30)}
+                                        >
+                                            {isBatchImporting ? 'Importing Selected...' : `Import ${selectedSearchPlaylists.length} Selected`}
+                                        </button>
+                                    </div>
+                                </section>
+                            )}
+                        </section>
+
                         <section className="import-flow-card">
                             <div>
                                 <h3 className="subsection-title">Import from profile</h3>

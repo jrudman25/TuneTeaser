@@ -630,6 +630,25 @@
     background: var(--cream);
   }
 
+  .search-playlist-option {
+    grid-template-columns: auto 54px minmax(0, 1fr);
+  }
+
+  .playlist-search-cover {
+    width: 54px;
+    height: 54px;
+    border: 2px solid var(--ink);
+    border-radius: 8px;
+    object-fit: cover;
+    background: var(--record);
+  }
+
+  .playlist-search-cover-fallback {
+    background:
+      radial-gradient(circle at center, var(--gold) 0 8px, var(--record) 9px 16px, transparent 17px),
+      var(--record);
+  }
+
   .profile-playlist-option input {
     width: 20px;
     height: 20px;
