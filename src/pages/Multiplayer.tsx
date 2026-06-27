@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { signInAnonymously, signOut } from 'firebase/auth';
 import { FirebaseError } from 'firebase/app';
 import NavBar from '../components/NavBar';
+import ToastMessage from '../components/ToastMessage';
 
 import { auth } from '../backend/FirebaseConfig';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
@@ -121,6 +122,8 @@ const Multiplayer = () => {
     const hadCurrentPlayerRef = useRef(false);
     const homePath = effectiveGuest ? '/home?mode=guest' : '/home';
     const playlistsPath = effectiveGuest ? '/playlists?mode=guest' : '/playlists';
+    const toastMessage = error || manualPlaylistError || playlistError || success;
+    const toastType = error || manualPlaylistError || playlistError ? 'error' : 'success';
 
     useEffect(() => {
         activeRoomIdRef.current = activeRoomId;
@@ -692,10 +695,14 @@ const Multiplayer = () => {
                             : 'Create a local party room, share the code, and let players join from their phones. The host device controls the music.'}
                     </p>
 
-                    {error && <div className="error-banner"><strong>Error:</strong> {error}</div>}
-                    {success && <div className="success-banner">{success}</div>}
-                    {manualPlaylistError && <div className="error-banner"><strong>Error:</strong> {manualPlaylistError}</div>}
-                    {playlistError && <div className="error-banner"><strong>Error:</strong> {playlistError}</div>}
+                    <ToastMessage
+                        message={toastMessage}
+                        type={toastType}
+                        onClose={() => {
+                            setError('');
+                            setSuccess('');
+                        }}
+                    />
 
                     {!activeRoomId && (
                         <div className="multiplayer-grid">

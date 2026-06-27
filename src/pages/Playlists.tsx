@@ -8,6 +8,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import SignedInBadge from '../components/SignedInBadge';
 import NavBar from '../components/NavBar';
 import ConfirmDialog from '../components/ConfirmDialog';
+import ToastMessage from '../components/ToastMessage';
 
 const MANUAL_PLAYLISTS_PER_PAGE = 8;
 
@@ -135,6 +136,9 @@ const Playlists = () => {
         navigate('/');
     };
 
+    const toastMessage = authError || manualPlaylistError;
+    const toastTitle = authError ? 'Authentication Error' : 'Error';
+
     const statusBadge = (
         <div className="status-stack">
             {isProbablyGuest ? (
@@ -173,17 +177,7 @@ const Playlists = () => {
         <>
             <NavBar statusBadge={statusBadge} actionButtons={actionButtons} />
             <main className="page home-page">
-                {authError && (
-                    <div className="error-banner">
-                        <strong>Authentication Error:</strong> {authError}
-                    </div>
-                )}
-
-                {manualPlaylistError && (
-                    <div className="error-banner">
-                        <strong>Error:</strong> {manualPlaylistError}
-                    </div>
-                )}
+                <ToastMessage message={toastMessage} type="error" title={toastTitle} onClose={() => setAuthError('')} />
 
                 <section className="record-bin">
                     <div>

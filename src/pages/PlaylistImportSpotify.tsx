@@ -11,6 +11,7 @@ import { searchPublicSpotifyPlaylists, SpotifyPlaylistSearchResult } from '../ut
 import { extractSpotifyUserId, fetchSpotifyUserPlaylists, SpotifyUserPlaylist } from '../utils/spotifyUserPlaylists';
 import SignedInBadge from '../components/SignedInBadge';
 import NavBar from '../components/NavBar';
+import ToastMessage from '../components/ToastMessage';
 
 type BatchImportResult = {
     playlistId: string;
@@ -78,6 +79,9 @@ const PlaylistImportSpotify = () => {
     const selectedSearchPlaylists = publicSearchResults.filter(playlist => selectedSearchPlaylistIds.includes(playlist.id));
     const allFilteredPlaylistsSelected = filteredProfilePlaylists.length > 0 && filteredProfilePlaylists.every(p => selectedPlaylistIds.includes(p.id));
     const publicSearchHasRun = publicSearchPerformedFor === `${publicSearchQuery.trim()}|${publicSearchOwnerHint.trim()}`;
+    const toastMessage = authError || formError || saveSuccessMessage;
+    const toastType = authError || formError ? 'error' : 'success';
+    const toastTitle = authError ? 'Authentication Error' : undefined;
 
     const profilePlaylistPageCount = Math.ceil(filteredProfilePlaylists.length / PROFILE_PLAYLISTS_PER_PAGE);
     const paginatedProfilePlaylists = filteredProfilePlaylists.slice(
@@ -508,12 +512,16 @@ const PlaylistImportSpotify = () => {
         <>
             <NavBar statusBadge={statusBadge} actionButtons={actionButtons} />
             <main className="page home-page">
-
-                {authError && (
-                    <div className="error-banner">
-                        <strong>Authentication Error:</strong> {authError}
-                    </div>
-                )}
+                <ToastMessage
+                    message={toastMessage}
+                    type={toastType}
+                    title={toastTitle}
+                    onClose={() => {
+                        setAuthError('');
+                        setFormError('');
+                        setSaveSuccessMessage('');
+                    }}
+                />
 
                 <section className="record-bin">
                     <div>
@@ -879,9 +887,6 @@ const PlaylistImportSpotify = () => {
                                 </button>
                             )}
                         </section>
-
-                        {formError && <div className="error-banner">{formError}</div>}
-                        {saveSuccessMessage && <div className="success-banner">{saveSuccessMessage}</div>}
                     </form>
                 </section>
             </main>
