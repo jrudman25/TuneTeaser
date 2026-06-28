@@ -9,6 +9,9 @@ const mockDocDelete = vi.fn();
 const mockDocGet = vi.fn();
 const mockDocUpdate = vi.fn();
 const mockCollectionGet = vi.fn();
+const mockQueryWhere = vi.fn();
+const mockQueryLimit = vi.fn();
+const mockQueryGet = vi.fn();
 const mockBatchDelete = vi.fn();
 const mockBatchSet = vi.fn();
 const mockBatchUpdate = vi.fn();
@@ -47,7 +50,8 @@ vi.mock('firebase-admin/firestore', () => ({
                         delete: mockDocDelete
                     }))
                 }))
-            }))
+            })),
+            where: mockQueryWhere
         })),
         batch: vi.fn(() => ({
             delete: mockBatchDelete,
@@ -60,12 +64,14 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 
 const mockGetUser = vi.fn();
+const mockUpdateUser = vi.fn();
 const mockListUsers = vi.fn();
 const mockDeleteUsers = vi.fn();
 
 vi.mock('firebase-admin/auth', () => ({
     getAuth: vi.fn(() => ({
         getUser: mockGetUser,
+        updateUser: mockUpdateUser,
         listUsers: mockListUsers,
         deleteUsers: mockDeleteUsers
     }))
@@ -148,6 +154,10 @@ import {
     leaveMultiplayerRoom,
     submitLeaderboardScore,
     cleanupAnonymousUsers,
+    initializeTuneTeaserAccount,
+    advanceMultiplayerRound,
+    advanceStuckMultiplayerRounds,
+    cleanupExpiredMultiplayerRooms,
     shouldEnforceAppCheck
 } from './index';
 
@@ -155,11 +165,15 @@ describe('Cloud Functions (index.ts)', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockGetUser.mockResolvedValue({ displayName: 'Player One' });
+        mockUpdateUser.mockResolvedValue({ uid: 'user123' });
         mockListUsers.mockResolvedValue({ users: [] });
         mockBatchCommit.mockResolvedValue(undefined);
         mockDocUpdate.mockResolvedValue(undefined);
         mockTransactionGet.mockResolvedValue({ exists: false, data: () => ({}) });
         mockCollectionGet.mockResolvedValue({ empty: true, size: 0, docs: [] });
+        mockQueryGet.mockResolvedValue({ empty: true, size: 0, docs: [] });
+        mockQueryLimit.mockReturnValue({ get: mockQueryGet });
+        mockQueryWhere.mockReturnValue({ where: mockQueryWhere, limit: mockQueryLimit, get: mockQueryGet });
         mockDeleteUsers.mockResolvedValue({ successCount: 0, failureCount: 0, errors: [] });
         mockFieldValueIncrement.mockImplementation((value: number) => ({ _increment: value }));
         mockFieldValueServerTimestamp.mockReturnValue('server-timestamp');
@@ -209,6 +223,47 @@ describe('Cloud Functions (index.ts)', () => {
             process.env.FUNCTIONS_EMULATOR = originalValue;
         }
         expect(shouldEnforceAppCheck()).toBe(true);
+    });
+
+    describe('initializeTuneTeaserAccount', () => {
+        it('reserves the username, initializes leaderboard data, and updates Auth display name', async () => {
+            mockTransactionGet
+                .mockResolvedValueOnce({ exists: false, data: () => ({}) })
+                .mockResolvedValueOnce({ exists: false, data: () => ({}) });
+
+            const result = await (initializeTuneTeaserAccount as any)({
+                data: { username: ' Player One ' },
+                auth: { uid: 'user123', token: { firebase: { sign_in_provider: 'password' } } }
+            });
+
+            expect(result).toEqual({ displayName: 'Player One' });
+            expect(mockTransactionSet).toHaveBeenCalledTimes(2);
+            expect(mockTransactionSet.mock.calls[0][1]).toMatchObject({
+                uid: 'user123',
+                displayName: 'Player One',
+                normalizedDisplayName: 'player one'
+            });
+            expect(mockTransactionSet.mock.calls[1][1]).toMatchObject({
+                displayName: 'Player One',
+                totalPoints: 0,
+                gamesWon: 0,
+                lastUpdated: 'server-timestamp'
+            });
+            expect(mockUpdateUser).toHaveBeenCalledWith('user123', { displayName: 'Player One' });
+        });
+
+        it('rejects duplicate usernames owned by another user', async () => {
+            mockTransactionGet
+                .mockResolvedValueOnce({ exists: true, data: () => ({ uid: 'other-user' }) })
+                .mockResolvedValueOnce({ exists: false, data: () => ({}) });
+
+            await expect((initializeTuneTeaserAccount as any)({
+                data: { username: 'Player One' },
+                auth: { uid: 'user123', token: { firebase: { sign_in_provider: 'password' } } }
+            })).rejects.toThrow('This username is already taken');
+
+            expect(mockUpdateUser).not.toHaveBeenCalled();
+        });
     });
 
     describe('submitLeaderboardScore', () => {
@@ -1023,7 +1078,11 @@ describe('Cloud Functions (index.ts)', () => {
     });
 
     describe('cleanupUserOnDelete', () => {
-        it('deletes leaderboard data, user playlists, user doc, and storage', async () => {
+        it('deletes username reservation, leaderboard data, user playlists, user doc, and storage', async () => {
+            mockDocGet.mockResolvedValueOnce({
+                exists: true,
+                data: () => ({ displayName: 'Player One' })
+            });
             mockCollectionGet
                 .mockResolvedValueOnce({
                     empty: false,
@@ -1038,10 +1097,71 @@ describe('Cloud Functions (index.ts)', () => {
 
             await (cleanupUserOnDelete as any)({ uid: 'user123' });
 
-            expect(mockDocDelete).toHaveBeenCalledTimes(2);
+            expect(mockDocDelete).toHaveBeenCalledTimes(3);
             expect(mockBatchDelete).toHaveBeenCalledTimes(3);
             expect(mockBatchCommit).toHaveBeenCalledTimes(2);
             expect(mockDeleteFiles).toHaveBeenCalledWith({ prefix: 'users/user123/' });
+        });
+    });
+
+    describe('advanceMultiplayerRound', () => {
+        it('returns false when an advancing round is not ready yet', async () => {
+            mockDocGet.mockResolvedValueOnce({ exists: true, data: () => ({ uid: 'player1' }) });
+            vi.spyOn(Date, 'now').mockReturnValue(1000);
+            mockTransactionGet.mockResolvedValueOnce({
+                exists: true,
+                data: () => ({
+                    status: 'playing',
+                    currentRound: { id: 'round1', state: 'advancing', advancesAt: 2000, roundNumber: 1 }
+                })
+            });
+
+            const result = await (advanceMultiplayerRound as any)({
+                data: { roomId: 'ABC234' },
+                auth: { uid: 'player1' }
+            });
+
+            expect(result).toEqual({ roomId: 'ABC234', advanced: false });
+            expect(mockTransactionUpdate).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('advanceStuckMultiplayerRounds', () => {
+        it('skips advancing rooms whose reveal delay has not elapsed', async () => {
+            vi.spyOn(Date, 'now').mockReturnValue(1000);
+            mockQueryGet.mockResolvedValueOnce({
+                empty: false,
+                size: 1,
+                docs: [{ id: 'ABC234', data: () => ({ currentRound: { advancesAt: 2000 } }) }]
+            });
+
+            await (advanceStuckMultiplayerRounds as any)();
+
+            expect(mockQueryWhere).toHaveBeenCalledWith('currentRound.state', '==', 'advancing');
+            expect(mockRunTransaction).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('cleanupExpiredMultiplayerRooms', () => {
+        it('deletes expired room player and round subcollections before deleting the room', async () => {
+            const roomRef = {
+                collection: vi.fn(() => ({ get: mockCollectionGet })),
+                delete: mockDocDelete
+            };
+            mockQueryGet.mockResolvedValueOnce({
+                empty: false,
+                size: 1,
+                docs: [{ ref: roomRef }]
+            });
+            mockCollectionGet
+                .mockResolvedValueOnce({ empty: false, size: 1, docs: [{ ref: 'player-ref' }] })
+                .mockResolvedValueOnce({ empty: false, size: 1, docs: [{ ref: 'round-ref' }] });
+
+            await (cleanupExpiredMultiplayerRooms as any)();
+
+            expect(mockQueryWhere).toHaveBeenCalledWith('expiresAt', '<=', expect.any(Number));
+            expect(mockBatchDelete).toHaveBeenCalledTimes(2);
+            expect(mockDocDelete).toHaveBeenCalled();
         });
     });
 
@@ -1067,6 +1187,10 @@ describe('Cloud Functions (index.ts)', () => {
                     }
                 ],
                 pageToken: undefined
+            });
+            mockDocGet.mockResolvedValueOnce({
+                exists: true,
+                data: () => ({ displayName: 'Old Guest' })
             });
             mockCollectionGet
                 .mockResolvedValueOnce({ empty: false, size: 1, docs: [{ ref: 'score-ref' }] })

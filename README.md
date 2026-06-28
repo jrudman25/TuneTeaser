@@ -24,7 +24,9 @@
 *   **Fair Play Safeguards & Storage Safety**:
     *   Guest/anonymous profiles are ineligible for points to prevent scoreboard pollution.
     *   Playlists must contain at least 10 tracks to be eligible for points.
+    *   TuneTeaser account setup reserves usernames and initializes leaderboard documents through a callable Cloud Function, not direct browser writes.
     *   Leaderboard score writes go through a callable Cloud Function that enforces bounded point calculation and a 10-minute cooldown for the same song and playlist combination.
+    *   Multiplayer round advancement uses a durable `advancing` state with client callable and scheduled recovery paths, and expired rooms are cleaned up daily with player and private round subcollections.
     *   **Resource Caps**: Libraries are limited to a maximum of 30 playlists per account or guest session to prevent storage expansion, and individual playlists are capped at 5,000 tracks.
     *   **Account Cleanup**: Inactive anonymous users (older than 30 days) are automatically deleted daily to keep the database clean and organized.
     *   **Input Protection**: Strict alphanumeric and safe-symbol constraints are enforced on display names and playlist titles to block scripting/HTML tags. Custom song titles and artists are automatically sanitized.
@@ -75,7 +77,7 @@ To enable the leaderboard system, the Firestore database needs to contain a `lea
     *   `lastUpdated`: `timestamp`
 
 ### Firebase Security Rules
-Firestore rules allow public leaderboard reads, Cloud Function-only leaderboard writes, owner-only user playlist writes, signed-in room-code lookup for multiplayer lobbies, denied multiplayer room listing, and Cloud Function-only writes for multiplayer state:
+Firestore rules allow public leaderboard reads, Cloud Function-only leaderboard and username reservation writes, owner-only user playlist writes, signed-in room-code lookup for multiplayer lobbies, denied multiplayer room listing, and Cloud Function-only writes for multiplayer state:
 ```javascript
 rules_version = '2';
 service cloud.firestore {
@@ -91,6 +93,10 @@ service cloud.firestore {
     match /leaderboard/{uid} {
       allow read: if true;
       allow write: if false;
+    }
+
+    match /usernames/{usernameId} {
+      allow read, write: if false;
     }
 
     match /users/{uid} {
@@ -134,7 +140,7 @@ Online multiplayer uses a `multiplayerRooms` collection with player and private 
     *   `revealedRound`: answer metadata after a round completes
     *   `winnerUid`: `string | null`
     *   `winnerDisplayName`: `string | null`
-    *   `expiresAt`: `number`
+    *   `expiresAt`: `number`, used by the daily cleanup job that deletes expired rooms, players, and private rounds
 *   **Subcollection**: `multiplayerRooms/{roomCode}/players/{uid}`
     *   `displayName`: `string`
     *   `isHost`: `boolean`
@@ -146,6 +152,7 @@ Online multiplayer uses a `multiplayerRooms` collection with player and private 
 *   **Private subcollection**: `multiplayerRooms/{roomCode}/rounds/{roundId}`
     *   Stores playable preview URLs, answer titles, and round choices for callable use.
     *   Firestore rules do not expose this subcollection directly to clients.
+    *   Deleted with its parent room by the expired-room cleanup job.
 
 ## Requirements
 *   **TuneTeaser Account or Guest Session**: Required to save imported playlists and custom mixes. Registered accounts persist playlist metadata in Firestore. Guest sessions keep playlist metadata in browser local storage and upload track snapshots under the guest's anonymous Firebase UID.

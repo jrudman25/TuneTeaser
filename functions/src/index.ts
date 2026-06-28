@@ -29,6 +29,8 @@ const SPOTIFY_READ_RATE_LIMIT = 20;
 const SPOTIFY_IMPORT_RATE_LIMIT = 30;
 const MULTIPLAYER_ROUND_LOOKUP_ATTEMPTS = 8;
 const ROUND_REVEAL_DELAY_MS = 5000;
+const MULTIPLAYER_ADVANCE_LOCK_TIMEOUT_MS = 30 * 1000;
+const MULTIPLAYER_ROOM_CLEANUP_BATCH_SIZE = 50;
 
 export const shouldEnforceAppCheck = () => process.env.FUNCTIONS_EMULATOR !== 'true';
 
@@ -205,6 +207,24 @@ const getPlayerDisplayName = async (uid: string) => {
         || `Guest ${uid.slice(0, 6).toUpperCase()}`;
 };
 
+const getSignupUsername = (value: unknown) => {
+    const username = typeof value === 'string' ? value.trim() : '';
+    if (!username) {
+        throw new HttpsError('invalid-argument', 'Username is required.');
+    }
+    if (!/^[a-zA-Z0-9_ -]{3,20}$/.test(username)) {
+        throw new HttpsError('invalid-argument', 'Username must be 3-20 characters long and contain only letters, numbers, spaces, underscores, or hyphens.');
+    }
+    if (username.includes('  ')) {
+        throw new HttpsError('invalid-argument', 'Username cannot contain consecutive spaces.');
+    }
+    return username;
+};
+
+const getUsernameReservationId = (username: string) => {
+    return username.toLowerCase().replace(/\s+/g, ' ').trim();
+};
+
 const calculateLeaderboardPoints = (snippetDurationMs: number) => {
     const base = 10;
     const maxBonus = 15;
@@ -307,9 +327,16 @@ const cleanupUserData = async (uid: string) => {
     console.log(`[cleanupUserData] Starting cleanup for user: ${uid}`);
 
     const leaderboardRef = db.collection('leaderboard').doc(uid);
+    const leaderboardSnap = await leaderboardRef.get();
+    const displayName = leaderboardSnap.exists ? leaderboardSnap.data()?.displayName : null;
     const recentScoresSnapshot = await leaderboardRef.collection('recentScores').get();
     await deleteCollectionDocs(recentScoresSnapshot.docs);
     console.log(`[cleanupUserData] Deleted ${recentScoresSnapshot.size || 0} recent score docs for user: ${uid}`);
+
+    if (typeof displayName === 'string' && displayName.trim()) {
+        await db.collection('usernames').doc(getUsernameReservationId(displayName)).delete();
+        console.log(`[cleanupUserData] Deleted username reservation for user: ${uid}`);
+    }
 
     await leaderboardRef.delete();
     console.log(`[cleanupUserData] Deleted leaderboard doc for user: ${uid}`);
@@ -325,6 +352,51 @@ const cleanupUserData = async (uid: string) => {
     await bucket.deleteFiles({ prefix: `users/${uid}/` });
     console.log(`[cleanupUserData] Deleted Storage files for user: ${uid}`);
 };
+
+export const initializeTuneTeaserAccount = onCall(PUBLIC_CALLABLE_OPTIONS, async (request) => {
+    const uid = getAuthedUid(request);
+    const signInProvider = request.auth?.token?.firebase?.sign_in_provider;
+
+    if (signInProvider === 'anonymous') {
+        throw new HttpsError('permission-denied', 'Anonymous users cannot create TuneTeaser accounts.');
+    }
+
+    const displayName = getSignupUsername(request.data?.username);
+    const usernameId = getUsernameReservationId(displayName);
+    const db = getFirestore();
+    const usernameRef = db.collection('usernames').doc(usernameId);
+    const leaderboardRef = db.collection('leaderboard').doc(uid);
+    const now = Date.now();
+
+    await db.runTransaction(async transaction => {
+        const usernameSnap = await transaction.get(usernameRef);
+        const leaderboardSnap = await transaction.get(leaderboardRef);
+        const existingUid = usernameSnap.exists ? usernameSnap.data()?.uid : null;
+
+        if (existingUid && existingUid !== uid) {
+            throw new HttpsError('already-exists', 'This username is already taken. Please choose another one.');
+        }
+
+        transaction.set(usernameRef, {
+            uid,
+            displayName,
+            normalizedDisplayName: usernameId,
+            createdAtMillis: usernameSnap.exists ? usernameSnap.data()?.createdAtMillis || now : now,
+            updatedAtMillis: now
+        }, { merge: true });
+
+        transaction.set(leaderboardRef, {
+            displayName,
+            totalPoints: leaderboardSnap.exists ? leaderboardSnap.data()?.totalPoints || 0 : 0,
+            gamesWon: leaderboardSnap.exists ? leaderboardSnap.data()?.gamesWon || 0 : 0,
+            lastUpdated: FieldValue.serverTimestamp()
+        }, { merge: true });
+    });
+
+    await getAuth().updateUser(uid, { displayName });
+
+    return { displayName };
+});
 
 export const submitLeaderboardScore = onCall(PUBLIC_CALLABLE_OPTIONS, async (request) => {
     const uid = getAuthedUid(request);
@@ -569,6 +641,60 @@ const getSafeRevealedRound = (roundData: any) => ({
     artworkUrl: roundData.artworkUrl
 });
 
+const advanceMultiplayerRoomIfReady = async (roomId: string, now: number) => {
+    const db = getFirestore();
+    const roomRef = db.collection('multiplayerRooms').doc(roomId);
+    let nextRoundInput: { hostUid: string; playlistId: string; roundNumber: number; roundTimerSeconds: number } | null = null;
+
+    await db.runTransaction(async transaction => {
+        const roomSnap = await transaction.get(roomRef);
+        if (!roomSnap.exists) return;
+
+        const room = roomSnap.data();
+        const currentRound = room?.currentRound || null;
+        if (room?.status !== 'playing' || currentRound?.state !== 'advancing') return;
+        if (typeof currentRound.advancesAt !== 'number' || currentRound.advancesAt > now) return;
+
+        const advanceStartedAt = typeof currentRound.advanceStartedAt === 'number'
+            ? currentRound.advanceStartedAt
+            : 0;
+        if (advanceStartedAt && now - advanceStartedAt < MULTIPLAYER_ADVANCE_LOCK_TIMEOUT_MS) {
+            return;
+        }
+
+        transaction.update(roomRef, {
+            updatedAt: now,
+            currentRound: {
+                ...currentRound,
+                advanceStartedAt: now
+            }
+        });
+
+        nextRoundInput = {
+            hostUid: room.hostUid,
+            playlistId: room.playlistId,
+            roundNumber: (currentRound.roundNumber || 1) + 1,
+            roundTimerSeconds: room.roundTimerSeconds || DEFAULT_ROUND_TIMER_SECONDS
+        };
+    });
+
+    const roundToStart = nextRoundInput as { hostUid: string; playlistId: string; roundNumber: number; roundTimerSeconds: number } | null;
+    if (!roundToStart) {
+        return false;
+    }
+
+    await startNextMultiplayerRound(
+        db,
+        roomRef,
+        roomId,
+        roundToStart.hostUid,
+        roundToStart.playlistId,
+        roundToStart.roundNumber,
+        roundToStart.roundTimerSeconds
+    );
+    return true;
+};
+
 const settleRoundIfComplete = async (
     roomId: string,
     roundId: string,
@@ -576,7 +702,6 @@ const settleRoundIfComplete = async (
 ) => {
     const db = getFirestore();
     const roomRef = db.collection('multiplayerRooms').doc(roomId);
-    let nextRoundInput: { hostUid: string; playlistId: string; roundNumber: number; roundTimerSeconds: number } | null = null;
 
     await db.runTransaction(async transaction => {
         const roomSnap = await transaction.get(roomRef);
@@ -634,28 +759,7 @@ const settleRoundIfComplete = async (
                 advancesAt
             }
         });
-
-        nextRoundInput = {
-            hostUid: room.hostUid,
-            playlistId: room.playlistId,
-            roundNumber: (room.currentRound?.roundNumber || 1) + 1,
-            roundTimerSeconds: room.roundTimerSeconds || DEFAULT_ROUND_TIMER_SECONDS
-        };
     });
-
-    const roundToStart = nextRoundInput as { hostUid: string; playlistId: string; roundNumber: number; roundTimerSeconds: number } | null;
-    if (roundToStart) {
-        await new Promise(resolve => setTimeout(resolve, ROUND_REVEAL_DELAY_MS));
-        await startNextMultiplayerRound(
-            db,
-            roomRef,
-            roomId,
-            roundToStart.hostUid,
-            roundToStart.playlistId,
-            roundToStart.roundNumber,
-            roundToStart.roundTimerSeconds
-        );
-    }
 };
 
 export const createMultiplayerRoom = onCall(PUBLIC_CALLABLE_OPTIONS, async (request) => {
@@ -824,6 +928,18 @@ export const startMultiplayerGame = onCall(PUBLIC_CALLABLE_OPTIONS, async (reque
     await startNextMultiplayerRound(db, roomRef, roomId, uid, room.playlistId, 1, room.roundTimerSeconds || DEFAULT_ROUND_TIMER_SECONDS);
 
     return { roomId };
+});
+
+export const advanceMultiplayerRound = onCall(PUBLIC_CALLABLE_OPTIONS, async (request) => {
+    const uid = getAuthedUid(request);
+    const roomId = getRoomId(request.data?.roomId);
+    const db = getFirestore();
+    const roomRef = db.collection('multiplayerRooms').doc(roomId);
+
+    await assertJoinedPlayer(roomRef, uid);
+    const advanced = await advanceMultiplayerRoomIfReady(roomId, Date.now());
+
+    return { roomId, advanced };
 });
 
 export const getMultiplayerRoundData = onCall(PUBLIC_CALLABLE_OPTIONS, async (request) => {
@@ -1368,6 +1484,64 @@ export const cleanupUserOnDelete = functionsV1.auth.user().onDelete(async (userR
     } catch (error) {
         console.error(`[cleanupUserOnDelete] Error cleaning up user ${uid}:`, error);
         throw error;
+    }
+});
+
+const deleteMultiplayerRoomData = async (roomRef: any) => {
+    const playersSnapshot = await roomRef.collection('players').get();
+    await deleteCollectionDocs(playersSnapshot.docs);
+
+    const roundsSnapshot = await roomRef.collection('rounds').get();
+    await deleteCollectionDocs(roundsSnapshot.docs);
+
+    await roomRef.delete();
+};
+
+export const advanceStuckMultiplayerRounds = onSchedule('every 1 minutes', async () => {
+    const db = getFirestore();
+    const now = Date.now();
+
+    try {
+        const roomsSnapshot = await db
+            .collection('multiplayerRooms')
+            .where('currentRound.state', '==', 'advancing')
+            .limit(MULTIPLAYER_ROOM_CLEANUP_BATCH_SIZE)
+            .get();
+
+        let advancedCount = 0;
+        for (const roomDoc of roomsSnapshot.docs) {
+            const room = roomDoc.data();
+            if (typeof room?.currentRound?.advancesAt === 'number'
+                && room.currentRound.advancesAt <= now
+                && await advanceMultiplayerRoomIfReady(roomDoc.id, now)) {
+                advancedCount += 1;
+            }
+        }
+
+        console.log(`[advanceStuckMultiplayerRounds] Advanced ${advancedCount} multiplayer rooms.`);
+    } catch (error) {
+        console.error('[advanceStuckMultiplayerRounds] Error advancing multiplayer rooms:', error);
+    }
+});
+
+export const cleanupExpiredMultiplayerRooms = onSchedule('every 24 hours', async () => {
+    const db = getFirestore();
+    const now = Date.now();
+
+    try {
+        const roomsSnapshot = await db
+            .collection('multiplayerRooms')
+            .where('expiresAt', '<=', now)
+            .limit(MULTIPLAYER_ROOM_CLEANUP_BATCH_SIZE)
+            .get();
+
+        for (const roomDoc of roomsSnapshot.docs) {
+            await deleteMultiplayerRoomData(roomDoc.ref);
+        }
+
+        console.log(`[cleanupExpiredMultiplayerRooms] Deleted ${roomsSnapshot.size || 0} expired multiplayer rooms.`);
+    } catch (error) {
+        console.error('[cleanupExpiredMultiplayerRooms] Error cleaning up multiplayer rooms:', error);
     }
 });
 

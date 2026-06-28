@@ -5,14 +5,13 @@
  */
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signInAnonymously, signOut, updateProfile } from 'firebase/auth';
+import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signInAnonymously, signOut } from 'firebase/auth';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
-import { auth } from '../backend/FirebaseConfig';
+import { auth, functions } from '../backend/FirebaseConfig';
 import { redirectToAuthCodeFlow, getAccessToken, getFreshSpotifyAccessToken } from '../utils/auth';
 import NavBar from '../components/NavBar';
-import { collection, query, where, getDocs, doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../backend/FirebaseConfig';
+import { httpsCallable } from 'firebase/functions';
 
 import { 
   RegExpMatcher, 
@@ -228,33 +227,17 @@ const Login = () => {
                     return;
                 }
 
-                // 3. Post-creation setup: username check, profile, leaderboard.
+                // 3. Post-creation setup: username reservation, profile, leaderboard.
                 // If ANY step fails, roll back by deleting the account and signing
                 // out so the user can retry cleanly without hitting
                 // auth/email-already-in-use on their next attempt.
                 try {
-                    const q = query(
-                        collection(db, 'leaderboard'),
-                        where('displayName', '==', trimmedUsername)
+                    const initializeAccount = httpsCallable<{ username: string }, { displayName: string }>(
+                        functions,
+                        'initializeTuneTeaserAccount'
                     );
-                    const querySnapshot = await getDocs(q);
-                    if (!querySnapshot.empty) {
-                        throw Object.assign(
-                            new Error('This username is already taken. Please choose another one.'),
-                            { _isUserFacing: true }
-                        );
-                    }
-
-                    await updateProfile(userCredential.user, { displayName: trimmedUsername });
-
-                    // Initialize leaderboard document to reserve the username immediately
-                    const userDocRef = doc(db, 'leaderboard', userCredential.user.uid);
-                    await setDoc(userDocRef, {
-                        displayName: trimmedUsername,
-                        totalPoints: 0,
-                        gamesWon: 0,
-                        lastUpdated: serverTimestamp()
-                    });
+                    await initializeAccount({ username: trimmedUsername });
+                    await userCredential.user.reload();
 
                     sessionStorage.removeItem('isSigningUp');
                     navigate('/home');
@@ -270,8 +253,8 @@ const Login = () => {
                         await signOut(auth);
                     } catch { /* already signed out via delete */ }
 
-                    if (setupError._isUserFacing) {
-                        setTuneTeaserAuthError(setupError.message);
+                    if (setupError._isUserFacing || setupError.code) {
+                        setTuneTeaserAuthError(getGracefulAuthErrorMessage(setupError));
                     } else {
                         console.error('Account setup failed:', setupError);
                         setTuneTeaserAuthError('Account setup failed. Please try again.');

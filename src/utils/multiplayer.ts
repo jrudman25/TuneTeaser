@@ -74,6 +74,7 @@ export interface MultiplayerRound {
     roundNumber: number;
     completedAt?: number;
     advancesAt?: number;
+    advanceStartedAt?: number;
 }
 
 export interface MultiplayerRevealedRound {
@@ -109,6 +110,10 @@ export interface SubmitMultiplayerGuessResponse {
 
 interface RoomResponse {
     roomId: string;
+}
+
+interface AdvanceRoundResponse extends RoomResponse {
+    advanced: boolean;
 }
 
 const callRoomFunction = async <TInput>(name: string, input: TInput) => {
@@ -147,6 +152,12 @@ export const updateMultiplayerRoomSettings = (
 
 export const startMultiplayerGame = (roomId: string) => {
     return callRoomFunction('startMultiplayerGame', { roomId });
+};
+
+export const advanceMultiplayerRound = async (roomId: string) => {
+    const callable = httpsCallable<{ roomId: string }, AdvanceRoundResponse>(functions, 'advanceMultiplayerRound');
+    const result = await callable({ roomId });
+    return result.data;
 };
 
 export const kickMultiplayerPlayer = (roomId: string, targetUid: string) => {

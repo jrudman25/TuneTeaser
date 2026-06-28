@@ -15,6 +15,7 @@ import {
     MultiplayerRoundData,
     MultiplayerPlayer,
     MultiplayerRoom,
+    advanceMultiplayerRound,
     createMultiplayerRoom,
     getMultiplayerRoundData,
     giveUpMultiplayerRound,
@@ -218,6 +219,18 @@ const Multiplayer = () => {
         const interval = setInterval(tick, 1000);
         return () => clearInterval(interval);
     }, [room?.currentRound?.advancesAt, room?.currentRound?.state]);
+
+    const advanceRoundFiredRef = useRef('');
+    useEffect(() => {
+        const roundId = room?.currentRound?.id || '';
+        if (revealTimeRemaining !== 0 || !activeRoomId || !roundId || room?.currentRound?.state !== 'advancing') return;
+        if (advanceRoundFiredRef.current === roundId) return;
+
+        advanceRoundFiredRef.current = roundId;
+        advanceMultiplayerRound(activeRoomId).catch(err => {
+            setError(getFirebaseMessage(err, 'Could not start the next round.'));
+        });
+    }, [activeRoomId, revealTimeRemaining, room?.currentRound?.id, room?.currentRound?.state]);
 
     // Auto-give-up when timer reaches 0
     const autoGiveUpFiredRef = useRef('');
