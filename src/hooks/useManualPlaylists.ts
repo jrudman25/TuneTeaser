@@ -109,7 +109,7 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
         name: string,
         sourceUrl: string,
         tracks: ManualTrack[],
-        status: 'ready' | 'importing' = 'ready',
+        status: 'ready' | 'importing' | 'error' = 'ready',
         importedCount?: number,
         totalCount?: number
     ) => {
@@ -356,13 +356,15 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
                     tracksUrl,
                     importedCount: combinedTracks.length,
                     totalCount: total,
-                    status: isDone ? 'ready' : 'importing'
+                    status: isDone ? 'ready' : 'importing',
+                    importError: ''
                 });
                 console.log(`[TuneTeaser Importer] Successfully updated playlist tracks in Storage. isDone: ${isDone}`);
             } catch (err) {
                 console.error("[TuneTeaser Importer] Background import failed:", err);
                 if (isSubscribed) {
-                    await updateManualPlaylist(playlistId, { status: 'ready' });
+                    const importError = err instanceof Error ? err.message : 'Background import failed.';
+                    await updateManualPlaylist(playlistId, { status: 'error', importError });
                 }
             }
         };

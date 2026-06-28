@@ -289,7 +289,14 @@ const mapSpotifyPlaylistSearchItems = (
         })
 );
 
-const stripOwnerSearchText = ({ ownerSearchText, ...playlist }: SpotifyPlaylistSearchCandidate): SpotifyPlaylistSearchResult => playlist;
+const stripOwnerSearchText = (playlist: SpotifyPlaylistSearchCandidate): SpotifyPlaylistSearchResult => ({
+    id: playlist.id,
+    name: playlist.name,
+    ownerName: playlist.ownerName,
+    trackCount: playlist.trackCount,
+    imageUrl: playlist.imageUrl,
+    externalUrl: playlist.externalUrl
+});
 
 const mapUserPlaylistSearchResults = (
     playlists: SpotifyUserPlaylist[],

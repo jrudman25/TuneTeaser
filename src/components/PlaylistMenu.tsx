@@ -163,21 +163,22 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
                         )}
                         {currentPagePlaylists.map((playlist: any) => {
                             const isImporting = playlist.status === 'importing';
+                            const hasImportError = playlist.status === 'error';
                             return (
                                 <li key={playlist.id}>
                                     <button
                                         className="playlist-card"
                                         onClick={() => {
-                                            if (isImporting) return;
+                                            if (isImporting || hasImportError) return;
                                             onSelectPlaylist(playlist.id);
                                         }}
-                                        disabled={isLoading || isImporting}
+                                        disabled={isLoading || isImporting || hasImportError}
                                     >
-                                        {isImporting && (
+                                        {(isImporting || hasImportError) && (
                                             <div className="playlist-card-importing-overlay">
-                                                <span>Importing</span>
+                                                <span>{hasImportError ? 'Import Error' : 'Importing'}</span>
                                                 <span style={{ fontSize: '0.85rem', fontFamily: 'var(--body)', fontWeight: 900, color: 'var(--cream)' }}>
-                                                    {playlist.importedCount || 0} / {playlist.totalCount || 100} tracks
+                                                    {hasImportError ? (playlist.importError || 'Import failed') : `${playlist.importedCount || 0} / ${playlist.totalCount || 100} tracks`}
                                                 </span>
                                             </div>
                                         )}

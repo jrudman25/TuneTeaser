@@ -27,6 +27,8 @@ const MAX_SNIPPET_DURATION_MS = 30000;
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const SPOTIFY_READ_RATE_LIMIT = 20;
 const SPOTIFY_IMPORT_RATE_LIMIT = 30;
+const SPOTIFY_IMPORT_PAGE_LIMIT_MAX = 100;
+const SPOTIFY_IMPORT_OFFSET_MAX = 5000;
 const MULTIPLAYER_ROUND_LOOKUP_ATTEMPTS = 8;
 const ROUND_REVEAL_DELAY_MS = 5000;
 const MULTIPLAYER_ADVANCE_LOCK_TIMEOUT_MS = 30 * 1000;
@@ -43,6 +45,14 @@ const PUBLIC_CALLABLE_OPTIONS = {
 
 const normalizeAnswer = (value: unknown) => {
     return typeof value === 'string' ? value.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+};
+
+const parseImportPageNumber = (value: unknown, fallback: number, min: number, max: number, label: string) => {
+    if (value === undefined) return fallback;
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > max) {
+        throw new HttpsError('invalid-argument', `${label} must be an integer from ${min} to ${max}.`);
+    }
+    return value;
 };
 
 const songVersionKeywordPattern = /(remaster(?:ed)?|version|edit|mix|live|demo|mono|stereo|anniversary|deluxe|radio)/i;
@@ -1419,8 +1429,8 @@ export const importSpotifyPlaylist = onCall({
     const playlistId = typeof request.data?.playlistId === 'string'
         ? request.data.playlistId.trim()
         : '';
-    const offset = typeof request.data?.offset === 'number' ? request.data.offset : 0;
-    const limit = typeof request.data?.limit === 'number' ? request.data.limit : 100;
+    const offset = parseImportPageNumber(request.data?.offset, 0, 0, SPOTIFY_IMPORT_OFFSET_MAX, 'Offset');
+    const limit = parseImportPageNumber(request.data?.limit, 100, 1, SPOTIFY_IMPORT_PAGE_LIMIT_MAX, 'Limit');
 
     if (!PLAYLIST_ID_PATTERN.test(playlistId)) {
         throw new HttpsError('invalid-argument', 'Invalid Spotify playlist ID.');

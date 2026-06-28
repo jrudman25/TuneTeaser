@@ -110,4 +110,25 @@ describe('PlaylistMenu', () => {
         await user.click(importingButton);
         expect(onSelectPlaylist).not.toHaveBeenCalled();
     });
+
+    it('disables playlists with import errors and shows the failure message', async () => {
+        const user = userEvent.setup();
+        const { onSelectPlaylist } = renderMenu({
+            isGuest: true,
+            playlists: [
+                makePlaylist('manual_error', 'Partial Import', 10, {
+                    status: 'error',
+                    importError: 'Spotify returned an error.'
+                })
+            ]
+        });
+
+        const errorButton = screen.getByRole('button', { name: /partial import/i });
+        expect(errorButton).toBeDisabled();
+        expect(screen.getByText('Import Error')).toBeInTheDocument();
+        expect(screen.getByText('Spotify returned an error.')).toBeInTheDocument();
+
+        await user.click(errorButton);
+        expect(onSelectPlaylist).not.toHaveBeenCalled();
+    });
 });
