@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect } from 'react';
 
 type ToastMessageProps = {
     message: string;
@@ -9,29 +9,17 @@ type ToastMessageProps = {
 };
 
 const ToastMessage = ({ message, type, title, durationMs = 5000, onClose }: ToastMessageProps) => {
-    const [isVisible, setIsVisible] = useState(false);
-    const onCloseRef = useRef(onClose);
-
     useEffect(() => {
-        onCloseRef.current = onClose;
-    }, [onClose]);
+        if (!message) return;
 
-    useEffect(() => {
-        if (!message) {
-            setIsVisible(false);
-            return;
-        }
-
-        setIsVisible(true);
         const timeoutId = window.setTimeout(() => {
-            setIsVisible(false);
-            onCloseRef.current?.();
+            onClose?.();
         }, durationMs);
 
         return () => window.clearTimeout(timeoutId);
-    }, [durationMs, message]);
+    }, [durationMs, message, onClose]);
 
-    if (!message || !isVisible) return null;
+    if (!message) return null;
 
     const label = title || (type === 'error' ? 'Error' : 'Success');
 
@@ -40,10 +28,7 @@ const ToastMessage = ({ message, type, title, durationMs = 5000, onClose }: Toas
             <div>
                 <strong>{label}:</strong> {message}
             </div>
-            <button type="button" className="toast-close" aria-label="Dismiss notification" onClick={() => {
-                setIsVisible(false);
-                onCloseRef.current?.();
-            }}>
+            <button type="button" className="toast-close" aria-label="Dismiss notification" onClick={() => onClose?.()}>
                 X
             </button>
         </div>
