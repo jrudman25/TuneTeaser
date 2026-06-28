@@ -136,6 +136,7 @@ vi.mock('./spotify', () => ({
     normalizeTrackIds: vi.fn((ids) => ids || [])
 }));
 
+import { fetchPlaylistTracks } from './spotify';
 import {
     resolveSpotifyTracks,
     getPlaylistName,
@@ -1032,6 +1033,27 @@ describe('Cloud Functions (index.ts)', () => {
         it('throws invalid-argument for bad playlist ID', async () => {
             await expect((importSpotifyPlaylist as any)({ data: { playlistId: 'invalid' }, auth: { uid: 'user1' } }))
                 .rejects.toThrow('Invalid Spotify playlist ID');
+        });
+
+        it('throws invalid-argument for non-integer pagination values', async () => {
+            await expect((importSpotifyPlaylist as any)({
+                data: { playlistId: '1234567890123456789012', offset: 1.5, limit: 100 },
+                auth: { uid: 'user1' }
+            })).rejects.toThrow('Offset must be an integer from 0 to 5000');
+
+            await expect((importSpotifyPlaylist as any)({
+                data: { playlistId: '1234567890123456789012', offset: 0, limit: 101 },
+                auth: { uid: 'user1' }
+            })).rejects.toThrow('Limit must be an integer from 1 to 100');
+        });
+
+        it('passes validated pagination values to Spotify fetch', async () => {
+            await (importSpotifyPlaylist as any)({
+                data: { playlistId: '1234567890123456789012', offset: 100, limit: 50 },
+                auth: { uid: 'user1' }
+            });
+
+            expect(fetchPlaylistTracks).toHaveBeenCalledWith('1234567890123456789012', 'mock-token', 100, 50);
         });
 
         it('rate limits repeated imports per uid', async () => {

@@ -12,6 +12,33 @@ import { ManualPlaylist, ManualTrack, manualTracksToGameItems } from '../utils/m
 import { calculatePoints } from '../utils/scoreUtils';
 import { getManualPlaylistTracks } from '../utils/spotifyPlaylistImporter';
 
+const ITUNES_LOOKUP_ATTEMPT_LIMIT = 12;
+const FAILED_ITUNES_LOOKUP_STORAGE_KEY = 'tuneteaserFailedItunesLookups';
+const FAILED_ITUNES_LOOKUP_STORAGE_LIMIT = 500;
+
+const getTrackLookupKey = (track: any) => {
+    const artistName = track.artists?.[0]?.name || '';
+    return `${track.id || track.name}|${track.name}|${artistName}`.toLowerCase();
+};
+
+const loadFailedItunesLookups = () => {
+    try {
+        const stored = localStorage.getItem(FAILED_ITUNES_LOOKUP_STORAGE_KEY);
+        return new Set<string>(stored ? JSON.parse(stored) : []);
+    } catch {
+        return new Set<string>();
+    }
+};
+
+const saveFailedItunesLookups = (failedLookups: Set<string>) => {
+    try {
+        const cappedLookups = Array.from(failedLookups).slice(-FAILED_ITUNES_LOOKUP_STORAGE_LIMIT);
+        localStorage.setItem(FAILED_ITUNES_LOOKUP_STORAGE_KEY, JSON.stringify(cappedLookups));
+    } catch {
+        return;
+    }
+};
+
 export const useGameLogic = (
     accessToken: string | null,
     isGuest: boolean,
@@ -43,10 +70,14 @@ export const useGameLogic = (
         setIsLoadingGame(true);
         pause();
 
+        const persistedFailedLookupKeys = loadFailedItunesLookups();
+        const sessionFailedTrackIds = new Set(failedTracks);
+
         const isCandidateValid = (t: any) => {
             const id = t.track.id;
             if (recentTracks.includes(id)) return false;
-            if (failedTracks.includes(id)) return false;
+            if (sessionFailedTrackIds.has(id)) return false;
+            if (persistedFailedLookupKeys.has(getTrackLookupKey(t.track))) return false;
             if (explicitSkipId && id === explicitSkipId) return false;
             return true;
         };
@@ -58,7 +89,8 @@ export const useGameLogic = (
             setRecentTracks([]);
             // allow recent tracks again, but maintain failedTracks blacklist
             candidates = tracks.filter(t =>
-                !failedTracks.includes(t.track.id) &&
+                !sessionFailedTrackIds.has(t.track.id) &&
+                !persistedFailedLookupKeys.has(getTrackLookupKey(t.track)) &&
                 (!explicitSkipId || t.track.id !== explicitSkipId)
             );
         }
@@ -67,11 +99,15 @@ export const useGameLogic = (
         let previewUrl = null;
 
         const shuffled = [...candidates].sort(() => 0.5 - Math.random());
+        const lookupCandidates = shuffled.slice(0, ITUNES_LOOKUP_ATTEMPT_LIMIT);
+        const roundFailedTrackIds = new Set<string>();
+        let failedLookupKeysChanged = false;
 
-        for (const candidate of shuffled) {
+        for (const candidate of lookupCandidates) {
             const track = candidate.track;
             const artistName = track.artists[0]?.name || "";
             const albumName = track.album?.name || "";
+            const lookupKey = getTrackLookupKey(track);
             const data = await getItunesPreview(track.name, artistName, albumName);
 
             if (data && data.previewUrl) {
@@ -91,8 +127,17 @@ export const useGameLogic = (
                 break;
             } else {
 
-                setFailedTracks(prev => [...prev, track.id]);
+                roundFailedTrackIds.add(track.id);
+                persistedFailedLookupKeys.add(lookupKey);
+                failedLookupKeysChanged = true;
             }
+        }
+
+        if (roundFailedTrackIds.size > 0) {
+            setFailedTracks(prev => Array.from(new Set([...prev, ...roundFailedTrackIds])));
+        }
+        if (failedLookupKeysChanged) {
+            saveFailedItunesLookups(persistedFailedLookupKeys);
         }
 
         if (selectedTrack && previewUrl) {

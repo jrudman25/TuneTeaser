@@ -192,6 +192,7 @@ describe('useGameLogic - Guess Matching', () => {
 describe('useGameLogic - Auto Skip', () => {
     beforeEach(() => {
         vi.resetAllMocks();
+        localStorage.clear();
         vi.spyOn(console, 'warn').mockImplementation(() => { });
         vi.spyOn(console, 'error').mockImplementation(() => { });
     });
@@ -239,6 +240,46 @@ describe('useGameLogic - Auto Skip', () => {
 
         expect(result.current.targetSong).toBeNull();
         expect(result.current.feedbackMessage).toContain('No playable tracks');
+    });
+
+    it('caps iTunes lookup attempts per round', async () => {
+        const mockTracks = Array.from({ length: 20 }, (_, index) => ({
+            track: { id: `${index}`, name: `Bad Song ${index}`, artists: [{ name: 'Artist' }], uri: `uri${index}` }
+        }));
+
+        (getItunesPreview as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+        const { result } = renderHook(() => useGameLogic('fake-token', false));
+
+        await act(async () => {
+            await result.current.startGame(mockTracks);
+        });
+
+        expect(getItunesPreview).toHaveBeenCalledTimes(12);
+    });
+
+    it('skips persisted failed iTunes lookups on later rounds', async () => {
+        const mockTracks = [
+            { track: { id: '1', name: 'Bad Song', artists: [{ name: 'Artist 1' }], uri: 'uri1' } },
+            { track: { id: '2', name: 'Good Song', artists: [{ name: 'Artist 2' }], uri: 'uri2' } }
+        ];
+
+        (getItunesPreview as ReturnType<typeof vi.fn>).mockImplementation(async (name: string) => {
+            if (name === 'Bad Song') return null;
+            if (name === 'Good Song') return { previewUrl: 'http://preview.url/good', artworkUrl: 'http://art.url' };
+            return null;
+        });
+
+        const { result } = renderHook(() => useGameLogic('fake-token', false));
+
+        await act(async () => {
+            vi.spyOn(Math, 'random').mockReturnValue(0.1);
+            await result.current.startGame(mockTracks);
+            await result.current.startGame(mockTracks);
+        });
+
+        expect(getItunesPreview).toHaveBeenCalledWith('Bad Song', 'Artist 1', '');
+        expect((getItunesPreview as ReturnType<typeof vi.fn>).mock.calls.filter(call => call[0] === 'Bad Song')).toHaveLength(1);
     });
 
     it('loads playlist from manualPlaylists if isManualMode is true', async () => {
