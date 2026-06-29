@@ -704,8 +704,8 @@ const Multiplayer = () => {
                     <h1 className="section-title">{activeRoomId ? 'Game room' : 'Multiplayer lobby'}</h1>
                     <p className="body-copy">
                         {activeRoomId
-                            ? 'Share the room link with players and get ready to play.'
-                            : 'Create a local party room, share the code, and let players join from their phones. The host device controls the music.'}
+                            ? 'Share the room link with players, choose a playlist, and get ready to play synchronized rounds.'
+                            : 'Create a private room, share the code or link, and let players join from their own devices.'}
                     </p>
 
                     <ToastMessage
@@ -1094,7 +1094,7 @@ const Multiplayer = () => {
                     )}
 
                     {!activeRoomId && (
-                        <p className="body-copy">Public lobbies are intentionally skipped for the MVP. Private codes are safer and cheaper while the feature is new.</p>
+                        <p className="body-copy">Public lobbies are not available. Private room codes keep invites intentional while multiplayer is focused on friend groups.</p>
                     )}
 
                     <div className="action-row">

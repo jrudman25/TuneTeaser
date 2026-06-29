@@ -62,20 +62,24 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ open, isGuest, onComple
             body: (
                 <>
                     <p className="confirm-body">
-                        TuneTeaser plays songs from playlists you import. There are {isGuest ? 'two' : 'three'} ways to add music:
+                        TuneTeaser plays songs from playlists you import. There are {isGuest ? 'three' : 'four'} ways to add music:
                     </p>
                     <ul className="onboarding-feature-list">
                         <li>
                             <span className="number-chip">1</span>
-                            <span>Paste a <strong>Spotify playlist URL</strong> to import any public playlist.</span>
+                            <span>Search <strong>public Spotify playlists</strong> by playlist name or owner.</span>
                         </li>
                         <li>
                             <span className="number-chip">2</span>
+                            <span>Paste a <strong>Spotify playlist URL</strong> to import any public playlist.</span>
+                        </li>
+                        <li>
+                            <span className="number-chip">3</span>
                             <span>Paste a <strong>Spotify profile URL</strong> to browse and pick from public playlists.</span>
                         </li>
                         {!isGuest && (
                             <li>
-                                <span className="number-chip">3</span>
+                                <span className="number-chip">4</span>
                                 <span>Build a <strong>custom mix</strong> from individual track URLs or song lines.</span>
                             </li>
                         )}
@@ -113,12 +117,25 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ open, isGuest, onComple
             )
         },
         {
+            title: 'Play With Friends',
+            body: (
+                <>
+                    <p className="confirm-body">
+                        Multiplayer rooms let you share a private room code or link, choose a playlist, set a point goal and round timer, then race friends through synchronized rounds.
+                    </p>
+                    <p className="confirm-body" style={{ marginTop: '12px' }}>
+                        Multiplayer room scores stay inside the room and do not affect the global solo leaderboard.
+                    </p>
+                </>
+            )
+        },
+        {
             title: 'Need Help?',
             body: (
                 <>
                     <p className="confirm-body">
                         Our Help & FAQ page covers everything: how to find Spotify links,
-                        playlist limits, scoring rules, and account modes.
+                        playlist limits, multiplayer rooms, scoring rules, and account modes.
                     </p>
                     <p className="confirm-body" style={{ marginTop: '12px' }}>
                         You can always find it by clicking <strong>Help</strong> in the top navigation menu.

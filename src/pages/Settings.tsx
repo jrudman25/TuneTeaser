@@ -241,7 +241,7 @@ const Settings = () => {
                                             />
                                         </label>
                                         <div className="helper-text">
-                                            3-20 characters. Letters, numbers, underscores, and hyphens only.
+                                            3-20 characters. Letters, numbers, underscores, and hyphens only. Username changes are being moved to the same server-controlled reservation flow used during signup, so availability checks may be limited here.
                                         </div>
                                         {usernameError && <div className="inline-error" style={{ marginTop: '8px' }}>{usernameError}</div>}
                                         {usernameSuccess && <div style={{ color: 'var(--green)', fontWeight: 'bold', marginTop: '8px' }}>{usernameSuccess}</div>}

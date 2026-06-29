@@ -25,6 +25,7 @@ const Help = () => {
         spotifyLinks: true,
         limits: false,
         scoring: false,
+        multiplayer: false,
         privacy: false
     });
 
@@ -105,7 +106,7 @@ const Help = () => {
                         <span className="eyebrow">Onboarding Guide</span>
                         <h1 className="section-title">Help & FAQ</h1>
                         <p className="body-copy">
-                            Welcome to TuneTeaser. Here you will find everything you need to know about setting up your playlists, managing limits, earning points, and dominating the leaderboard.
+                            Welcome to TuneTeaser. Here you will find everything you need to know about setting up playlists, importing Spotify music, playing solo or multiplayer rounds, managing limits, earning points, and climbing the leaderboard.
                         </p>
                     </div>
 
@@ -140,9 +141,9 @@ const Help = () => {
                                         TuneTeaser tests your musical recall using song previews from your chosen playlist.
                                     </p>
                                     <ul className="compact-list" style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px', fontWeight: 700, color: 'var(--ink-soft)' }}>
-                                        <li><strong>Select a Playlist:</strong> Choose a playlist from your library or featured guest playlists.</li>
+                                        <li><strong>Select a Playlist:</strong> Choose a playlist from your library, a featured guest playlist, or the host playlist in a multiplayer room.</li>
                                         <li><strong>Hear the Snippet:</strong> A random track is chosen, and a short audio preview will play.</li>
-                                        <li><strong>Race the Clock:</strong> You have a limited time to guess the correct song title. Type your answer and select from the instant results.</li>
+                                        <li><strong>Guess the Title:</strong> Type the song title. In solo play, incorrect guesses increase the snippet length. In multiplayer, race the shared round timer.</li>
                                         <li><strong>Earn Points:</strong> Correct guesses can reward points for registered TuneTeaser accounts, and answering quickly earns more.</li>
                                     </ul>
                                 </div>
@@ -175,7 +176,7 @@ const Help = () => {
                                     style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}
                                 >
                                     <p className="body-copy" style={{ fontSize: '1.05rem' }}>
-                                        You can import any public Spotify playlist or profile to play with. Follow these simple steps:
+                                        You can search public Spotify playlists, import a single public playlist URL, or browse public playlists from a Spotify profile URL. Follow these simple steps:
                                     </p>
 
                                     <div className="help-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', flexWrap: 'wrap' }}>
@@ -200,7 +201,7 @@ const Help = () => {
                                         </div>
                                     </div>
                                     <p className="helper-text" style={{ margin: 0, color: 'var(--ink-soft)', fontWeight: 800 }}>
-                                        Note: Playlists must be set to public in your Spotify settings to be imported. Secret or private playlists cannot be accessed.
+                                        Note: Search, playlist URL import, and profile URL import only show public Spotify data. Secret, private, or collaborative playlists require Spotify sign-in access.
                                     </p>
                                 </div>
                             )}
@@ -237,6 +238,7 @@ const Help = () => {
                                     <ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px', fontWeight: 700, color: 'var(--ink-soft)' }}>
                                         <li><strong>Playlist Limit:</strong> Each user (including guest sessions) can save a maximum of <strong>30</strong> active playlists in their library. To add more, simply delete an old playlist from your Music Library.</li>
                                         <li><strong>Track Cap:</strong> A single playlist is limited to a maximum of <strong>5,000</strong> tracks. Any import exceeding this length will be sliced and capped at the first 5,000 songs.</li>
+                                        <li><strong>Background Imports:</strong> Large Spotify imports may load the first batch immediately, then continue importing in the background. If a later batch fails, the playlist is marked with an import error instead of appearing ready.</li>
                                         <li><strong>Static Snapshots:</strong> When you import from Spotify, it creates a static snapshot of your tracks at that specific moment. If you subsequently add or delete tracks on Spotify, the changes will not sync automatically. You can update your playlist easily by deleting it from TuneTeaser and importing the link again.</li>
                                     </ul>
                                 </div>
@@ -274,13 +276,50 @@ const Help = () => {
                                     <ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px', fontWeight: 700, color: 'var(--ink-soft)' }}>
                                         <li><strong>Eligible Playlists:</strong> To qualify for the global leaderboard, you must play on a playlist containing at least <strong>10</strong> tracks. Smaller mixes can be played for fun, but scores will not be uploaded.</li>
                                         <li><strong>Speed Bonus:</strong> Points are calculated based on your guess speed. Guessing a track title immediately awards 25 points, which decreases by 1 point for every additional 2 seconds of snippet length you need (4s = 24 points, 6s = 23 points, etc.).</li>
-                                        <li><strong>Account Required:</strong> You must be signed into a registered TuneTeaser email account to upload scores. Guest Mode and invite-only Spotify login games do not submit scores to the cloud leaderboard yet.</li>
+                                        <li><strong>Fair Play Cooldown:</strong> The same account cannot repeatedly score the same song from the same playlist within a short cooldown window.</li>
+                                        <li><strong>Account Required:</strong> You must be signed into a registered TuneTeaser email account to upload solo scores. Guest Mode and invite-only Spotify login games do not submit scores to the cloud leaderboard yet.</li>
                                     </ul>
                                 </div>
                             )}
                         </article>
 
-                        {/* Section 5: Account and Privacy */}
+                        <article
+                            className={`faq-card ${openSections.multiplayer ? 'open' : ''}`}
+                            onClick={() => toggleSection('multiplayer')}
+                            style={{ ...cardStyle, cursor: 'pointer' }}
+                        >
+                            <header
+                                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                            >
+                                <h3 className="subsection-title" style={{ margin: 0, fontSize: '1.25rem', color: openSections.multiplayer ? 'var(--teal)' : 'var(--ink)' }}>Multiplayer Rooms</h3>
+                                <ArrowForwardIosIcon
+                                    style={{
+                                        transform: openSections.multiplayer ? 'rotate(90deg)' : 'rotate(0deg)',
+                                        transition: 'transform 0.2s ease',
+                                        fontSize: '1rem',
+                                        color: 'var(--teal)'
+                                    }}
+                                />
+                            </header>
+                            {openSections.multiplayer && (
+                                <div
+                                    className="faq-content"
+                                    onClick={(e) => e.stopPropagation()}
+                                    style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}
+                                >
+                                    <p className="body-copy" style={{ fontSize: '1.05rem' }}>
+                                        Multiplayer uses private invite rooms. Create a room, share the six-character code or room link, choose a playlist, set the point goal and round timer, then start synchronized rounds.
+                                    </p>
+                                    <ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px', fontWeight: 700, color: 'var(--ink-soft)' }}>
+                                        <li><strong>Private Codes:</strong> Public lobby browsing is not available. Players join by invite code or direct room link.</li>
+                                        <li><strong>Host Controls:</strong> The host picks playlists, saves settings, starts games, kicks players from the lobby, and decides whether to play again or return to the lobby after a win.</li>
+                                        <li><strong>Round Flow:</strong> Players guess on their own device, can give up, and may time out. When everyone is done, the answer is revealed before the next round starts.</li>
+                                        <li><strong>Scoring:</strong> Multiplayer uses the same 10 to 25 point speed formula, but multiplayer room scores are separate from the global solo leaderboard.</li>
+                                    </ul>
+                                </div>
+                            )}
+                        </article>
+
                         <article
                             className={`faq-card ${openSections.privacy ? 'open' : ''}`}
                             onClick={() => toggleSection('privacy')}
@@ -306,12 +345,13 @@ const Help = () => {
                                     style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}
                                 >
                                     <p className="body-copy" style={{ fontSize: '1.05rem' }}>
-                                        TuneTeaser supports three distinct modes of interaction:
+                                        TuneTeaser supports these account modes and storage behaviors:
                                     </p>
                                     <ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px', fontWeight: 700, color: 'var(--ink-soft)' }}>
-                                        <li><strong>TuneTeaser Account:</strong> Create an account with an email and password to back up your custom lists, sync multiple devices, and climb the leaderboard.</li>
+                                        <li><strong>TuneTeaser Account:</strong> Create an account with an email, password, and reserved username to back up playlists, sync multiple devices, and climb the leaderboard.</li>
                                         <li><strong>Spotify Sign In:</strong> Sign in directly via Spotify to use your Spotify library without pasting links manually. Only available via invite, and leaderboard scoring is not enabled for Spotify-only sessions yet.</li>
-                                        <li><strong>Guest Mode:</strong> Play immediately. We sign you in anonymously behind the scenes using secure isolated tokens to separate your session. Playlist metadata is saved in your local browser storage, while track snapshots may be uploaded to cloud storage so the game can load them. No email is collected and no scores go to the global leaderboard.</li>
+                                        <li><strong>Guest Mode:</strong> Play immediately. We sign you in anonymously behind the scenes using secure isolated tokens to separate your session. Playlist metadata is saved in your local browser storage, while track snapshots may be uploaded to cloud storage under your anonymous Firebase UID so the game can load them. No email is collected and no scores go to the global leaderboard.</li>
+                                        <li><strong>Cleanup:</strong> Inactive anonymous guest users and expired multiplayer rooms are cleaned up automatically to limit retained data.</li>
                                     </ul>
                                 </div>
                             )}

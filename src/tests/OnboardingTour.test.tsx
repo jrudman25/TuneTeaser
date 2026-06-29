@@ -52,14 +52,14 @@ describe('OnboardingTour', () => {
         const { unmount } = render(<OnboardingTour {...defaultProps} isGuest={false} />);
         
         await user.click(screen.getByText('Next'));
-        expect(screen.getByText(/There are three ways to add music/)).toBeInTheDocument();
+        expect(screen.getByText(/There are four ways to add music/)).toBeInTheDocument();
         expect(screen.getByText(/custom mix/)).toBeInTheDocument();
         
         unmount();
         
         render(<OnboardingTour {...defaultProps} isGuest={true} />);
         await user.click(screen.getByText('Next'));
-        expect(screen.getByText(/There are two ways to add music/)).toBeInTheDocument();
+        expect(screen.getByText(/There are three ways to add music/)).toBeInTheDocument();
         expect(screen.queryByText(/custom mix/)).toBeNull();
     });
 
@@ -77,12 +77,12 @@ describe('OnboardingTour', () => {
         const user = userEvent.setup();
         render(<OnboardingTour {...defaultProps} onComplete={onComplete} />);
         
-        // Skip through first 3 steps
-        for (let i = 0; i < 3; i++) {
+        // Skip through first 4 steps
+        for (let i = 0; i < 4; i++) {
             await user.click(screen.getByText('Next'));
         }
         
-        // Now on step 4
+        // Now on step 5
         expect(screen.getByText('Need Help?')).toBeInTheDocument();
         
         const finishBtn = screen.getByText("Let's Play");

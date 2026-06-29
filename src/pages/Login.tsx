@@ -300,7 +300,7 @@ const Login = () => {
                             <span className="kicker">How it works</span>
                             <ol className="how-to-list">
                                 <li><span className="number-chip">1</span><span>Create an account, or play instantly in Guest Mode.</span></li>
-                                <li><span className="number-chip">2</span><span>Import playlists from Spotify URLs, a Spotify profile, or a custom track list.</span></li>
+                                <li><span className="number-chip">2</span><span>Import playlists by searching Spotify, pasting Spotify links, browsing a Spotify profile, or building a custom track list.</span></li>
                                 <li><span className="number-chip">3</span><span>Pick a playlist, hear a short snippet, and guess the track title.</span></li>
                             </ol>
                         </div>
