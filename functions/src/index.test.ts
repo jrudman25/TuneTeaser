@@ -156,6 +156,7 @@ import {
     submitLeaderboardScore,
     cleanupAnonymousUsers,
     initializeTuneTeaserAccount,
+    updateTuneTeaserUsername,
     advanceMultiplayerRound,
     advanceStuckMultiplayerRounds,
     cleanupExpiredMultiplayerRooms,
@@ -260,6 +261,52 @@ describe('Cloud Functions (index.ts)', () => {
 
             await expect((initializeTuneTeaserAccount as any)({
                 data: { username: 'Player One' },
+                auth: { uid: 'user123', token: { firebase: { sign_in_provider: 'password' } } }
+            })).rejects.toThrow('This username is already taken');
+
+            expect(mockUpdateUser).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('updateTuneTeaserUsername', () => {
+        it('moves the username reservation, preserves leaderboard totals, and updates Auth display name', async () => {
+            mockGetUser.mockResolvedValueOnce({ displayName: 'Player One' });
+            mockTransactionGet
+                .mockResolvedValueOnce({ exists: false, data: () => ({}) })
+                .mockResolvedValueOnce({ exists: true, data: () => ({ uid: 'user123' }) })
+                .mockResolvedValueOnce({ exists: true, data: () => ({ totalPoints: 50, gamesWon: 2 }) });
+
+            const result = await (updateTuneTeaserUsername as any)({
+                data: { username: ' Player Two ' },
+                auth: { uid: 'user123', token: { firebase: { sign_in_provider: 'password' } } }
+            });
+
+            expect(result).toEqual({ displayName: 'Player Two' });
+            expect(mockTransactionSet).toHaveBeenCalledTimes(2);
+            expect(mockTransactionSet.mock.calls[0][1]).toMatchObject({
+                uid: 'user123',
+                displayName: 'Player Two',
+                normalizedDisplayName: 'player two'
+            });
+            expect(mockTransactionDelete).toHaveBeenCalledTimes(1);
+            expect(mockTransactionSet.mock.calls[1][1]).toMatchObject({
+                displayName: 'Player Two',
+                totalPoints: 50,
+                gamesWon: 2,
+                lastUpdated: 'server-timestamp'
+            });
+            expect(mockUpdateUser).toHaveBeenCalledWith('user123', { displayName: 'Player Two' });
+        });
+
+        it('rejects username changes to a reservation owned by another user', async () => {
+            mockGetUser.mockResolvedValueOnce({ displayName: 'Player One' });
+            mockTransactionGet
+                .mockResolvedValueOnce({ exists: true, data: () => ({ uid: 'other-user' }) })
+                .mockResolvedValueOnce({ exists: true, data: () => ({ uid: 'user123' }) })
+                .mockResolvedValueOnce({ exists: true, data: () => ({ totalPoints: 50, gamesWon: 2 }) });
+
+            await expect((updateTuneTeaserUsername as any)({
+                data: { username: 'Player Two' },
                 auth: { uid: 'user123', token: { firebase: { sign_in_provider: 'password' } } }
             })).rejects.toThrow('This username is already taken');
 

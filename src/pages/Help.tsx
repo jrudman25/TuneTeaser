@@ -348,7 +348,7 @@ const Help = () => {
                                         TuneTeaser supports these account modes and storage behaviors:
                                     </p>
                                     <ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px', fontWeight: 700, color: 'var(--ink-soft)' }}>
-                                        <li><strong>TuneTeaser Account:</strong> Create an account with an email, password, and reserved username to back up playlists, sync multiple devices, and climb the leaderboard.</li>
+                                        <li><strong>TuneTeaser Account:</strong> Create an account with an email, password, and reserved username to back up playlists, sync multiple devices, and climb the leaderboard. Username changes in Settings use the same reserved-name check as signup.</li>
                                         <li><strong>Spotify Sign In:</strong> Sign in directly via Spotify to use your Spotify library without pasting links manually. Only available via invite, and leaderboard scoring is not enabled for Spotify-only sessions yet.</li>
                                         <li><strong>Guest Mode:</strong> Play immediately. We sign you in anonymously behind the scenes using secure isolated tokens to separate your session. Playlist metadata is saved in your local browser storage, while track snapshots may be uploaded to cloud storage under your anonymous Firebase UID so the game can load them. No email is collected and no scores go to the global leaderboard.</li>
                                         <li><strong>Cleanup:</strong> Inactive anonymous guest users and expired multiplayer rooms are cleaned up automatically to limit retained data.</li>

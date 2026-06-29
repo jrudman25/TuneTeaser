@@ -25,7 +25,7 @@
 *   **Fair Play Safeguards & Storage Safety**:
     *   Guest/anonymous profiles are ineligible for points to prevent scoreboard pollution.
     *   Playlists must contain at least 10 tracks to be eligible for points.
-    *   TuneTeaser account setup reserves usernames and initializes leaderboard documents through a callable Cloud Function, not direct browser writes.
+    *   TuneTeaser account setup and Settings username changes reserve normalized usernames and update leaderboard display names through callable Cloud Functions, not direct browser writes.
     *   Leaderboard score writes go through a callable Cloud Function that enforces bounded point calculation and a 10-minute cooldown for the same song and playlist combination.
     *   Multiplayer round advancement uses a durable `advancing` state with client callable and scheduled recovery paths, and expired rooms are cleaned up daily with player and private round subcollections.
     *   **Resource Caps**: Libraries are limited to a maximum of 30 playlists per account or guest session to prevent storage expansion, individual playlists are capped at 5,000 tracks, Spotify import pagination is validated server-side, and game rounds cap iTunes lookup attempts with persistent failed-lookup caching.
@@ -71,7 +71,7 @@ Use two terminals for local Firebase testing:
 The `dev:emulator` script loads `.env.emulator`, which sets `VITE_USE_FIREBASE_EMULATORS=true`. In that mode, Auth, Firestore, Functions, and Storage use local emulators instead of production Firebase.
 
 ### Firestore Leaderboard and Username Schema
-TuneTeaser account setup and score writes are Cloud Function-controlled. The browser can read leaderboard entries, but cannot write leaderboard or username reservation documents directly.
+TuneTeaser account setup, username changes, and score writes are Cloud Function-controlled. The browser can read leaderboard entries, but cannot write leaderboard or username reservation documents directly.
 *   **Collection**: `leaderboard`
 *   **Document ID**: `{uid}` (Firebase Auth User ID)
 *   **Fields**:
@@ -81,7 +81,7 @@ TuneTeaser account setup and score writes are Cloud Function-controlled. The bro
     *   `lastUpdated`: `timestamp`
 *   **Collection**: `usernames`
 *   **Document ID**: normalized username
-*   **Purpose**: case-insensitive username reservation during TuneTeaser account initialization
+*   **Purpose**: case-insensitive username reservation during TuneTeaser account initialization and Settings username changes
 
 ### Firebase Security Rules
 Firestore rules allow public leaderboard reads, Cloud Function-only leaderboard and username reservation writes, owner-only user playlist writes, signed-in room-code lookup for multiplayer lobbies, denied multiplayer room listing, and Cloud Function-only writes for multiplayer state:

@@ -408,6 +408,66 @@ export const initializeTuneTeaserAccount = onCall(PUBLIC_CALLABLE_OPTIONS, async
     return { displayName };
 });
 
+export const updateTuneTeaserUsername = onCall(PUBLIC_CALLABLE_OPTIONS, async (request) => {
+    const uid = getAuthedUid(request);
+    const signInProvider = request.auth?.token?.firebase?.sign_in_provider;
+
+    if (signInProvider === 'anonymous') {
+        throw new HttpsError('permission-denied', 'Anonymous users cannot change usernames.');
+    }
+
+    const displayName = getSignupUsername(request.data?.username);
+    const usernameId = getUsernameReservationId(displayName);
+    const db = getFirestore();
+    const auth = getAuth();
+    const userRecord = await auth.getUser(uid);
+    const currentUsernameId = userRecord.displayName
+        ? getUsernameReservationId(userRecord.displayName)
+        : '';
+    const usernameRef = db.collection('usernames').doc(usernameId);
+    const currentUsernameRef = currentUsernameId && currentUsernameId !== usernameId
+        ? db.collection('usernames').doc(currentUsernameId)
+        : null;
+    const leaderboardRef = db.collection('leaderboard').doc(uid);
+    const now = Date.now();
+
+    await db.runTransaction(async transaction => {
+        const usernameSnap = await transaction.get(usernameRef);
+        const currentUsernameSnap = currentUsernameRef
+            ? await transaction.get(currentUsernameRef)
+            : null;
+        const leaderboardSnap = await transaction.get(leaderboardRef);
+        const existingUid = usernameSnap.exists ? usernameSnap.data()?.uid : null;
+
+        if (existingUid && existingUid !== uid) {
+            throw new HttpsError('already-exists', 'This username is already taken. Please choose another one.');
+        }
+
+        transaction.set(usernameRef, {
+            uid,
+            displayName,
+            normalizedDisplayName: usernameId,
+            createdAtMillis: usernameSnap.exists ? usernameSnap.data()?.createdAtMillis || now : now,
+            updatedAtMillis: now
+        }, { merge: true });
+
+        if (currentUsernameRef && currentUsernameSnap?.exists && currentUsernameSnap.data()?.uid === uid) {
+            transaction.delete(currentUsernameRef);
+        }
+
+        transaction.set(leaderboardRef, {
+            displayName,
+            totalPoints: leaderboardSnap.exists ? leaderboardSnap.data()?.totalPoints || 0 : 0,
+            gamesWon: leaderboardSnap.exists ? leaderboardSnap.data()?.gamesWon || 0 : 0,
+            lastUpdated: FieldValue.serverTimestamp()
+        }, { merge: true });
+    });
+
+    await auth.updateUser(uid, { displayName });
+
+    return { displayName };
+});
+
 export const submitLeaderboardScore = onCall(PUBLIC_CALLABLE_OPTIONS, async (request) => {
     const uid = getAuthedUid(request);
     const signInProvider = request.auth?.token?.firebase?.sign_in_provider;

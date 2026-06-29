@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { updateProfile, deleteUser, signOut } from 'firebase/auth';
-import { doc, getDocs, collection, query, where, updateDoc } from 'firebase/firestore';
-import { auth, db } from '../backend/FirebaseConfig';
+import { deleteUser, signOut } from 'firebase/auth';
+import { httpsCallable } from 'firebase/functions';
+import { auth, functions } from '../backend/FirebaseConfig';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { useSearchParams, Link } from 'react-router-dom';
@@ -72,13 +72,18 @@ const Settings = () => {
             return;
         }
 
-        const usernameRegex = /^[a-zA-Z0-9_-]{3,20}$/;
+        const usernameRegex = /^[a-zA-Z0-9_ -]{3,20}$/;
         if (!usernameRegex.test(trimmedName)) {
-            setUsernameError('Username must be 3-20 characters long and contain only letters, numbers, underscores, or hyphens.');
+            setUsernameError('Username must be 3-20 characters long and contain only letters, numbers, spaces, underscores, or hyphens.');
             return;
         }
 
-        if (trimmedName.toLowerCase() === (user.displayName || '').toLowerCase()) {
+        if (trimmedName.includes('  ')) {
+            setUsernameError('Username cannot contain consecutive spaces.');
+            return;
+        }
+
+        if (trimmedName === (user.displayName || '')) {
             setUsernameError('That is already your username.');
             return;
         }
@@ -86,34 +91,14 @@ const Settings = () => {
         setIsUpdatingUsername(true);
 
         try {
-            // Check uniqueness in leaderboard
-            const leaderboardQuery = query(
-                collection(db, 'leaderboard'),
-                where('displayName', '==', trimmedName)
+            const updateUsername = httpsCallable<{ username: string }, { displayName: string }>(
+                functions,
+                'updateTuneTeaserUsername'
             );
-            const querySnapshot = await getDocs(leaderboardQuery);
 
-            // Wait, Firestore equality is case sensitive. So if we want case-insensitive uniqueness we'd need another field.
-            // For now, exact match is fine, but we'll check manually if we get results.
-            if (!querySnapshot.empty) {
-                // Technically someone could have "User" and we try "user", but standard Firestore doesn't do case-insensitive search easily
-                // without a lowercase field. This is a basic check.
-                setUsernameError(`The username "${trimmedName}" is already taken.`);
-                setIsUpdatingUsername(false);
-                return;
-            }
-
-            // Update Auth Profile
-            await updateProfile(user, { displayName: trimmedName });
-
-            // Update Leaderboard Document (if it exists)
-            try {
-                const leaderboardDoc = doc(db, 'leaderboard', user.uid);
-                await updateDoc(leaderboardDoc, { displayName: trimmedName });
-            } catch {
-                // Might not exist if they never played a game. That's fine.
-            }
-
+            const result = await updateUsername({ username: trimmedName });
+            await user.reload();
+            setNewUsername(result.data.displayName);
             setUsernameSuccess('Username updated successfully!');
         } catch (err: any) {
             console.error('Failed to update username:', err);
@@ -241,7 +226,7 @@ const Settings = () => {
                                             />
                                         </label>
                                         <div className="helper-text">
-                                            3-20 characters. Letters, numbers, underscores, and hyphens only. Username changes are being moved to the same server-controlled reservation flow used during signup, so availability checks may be limited here.
+                                            3-20 characters. Letters, numbers, single spaces, underscores, and hyphens only. Username changes use the same server-controlled reservation check as signup.
                                         </div>
                                         {usernameError && <div className="inline-error" style={{ marginTop: '8px' }}>{usernameError}</div>}
                                         {usernameSuccess && <div style={{ color: 'var(--green)', fontWeight: 'bold', marginTop: '8px' }}>{usernameSuccess}</div>}
@@ -250,7 +235,7 @@ const Settings = () => {
                                             <button
                                                 type="submit"
                                                 className="button button-primary"
-                                                disabled={isUpdatingUsername || displayedUsername.trim() === user.displayName}
+                                                disabled={isUpdatingUsername || displayedUsername.trim() === (user.displayName || '')}
                                             >
                                                 {isUpdatingUsername ? 'Saving...' : 'Update Username'}
                                             </button>
