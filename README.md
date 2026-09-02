@@ -2,6 +2,8 @@
 
 [TuneTeaser](https://tuneteaser.web.app/) is a "Name That Tune" style game where you test your music knowledge against public Spotify playlists, imported Spotify profile playlists, custom mixes, featured guest playlists, and private online multiplayer rooms.
 
+<img width="700" alt="TuneTeaser game screen" src="https://github.com/user-attachments/assets/2b774f0a-2ff9-4347-a8c7-b4713d7f489d" />
+
 ## How to Play
 1.  **Sign in** to your TuneTeaser account, or use guest mode to try featured playlists and guest imports.
 2.  **Import Playlists** by searching public Spotify playlists, pasting a public Spotify playlist URL, browsing public playlists from a Spotify profile URL, or building a custom mix from track URLs and song lines.
@@ -166,5 +168,3 @@ Online multiplayer uses a `multiplayerRooms` collection with player and private 
 *   **TuneTeaser Account or Guest Session**: Required to save imported playlists and custom mixes. Registered accounts persist playlist metadata in Firestore. Guest sessions keep playlist metadata in browser local storage and upload track snapshots under the guest's anonymous Firebase UID.
 *   **Spotify Public Data**: Public playlist search, playlist URL import, and profile URL import use Spotify client credentials and only see public data. Private or collaborative playlists require Spotify OAuth.
 *   **Modern Browser**: Chrome, Edge, or Firefox (with DRM enabled).
-
-Created by Jordan Rudman
