@@ -68,6 +68,7 @@ const Multiplayer = () => {
     const [roomCode, setRoomCode] = useState(initialRoomId);
     const [activeRoomId, setActiveRoomId] = useState(initialRoomId);
     const [room, setRoom] = useState<MultiplayerRoom | null>(null);
+    const [loadedRoomId, setLoadedRoomId] = useState('');
     const [players, setPlayers] = useState<MultiplayerPlayer[]>([]);
     const [selectedPlaylistId, setSelectedPlaylistId] = useState('');
     const [selectedPlaylistName, setSelectedPlaylistName] = useState('');
@@ -125,6 +126,7 @@ const Multiplayer = () => {
     const playlistsPath = effectiveGuest ? '/playlists?mode=guest' : '/playlists';
     const toastMessage = error || manualPlaylistError || playlistError || success;
     const toastType = error || manualPlaylistError || playlistError ? 'error' : 'success';
+    const isMissingRoom = !!activeRoomId && loadedRoomId === activeRoomId && !room;
 
     useEffect(() => {
         activeRoomIdRef.current = activeRoomId;
@@ -159,7 +161,22 @@ const Multiplayer = () => {
     useEffect(() => {
         if (!activeRoomId || !user) return;
 
-        const unsubscribeRoom = subscribeToMultiplayerRoom(activeRoomId, setRoom, err => {
+        const unsubscribeRoom = subscribeToMultiplayerRoom(activeRoomId, nextRoom => {
+            if (nextRoom?.closeReason === 'host-left') {
+                setHasJoinedActiveRoom(false);
+                setActiveRoomId('');
+                setRoomCode('');
+                setRoom(null);
+                setPlayers([]);
+                navigate(`/multiplayer${modeQuery}`, { replace: true });
+                setError('');
+                setSuccess('The host closed the room.');
+                return;
+            }
+            setRoom(nextRoom);
+            setLoadedRoomId(activeRoomId);
+        }, err => {
+            setLoadedRoomId(activeRoomId);
             setError(getFirebaseMessage(err, 'Could not load room.'));
         });
         const unsubscribePlayers = subscribeToMultiplayerPlayers(activeRoomId, setPlayers, err => {
@@ -170,7 +187,7 @@ const Multiplayer = () => {
             unsubscribeRoom();
             unsubscribePlayers();
         };
-    }, [activeRoomId, user]);
+    }, [activeRoomId, modeQuery, navigate, user]);
 
     useEffect(() => {
         if (!room) return;
@@ -756,7 +773,21 @@ const Multiplayer = () => {
                         </div>
                     )}
 
-                    {activeRoomId && room && (
+                    {isMissingRoom && (
+                        <div className="multiplayer-card">
+                            <span className="eyebrow">Unavailable room</span>
+                            <h2>Room not found or expired</h2>
+                            <p className="body-copy">Check the invite link, or return to the lobby to create or join another room.</p>
+                            <button className="button button-secondary" type="button" onClick={() => {
+                                resetLocalRoomState();
+                                navigate(`/multiplayer${modeQuery}`, { replace: true });
+                            }}>
+                                Back to multiplayer lobby
+                            </button>
+                        </div>
+                    )}
+
+                    {activeRoomId && room && !isMissingRoom && (
                         <section className="multiplayer-lobby">
                             <div className="multiplayer-lobby-header">
                                 <div>

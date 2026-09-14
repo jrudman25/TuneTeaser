@@ -42,6 +42,7 @@ export interface MultiplayerRoom {
     endedAt?: number;
     winnerUid?: string;
     winnerDisplayName?: string;
+    closeReason?: 'host-left';
     currentRound?: MultiplayerRound;
     revealedRound?: MultiplayerRevealedRound;
 }

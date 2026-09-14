@@ -29,7 +29,7 @@
     *   Playlists must contain at least 10 tracks to be eligible for points.
     *   TuneTeaser account setup and Settings username changes reserve normalized usernames and update leaderboard display names through callable Cloud Functions, not direct browser writes.
     *   Leaderboard score writes go through a callable Cloud Function that enforces bounded point calculation and a 10-minute cooldown for the same song and playlist combination.
-    *   Multiplayer round advancement uses a durable `advancing` state with client callable and scheduled recovery paths, and expired rooms are cleaned up daily with player and private round subcollections.
+    *   Multiplayer timers and round advancement are server-authoritative: late guesses are rejected, unfinished players are timed out by scheduled recovery, roster changes re-evaluate settlement, durable `advancing` rounds recover automatically, and expired rooms are cleaned up with their player and private round subcollections.
     *   **Resource Caps**: Libraries are limited to a maximum of 30 playlists per account or guest session to prevent storage expansion, individual playlists are capped at 5,000 tracks, Spotify import pagination is validated server-side, and game rounds cap iTunes lookup attempts with persistent failed-lookup caching.
     *   **Account Cleanup**: Inactive anonymous users (older than 30 days) are automatically deleted daily to keep the database clean and organized.
     *   **Input Protection**: Strict alphanumeric and safe-symbol constraints are enforced on display names and playlist titles to block scripting/HTML tags. Custom song titles and artists are automatically sanitized. Background playlist imports that fail now remain marked as import errors instead of appearing complete.
@@ -150,6 +150,7 @@ Online multiplayer uses a `multiplayerRooms` collection with player and private 
     *   `revealedRound`: answer metadata after a round completes
     *   `winnerUid`: `string | null`
     *   `winnerDisplayName`: `string | null`
+    *   `closeReason`: optional `"host-left"`, used by clients to recover when the host closes a room
     *   `expiresAt`: `number`, used by the daily cleanup job that deletes expired rooms, players, and private rounds
 *   **Subcollection**: `multiplayerRooms/{roomCode}/players/{uid}`
     *   `displayName`: `string`

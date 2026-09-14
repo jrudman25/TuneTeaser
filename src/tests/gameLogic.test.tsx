@@ -3,7 +3,7 @@
  * Tests the useGameLogic hook: guess matching, auto-skip, and playlist loading.
  * @version 2026.05.26
  */
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
 import { useGameLogic } from '../hooks/useGameLogic';
 import { getItunesPreview } from '../utils/itunes';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -280,6 +280,64 @@ describe('useGameLogic - Auto Skip', () => {
 
         expect(getItunesPreview).toHaveBeenCalledWith('Bad Song', 'Artist 1', '');
         expect((getItunesPreview as ReturnType<typeof vi.fn>).mock.calls.filter(call => call[0] === 'Bad Song')).toHaveLength(1);
+    });
+
+    it('ignores stale Spotify pagination after switching playlists', async () => {
+        const makeItem = (id: string, name: string) => ({
+            track: {
+                id,
+                name,
+                artists: [{ name: 'Artist' }],
+                album: { name: 'Album', images: [] }
+            },
+            is_local: false
+        });
+        let resolveOldPage: ((response: Response) => void) | undefined;
+        const oldPageResponse = new Promise<Response>(resolve => {
+            resolveOldPage = resolve;
+        });
+        vi.stubGlobal('fetch', vi.fn((url: string) => {
+            if (url.includes('playlist-a') && url.includes('offset=100')) {
+                return oldPageResponse;
+            }
+            if (url.includes('playlist-a')) {
+                return Promise.resolve({
+                    ok: true,
+                    json: () => Promise.resolve({ items: [makeItem('a1', 'Song A1')], total: 200 })
+                } as Response);
+            }
+            return Promise.resolve({
+                ok: true,
+                json: () => Promise.resolve({ items: [makeItem('b1', 'Song B1')], total: 1 })
+            } as Response);
+        }));
+        vi.spyOn(Math, 'random').mockReturnValue(0);
+        (getItunesPreview as ReturnType<typeof vi.fn>).mockResolvedValue({ previewUrl: 'url', artworkUrl: 'art' });
+        const { result } = renderHook(() => useGameLogic('fake-token', false));
+        let firstLoad!: Promise<void>;
+
+        act(() => {
+            firstLoad = result.current.loadPlaylist('playlist-a', 'Playlist A');
+        });
+        await waitFor(() => {
+            expect(result.current.gameState).toBe('playing');
+            expect(result.current.isLoadingGame).toBe(false);
+        });
+
+        act(() => result.current.handleSelectNewPlaylist());
+        await act(async () => {
+            await result.current.loadPlaylist('playlist-b', 'Playlist B');
+        });
+        await act(async () => {
+            resolveOldPage?.({
+                ok: true,
+                json: () => Promise.resolve({ items: [makeItem('a2', 'Song A2')], total: 200 })
+            } as Response);
+            await firstLoad!;
+        });
+
+        expect(result.current.selectedPlaylistId).toBe('playlist-b');
+        expect(result.current.currentTracks.map(item => item.track.id)).toEqual(['b1']);
     });
 
     it('loads playlist from manualPlaylists if isManualMode is true', async () => {

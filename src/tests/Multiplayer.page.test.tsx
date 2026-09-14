@@ -305,6 +305,35 @@ describe('Multiplayer page', () => {
         });
     });
 
+    it('shows a recovery action when a room link is missing or expired', async () => {
+        const user = userEvent.setup();
+
+        renderPage('/multiplayer/MISSING');
+
+        expect(await screen.findByText(/room not found or expired/i)).toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: /back to multiplayer lobby/i }));
+
+        expect(screen.getByRole('heading', { name: /multiplayer lobby/i })).toBeInTheDocument();
+    });
+
+    it('returns participants to the lobby after the host closes the room', async () => {
+        mocks.authState.user = { uid: 'guest-1', isAnonymous: false };
+        mocks.roomSnapshot = {
+            ...room,
+            status: 'ended',
+            closeReason: 'host-left',
+            playerCount: 0,
+            endedAt: Date.now()
+        };
+        mocks.playersSnapshot = [];
+
+        renderPage('/multiplayer/ABC123');
+
+        expect(await screen.findByText(/the host closed the room/i)).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: /multiplayer lobby/i })).toBeInTheDocument();
+        expect(screen.queryByText(/join this room/i)).not.toBeInTheDocument();
+    });
+
     it('lets a viewer join an active room before host-only controls are shown', async () => {
         const user = userEvent.setup();
         mocks.authState.user = { uid: 'viewer-1', isAnonymous: true };

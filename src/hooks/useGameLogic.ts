@@ -46,9 +46,13 @@ export const useGameLogic = (
     isManualMode: boolean = false
 ) => {
     const manualPlaylistsRef = useRef(manualPlaylists);
+    const playlistLoadGenerationRef = useRef(0);
     useEffect(() => {
         manualPlaylistsRef.current = manualPlaylists;
     }, [manualPlaylists]);
+    useEffect(() => () => {
+        playlistLoadGenerationRef.current += 1;
+    }, []);
 
     const { playPreview, pause, isPlaying, error: playerError, volume, setVolume } = usePreviewPlayer();
     const [currentTracks, setCurrentTracks] = useState<any[]>([]);
@@ -65,8 +69,9 @@ export const useGameLogic = (
     const [isLoadingGame, setIsLoadingGame] = useState(false);
     const [lastEarnedPoints, setLastEarnedPoints] = useState<number | null>(null);
 
-    const startGame = async (tracks: any[], explicitSkipId?: string) => {
-        if (isLoadingGame && !explicitSkipId) return;
+    const startGame = async (tracks: any[], explicitSkipId?: string, loadGeneration?: number) => {
+        const isStaleLoad = () => loadGeneration !== undefined && playlistLoadGenerationRef.current !== loadGeneration;
+        if (isStaleLoad() || (isLoadingGame && !explicitSkipId)) return;
         setIsLoadingGame(true);
         pause();
 
@@ -109,6 +114,7 @@ export const useGameLogic = (
             const albumName = track.album?.name || "";
             const lookupKey = getTrackLookupKey(track);
             const data = await getItunesPreview(track.name, artistName, albumName);
+            if (isStaleLoad()) return;
 
             if (data && data.previewUrl) {
                 selectedTrack = track;
@@ -234,7 +240,9 @@ export const useGameLogic = (
     };
 
     const handleSelectNewPlaylist = () => {
+        playlistLoadGenerationRef.current += 1;
         pause();
+        setIsLoadingGame(false);
         setGameState('idle');
         setTargetSong(null);
         setCurrentTracks([]);
@@ -247,7 +255,8 @@ export const useGameLogic = (
     const loadPlaylist = async (playlistId: string, playlistName: string) => {
         if (isLoadingGame) return;
 
-
+        const loadGeneration = ++playlistLoadGenerationRef.current;
+        const isStaleLoad = () => playlistLoadGenerationRef.current !== loadGeneration;
         setSelectedPlaylistName(playlistName);
         setSelectedPlaylistId(playlistId);
         setIsLoadingGame(true);
@@ -259,7 +268,7 @@ export const useGameLogic = (
             const tracks = GUEST_TRACKS[playlistId];
             if (tracks) {
                 setCurrentTracks(tracks);
-                await startGame(tracks);
+                await startGame(tracks, undefined, loadGeneration);
             } else {
                 const playlist = manualPlaylistsRef.current.find((manualPlaylist) => manualPlaylist.id === playlistId);
                 if (playlist) {
@@ -274,9 +283,10 @@ export const useGameLogic = (
                     } else {
                         rawTracks = playlist.tracks || [];
                     }
+                    if (isStaleLoad()) return;
                     const tracks = manualTracksToGameItems(rawTracks);
                     setCurrentTracks(tracks);
-                    await startGame(tracks);
+                    await startGame(tracks, undefined, loadGeneration);
                 } else {
                     setFeedbackMessage("Error: Playlist not found.");
                     setIsLoadingGame(false);
@@ -297,9 +307,11 @@ export const useGameLogic = (
                 const response = await fetch(initialUrl, {
                     headers: { 'Authorization': `Bearer ${accessToken}` }
                 });
+                if (isStaleLoad()) return;
 
                 if (response.ok) {
                     const data = await response.json();
+                    if (isStaleLoad()) return;
                     const fetchedTracks = [...data.items];
                     const total = data.total;
 
@@ -333,8 +345,10 @@ export const useGameLogic = (
 
                             try {
                                 const randomPageResponse = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+                                if (isStaleLoad()) return;
                                 if (randomPageResponse.ok) {
                                     const randomPageData = await randomPageResponse.json();
+                                    if (isStaleLoad()) return;
                                     const validRandomTracks = randomPageData.items.filter((item: any) =>
                                         item.track && item.track.id && !item.is_local
                                     );
@@ -348,7 +362,8 @@ export const useGameLogic = (
                             }
                         }
 
-                        await startGame(startingTracks);
+                        await startGame(startingTracks, undefined, loadGeneration);
+                        if (isStaleLoad()) return;
                         setIsLoadingGame(false);
 
                         const BATCH_SIZE = 3;
@@ -371,6 +386,7 @@ export const useGameLogic = (
                             );
 
                             const results = await Promise.all(batchPromises);
+                            if (isStaleLoad()) return;
                             const newTracks: any[] = [];
                             results.forEach((res: any) => {
                                 if (res && res.items) {
@@ -386,7 +402,8 @@ export const useGameLogic = (
 
                         }
                     } else {
-                        await startGame(validInitialTracks);
+                        await startGame(validInitialTracks, undefined, loadGeneration);
+                        if (isStaleLoad()) return;
                         setIsLoadingGame(false);
                     }
 
@@ -396,6 +413,7 @@ export const useGameLogic = (
                     setIsLoadingGame(false);
                 }
             } catch (error) {
+                if (isStaleLoad()) return;
                 console.error('Error fetching playlist tracks:', error);
                 setFeedbackMessage(`Error: ${error}`);
                 setIsLoadingGame(false);

@@ -263,6 +263,7 @@ const Home = () => {
                         isLoading={isLoadingPlaylists || isLoadingManualPlaylists || isLoadingGame || isLoadingUser}
                         onSelectPlaylist={onSelectPlaylist}
                         isGuest={isGuest || isManualMode}
+                        feedbackMessage={feedbackMessage}
                     />
                 )}
 

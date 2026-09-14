@@ -39,6 +39,12 @@ describe('PlaylistMenu', () => {
         localStorage.clear();
     });
 
+    it('shows playlist startup feedback when selection fails', () => {
+        renderMenu({ feedbackMessage: 'No playable tracks found in this playlist.' });
+
+        expect(screen.getByRole('alert')).toHaveTextContent('No playable tracks found in this playlist.');
+    });
+
     it('shows Liked Songs for signed-in users and calls the selection callback', async () => {
         const user = userEvent.setup();
         const { onSelectPlaylist } = renderMenu();

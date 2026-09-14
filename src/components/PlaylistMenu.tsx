@@ -11,9 +11,10 @@ interface PlaylistMenuProps {
     onSelectPlaylist: (id: string) => void;
     isLoading: boolean;
     isGuest?: boolean;
+    feedbackMessage?: string;
 }
 
-const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist, isLoading, isGuest = false }) => {
+const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist, isLoading, isGuest = false, feedbackMessage = '' }) => {
     const [playlistPage, setPlaylistPage] = useState(0);
     const PLAYLISTS_PER_PAGE = 8;
 
@@ -143,6 +144,9 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
                     </div>
                 )}
             </div>
+            {!isLoading && feedbackMessage && (
+                <div className="error-banner" role="alert">{feedbackMessage}</div>
+            )}
             {isLoading ? (
                 <div className="loading-card">Loading playlists...</div>
             ) : (

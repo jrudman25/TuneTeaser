@@ -657,6 +657,7 @@ const startNextMultiplayerRound = async (
         endedAt: FieldValue.delete(),
         winnerUid: FieldValue.delete(),
         winnerDisplayName: FieldValue.delete(),
+        closeReason: FieldValue.delete(),
         revealedRound: FieldValue.delete(),
         currentRound
     };
@@ -832,6 +833,45 @@ const settleRoundIfComplete = async (
     });
 };
 
+const expireMultiplayerRoundIfNeeded = async (roomId: string, now: number) => {
+    const db = getFirestore();
+    const roomRef = db.collection('multiplayerRooms').doc(roomId);
+    let expiredRoundId = '';
+
+    await db.runTransaction(async transaction => {
+        const roomSnap = await transaction.get(roomRef);
+        if (!roomSnap.exists) return;
+
+        const room = roomSnap.data();
+        const currentRound = room?.currentRound;
+        if (room?.status !== 'playing'
+            || currentRound?.state !== 'playing'
+            || typeof currentRound.endsAt !== 'number'
+            || currentRound.endsAt > now) {
+            return;
+        }
+
+        const playersSnap = await transaction.get(roomRef.collection('players'));
+        expiredRoundId = currentRound.id;
+        playersSnap.docs.forEach((playerDoc: any) => {
+            const player = playerDoc.data();
+            if (player?.currentRoundId === currentRound.id
+                && !['correct', 'gave-up', 'timed-out'].includes(player?.state)) {
+                transaction.update(playerDoc.ref, {
+                    state: 'timed-out',
+                    roundCompletedAt: now,
+                    lastEarnedPoints: null,
+                    updatedAt: now
+                });
+            }
+        });
+    });
+
+    if (!expiredRoundId) return false;
+    await settleRoundIfComplete(roomId, expiredRoundId, now);
+    return true;
+};
+
 export const createMultiplayerRoom = onCall(PUBLIC_CALLABLE_OPTIONS, async (request) => {
     const uid = getAuthedUid(request);
     const roomName = getRoomName(request.data?.roomName);
@@ -916,16 +956,19 @@ export const joinMultiplayerRoom = onCall(PUBLIC_CALLABLE_OPTIONS, async (reques
         }
 
         const existingPlayer = playerSnap.exists ? playerSnap.data() || {} : {};
+        const activeRoundId = room?.status === 'playing' && typeof room?.currentRound?.id === 'string'
+            ? room.currentRound.id
+            : '';
         const isRejoiningCurrentRound = playerSnap.exists
-            && room?.status === 'playing'
-            && room?.currentRound?.id
-            && existingPlayer.currentRoundId === room.currentRound.id;
+            && activeRoundId
+            && existingPlayer.currentRoundId === activeRoundId;
+        const isJoiningCurrentRound = !playerSnap.exists && !!activeRoundId;
         const playerData: any = {
             uid,
             displayName,
             isHost: room?.hostUid === uid,
             score: playerSnap.exists ? existingPlayer.score || 0 : 0,
-            state: isRejoiningCurrentRound ? existingPlayer.state : 'lobby',
+            state: isRejoiningCurrentRound ? existingPlayer.state : isJoiningCurrentRound ? 'guessing' : 'lobby',
             joinedAt: playerSnap.exists ? existingPlayer.joinedAt || now : now,
             updatedAt: now
         };
@@ -935,6 +978,11 @@ export const joinMultiplayerRoom = onCall(PUBLIC_CALLABLE_OPTIONS, async (reques
             playerData.roundSnippetDurationMs = existingPlayer.roundSnippetDurationMs || MIN_SNIPPET_DURATION_MS;
             playerData.roundCompletedAt = existingPlayer.roundCompletedAt || null;
             playerData.lastEarnedPoints = existingPlayer.lastEarnedPoints || null;
+        } else if (isJoiningCurrentRound) {
+            playerData.currentRoundId = activeRoundId;
+            playerData.roundSnippetDurationMs = MIN_SNIPPET_DURATION_MS;
+            playerData.roundCompletedAt = null;
+            playerData.lastEarnedPoints = null;
         }
 
         transaction.set(playerRef, playerData, { merge: true });
@@ -980,6 +1028,7 @@ export const updateMultiplayerRoomSettings = onCall(PUBLIC_CALLABLE_OPTIONS, asy
         pointGoal,
         roundTimerSeconds,
         status: 'lobby',
+        closeReason: FieldValue.delete(),
         updatedAt: Date.now()
     });
 
@@ -1122,6 +1171,17 @@ export const submitMultiplayerGuess = onCall(PUBLIC_CALLABLE_OPTIONS, async (req
         const currentSnippetDurationMs = typeof player?.roundSnippetDurationMs === 'number'
             ? player.roundSnippetDurationMs
             : requestedSnippetDurationMs;
+        if (typeof room.currentRound.endsAt === 'number' && now >= room.currentRound.endsAt) {
+            transaction.update(playerRef, {
+                state: 'timed-out',
+                roundCompletedAt: now,
+                lastEarnedPoints: null,
+                roundSnippetDurationMs: currentSnippetDurationMs,
+                updatedAt: now
+            });
+            response = { correct: false, points: 0, snippetDurationMs: currentSnippetDurationMs, done: true };
+            return;
+        }
         const correct = isCorrectGuess(guess, round?.title || '', round?.artistName || '');
 
         if (correct) {
@@ -1197,7 +1257,7 @@ export const giveUpMultiplayerRound = onCall(PUBLIC_CALLABLE_OPTIONS, async (req
         }
 
         transaction.update(playerRef, {
-            state: 'gave-up',
+            state: typeof room.currentRound.endsAt === 'number' && now >= room.currentRound.endsAt ? 'timed-out' : 'gave-up',
             roundCompletedAt: now,
             lastEarnedPoints: null,
             updatedAt: now
@@ -1257,6 +1317,7 @@ export const returnMultiplayerToLobby = onCall(PUBLIC_CALLABLE_OPTIONS, async (r
         revealedRound: FieldValue.delete(),
         winnerUid: FieldValue.delete(),
         winnerDisplayName: FieldValue.delete(),
+        closeReason: FieldValue.delete(),
         endedAt: FieldValue.delete(),
         updatedAt: now
     });
@@ -1331,6 +1392,7 @@ export const leaveMultiplayerRoom = onCall(PUBLIC_CALLABLE_OPTIONS, async (reque
         });
         batch.update(roomRef, {
             status: 'ended',
+            closeReason: 'host-left',
             playerCount: 0,
             updatedAt: now,
             endedAt: now
@@ -1355,6 +1417,10 @@ export const leaveMultiplayerRoom = onCall(PUBLIC_CALLABLE_OPTIONS, async (reque
             updatedAt: now
         });
     });
+
+    if (room?.status === 'playing' && typeof room?.currentRound?.id === 'string') {
+        await settleRoundIfComplete(roomId, room.currentRound.id, now);
+    }
 
     return { roomId };
 });
@@ -1566,6 +1632,33 @@ const deleteMultiplayerRoomData = async (roomRef: any) => {
 
     await roomRef.delete();
 };
+
+export const expireStuckMultiplayerRounds = onSchedule('every 1 minutes', async () => {
+    const db = getFirestore();
+    const now = Date.now();
+
+    try {
+        const roomsSnapshot = await db
+            .collection('multiplayerRooms')
+            .where('currentRound.state', '==', 'playing')
+            .limit(MULTIPLAYER_ROOM_CLEANUP_BATCH_SIZE)
+            .get();
+
+        let expiredCount = 0;
+        for (const roomDoc of roomsSnapshot.docs) {
+            const room = roomDoc.data();
+            if (typeof room?.currentRound?.endsAt === 'number'
+                && room.currentRound.endsAt <= now
+                && await expireMultiplayerRoundIfNeeded(roomDoc.id, now)) {
+                expiredCount += 1;
+            }
+        }
+
+        console.log(`[expireStuckMultiplayerRounds] Expired ${expiredCount} multiplayer rounds.`);
+    } catch (error) {
+        console.error('[expireStuckMultiplayerRounds] Error expiring multiplayer rounds:', error);
+    }
+});
 
 export const advanceStuckMultiplayerRounds = onSchedule('every 1 minutes', async () => {
     const db = getFirestore();
