@@ -15,8 +15,10 @@
 6.  **Play Multiplayer** by creating a private room, sharing the room code or link, choosing a playlist, setting a point goal and round timer, then racing friends through synchronized rounds.
 
 ## Features
-*   **Smart Matching**: Guesses ignore case, punctuation, short edition metadata, and common title suffixes such as remaster, live, demo, edit, mix, deluxe, and anniversary labels.
+*   **Smart Matching**: Guesses ignore case, accents, punctuation, short edition metadata, and common title suffixes such as remaster, live, demo, edit, mix, deluxe, and anniversary labels. Non-Latin titles (for example Japanese, Korean, or Cyrillic) can be guessed in their own script. Titles made only of symbols are skipped because they cannot be guessed fairly.
+*   **Server-Run Rounds**: Solo and multiplayer rounds are chosen, judged, and timed by Cloud Functions. The browser only receives the preview audio until the round ends, and points are calculated from the snippet length the server tracked.
 *   **Dynamic Difficulty**: Single-player snippets start short (2 seconds) and grow longer if you are stumped.
+*   **Keyboard Shortcuts**: In solo and multiplayer rounds, press Space to play the snippet (when not typing), Enter to guess, and Esc to give up after a confirm step.
 *   **Play Your Way**: Search public Spotify playlists, import public playlists one at a time, page through and select public playlists from a Spotify profile, or build custom mixes from Spotify track links and `Song - Artist` lines.
 *   **Playlist Sorting & Filtering**: Find the perfect playlist in your library quickly with title-based searching and sorting by Name, Track Count, and Date Added (including reverse sorting).
 *   **Account Clarity**: Signed-in pages show which TuneTeaser account is active.
@@ -28,11 +30,13 @@
     *   Guest/anonymous profiles are ineligible for points to prevent scoreboard pollution.
     *   Playlists must contain at least 10 tracks to be eligible for points.
     *   TuneTeaser account setup and Settings username changes reserve normalized usernames and update leaderboard display names through callable Cloud Functions, not direct browser writes.
-    *   Leaderboard score writes go through a callable Cloud Function that enforces bounded point calculation and a 10-minute cooldown for the same song and playlist combination.
+    *   Leaderboard points are only awarded by the server-run solo round callables (`startSoloRound`, `submitSoloGuess`, `giveUpSoloRound`). The server picks the track from the player's saved or featured playlist, checks the guess, enforces a 10-minute cooldown for the same song and playlist, and caps solo points at 1,500 per account per UTC day.
+    *   Usernames and multiplayer room names are checked for offensive language on the server, and offensive words in a room's playlist name are masked.
+    *   Multiplayer room creation is rate limited, and room codes are reserved atomically so two rooms can never share a code.
     *   Multiplayer timers and round advancement are server-authoritative: late guesses are rejected, unfinished players are timed out by scheduled recovery, roster changes re-evaluate settlement, durable `advancing` rounds recover automatically, and expired rooms are cleaned up with their player and private round subcollections.
-    *   **Resource Caps**: Libraries are limited to a maximum of 30 playlists per account or guest session to prevent storage expansion, individual playlists are capped at 5,000 tracks, Spotify import pagination is validated server-side, and game rounds cap iTunes lookup attempts with persistent failed-lookup caching.
+    *   **Resource Caps**: Libraries are limited to a maximum of 30 playlists per account or guest session to prevent storage expansion, individual playlists are capped at 5,000 tracks, Spotify import pagination is validated server-side, custom mixes resolve up to 50 Spotify track links per import, and rounds cap iTunes lookup attempts, run lookups with timeouts in small parallel batches, and share a server-side preview cache (`itunesPreviewCache`).
     *   **Account Cleanup**: Inactive anonymous users (older than 30 days) are automatically deleted daily to keep the database clean and organized.
-    *   **Input Protection**: Strict alphanumeric and safe-symbol constraints are enforced on display names and playlist titles to block scripting/HTML tags. Custom song titles and artists are automatically sanitized. Background playlist imports that fail now remain marked as import errors instead of appearing complete.
+    *   **Input Protection**: Strict alphanumeric and safe-symbol constraints are enforced on display names and playlist titles to block scripting/HTML tags. Custom song titles and artists are automatically sanitized. Background playlist imports that fail remain marked as import errors instead of appearing complete.
     *   **High-Concurrency Scaling**: Leaderboard score submissions are executed via atomic database-side increments to ensure data integrity during multiple concurrent game rounds.
 
 ## Tech Stack
@@ -63,6 +67,9 @@
 
 ### Production App Check
 Production callable Cloud Functions enforce Firebase App Check. Before deploying Hosting, register the web app in Firebase App Check with reCAPTCHA v3, add the site key as `VITE_FIREBASE_APPCHECK_SITE_KEY` in the production build environment, then rebuild and redeploy Hosting. If this key is missing or the app is not registered, production callable requests can fail with `Unauthenticated` before reaching the function handler.
+
+### Hosting Headers
+`firebase.json` sends `nosniff`, `Referrer-Policy`, `X-Frame-Options: DENY`, and a `Permissions-Policy` on every response, `Cache-Control: no-cache` for HTML and other non-hashed files, and a one-year immutable cache for hashed `/assets/**` files. A Content Security Policy is also defined in `firebase.json`. If you add a new external origin (an API, font, or image host), add it to that policy.
 
 ### Local Firebase Emulator Testing
 Use two terminals for local Firebase testing:
@@ -165,7 +172,12 @@ Online multiplayer uses a `multiplayerRooms` collection with player and private 
     *   Firestore rules do not expose this subcollection directly to clients.
     *   Deleted with its parent room by the expired-room cleanup job.
 
+### Solo Round Schema (server-only)
+*   **Collection**: `soloRounds/{uid}`, one document per player that is overwritten when a new round starts. It stores the answer, preview URL, server-tracked snippet length, round state, points eligibility, and recently played track IDs. Rounds expire after 30 minutes. Clients cannot read it; it is deleted with the account.
+*   **Subcollections**: `leaderboard/{uid}/recentScores/*` (per-song cooldowns) and `leaderboard/{uid}/dailyPoints/{YYYY-MM-DD}` (daily cap totals, with a Timestamp `expiresAt`; expired docs are deleted by a Firestore TTL policy).
+*   **Collection**: `itunesPreviewCache/{hash}` caches iTunes preview lookups shared by solo and multiplayer (found entries for 14 days, misses for 3 days, then deleted by a Firestore TTL policy on `expiresAt`).
+
 ## Requirements
 *   **TuneTeaser Account or Guest Session**: Required to save imported playlists and custom mixes. Registered accounts persist playlist metadata in Firestore. Guest sessions keep playlist metadata in browser local storage and upload track snapshots under the guest's anonymous Firebase UID.
-*   **Spotify Public Data**: Public playlist search, playlist URL import, and profile URL import use Spotify client credentials and only see public data. Private or collaborative playlists require Spotify OAuth.
-*   **Modern Browser**: Chrome, Edge, or Firefox (with DRM enabled).
+*   **Spotify Public Data**: Public playlist search, playlist URL import, and profile URL import use Spotify client credentials and only see public data. TuneTeaser's Spotify app runs in Spotify's Development Mode, where Spotify restricts reading playlist contents and other users' playlists, so these imports can fail. When they do, add the tracks as `Song - Artist` lines with Build Custom Playlist. There is no Spotify sign-in.
+*   **Modern Browser**: A current version of Chrome, Edge, or Firefox.
