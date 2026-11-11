@@ -103,6 +103,7 @@ describe('PlaylistImportSpotify page', () => {
         const user = userEvent.setup();
         vi.mocked(importSpotifyPlaylist).mockResolvedValue({
             name: 'Imported Road Trip',
+            ownerName: '',
             tracks: [track('t1', 'Song One'), track('t2', 'Song Two')],
             total: 5,
             errors: ['Skipped one unavailable track.']
@@ -117,7 +118,7 @@ describe('PlaylistImportSpotify page', () => {
         await user.click(screen.getByRole('button', { name: /import tracks from playlist/i }));
 
         await waitFor(() => {
-            expect(importSpotifyPlaylist).toHaveBeenCalledWith('1234567890123456789012', 0, 100);
+            expect(importSpotifyPlaylist).toHaveBeenCalledWith('1234567890123456789012', 0, 50);
         });
 
         expect(screen.getByDisplayValue('Imported Road Trip')).toBeInTheDocument();
@@ -133,7 +134,8 @@ describe('PlaylistImportSpotify page', () => {
                 expect.arrayContaining([expect.objectContaining({ id: 't1' })]),
                 'importing',
                 2,
-                5
+                5,
+                ''
             );
         });
         expect(screen.getByText(/saved "imported road trip"/i)).toBeInTheDocument();
@@ -156,6 +158,7 @@ describe('PlaylistImportSpotify page', () => {
         });
         vi.mocked(importSpotifyPlaylist).mockResolvedValue({
             name: 'Road Trip',
+            ownerName: '',
             tracks: [track('sa1', 'Search Song One'), track('sa2', 'Search Song Two')],
             total: 2,
             errors: []
@@ -177,14 +180,15 @@ describe('PlaylistImportSpotify page', () => {
         await user.click(screen.getByRole('button', { name: /import 1 selected/i }));
 
         await waitFor(() => {
-            expect(importSpotifyPlaylist).toHaveBeenCalledWith('search-a', 0, 100);
+            expect(importSpotifyPlaylist).toHaveBeenCalledWith('search-a', 0, 50);
             expect(mocks.addManualPlaylist).toHaveBeenCalledWith(
                 'Road Trip',
                 'https://open.spotify.com/playlist/search-a',
                 expect.arrayContaining([expect.objectContaining({ id: 'sa1' })]),
                 'ready',
                 2,
-                2
+                2,
+                'Jamie'
             );
         });
         expect(screen.getByText(/imported road trip/i)).toBeInTheDocument();
@@ -202,6 +206,7 @@ describe('PlaylistImportSpotify page', () => {
         });
         vi.mocked(importSpotifyPlaylist).mockResolvedValue({
             name: 'Profile A',
+            ownerName: '',
             tracks: [track('pa1', 'Profile Song One'), track('pa2', 'Profile Song Two')],
             total: 2,
             errors: []
@@ -227,14 +232,15 @@ describe('PlaylistImportSpotify page', () => {
         await user.click(screen.getByRole('button', { name: /import 1 selected/i }));
 
         await waitFor(() => {
-            expect(importSpotifyPlaylist).toHaveBeenCalledWith('profile-a', 0, 100);
+            expect(importSpotifyPlaylist).toHaveBeenCalledWith('profile-a', 0, 50);
             expect(mocks.addManualPlaylist).toHaveBeenCalledWith(
                 'Profile A',
                 'https://spotify/profile-a',
                 expect.arrayContaining([expect.objectContaining({ id: 'pa1' })]),
                 'ready',
                 2,
-                2
+                2,
+                'test-user'
             );
         });
         expect(screen.getByText(/imported profile a/i)).toBeInTheDocument();

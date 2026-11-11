@@ -15,8 +15,6 @@ const Privacy = () => {
                 <span className="account-badge">Signed in as Guest</span>
             ) : user ? (
                 <SignedInBadge user={user} />
-            ) : localStorage.getItem('accessToken') ? (
-                <span className="account-badge">Signed in with Spotify</span>
             ) : null}
         </div>
     );

@@ -111,7 +111,8 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
         tracks: ManualTrack[],
         status: 'ready' | 'importing' | 'error' = 'ready',
         importedCount?: number,
-        totalCount?: number
+        totalCount?: number,
+        ownerName?: string
     ) => {
         const trimmedName = name.trim();
         const trimmedSourceUrl = sourceUrl.trim();
@@ -146,11 +147,6 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
                 throw new Error(`You have reached the limit of ${PLAYLIST_LIMIT} playlists. Please delete an existing playlist to add a new one.`);
             }
 
-            const existingNames = existingPlaylists.map(d => (d.name || '').toLowerCase());
-            if (existingNames.includes(trimmedName.toLowerCase())) {
-                throw new Error(`A playlist named "${trimmedName}" already exists.`);
-            }
-
             const playlistId = `guest_manual_${Date.now()}`;
 
             // Upload to Storage
@@ -167,7 +163,8 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
                 status: finalStatus,
                 importedCount: finalImportedCount,
                 totalCount: finalTotalCount,
-                tracksUrl
+                tracksUrl,
+                ...(ownerName && ownerName.trim() ? { ownerName: ownerName.trim() } : {})
             };
 
             const updatedPlaylists = [newPlaylist, ...existingPlaylists];
@@ -183,11 +180,6 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
         const snapshot = await getDocs(collectionRef);
         if (snapshot.docs.length >= PLAYLIST_LIMIT) {
             throw new Error(`You have reached the limit of ${PLAYLIST_LIMIT} playlists. Please delete an existing playlist to add a new one.`);
-        }
-
-        const existingNames = snapshot.docs.map(d => (d.data().name || '').toLowerCase());
-        if (existingNames.includes(trimmedName.toLowerCase())) {
-            throw new Error(`A playlist named "${trimmedName}" already exists.`);
         }
 
         // Generate custom document ID first
@@ -208,7 +200,8 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
             status: finalStatus,
             importedCount: finalImportedCount,
             totalCount: finalTotalCount,
-            tracksUrl
+            tracksUrl,
+            ...(ownerName && ownerName.trim() ? { ownerName: ownerName.trim() } : {})
         });
 
         await fetchManualPlaylists(true);
@@ -316,7 +309,7 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
             }
 
             const offset = currentTracks.length;
-            const limit = 100;
+            const limit = 50;
 
             console.log(`[TuneTeaser Importer] Found playlist "${activeImporting.name}" to continue importing. Current tracks: ${offset}/${activeImporting.totalCount || 0}`);
 

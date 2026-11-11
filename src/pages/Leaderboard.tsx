@@ -22,7 +22,7 @@ const Leaderboard = () => {
     // Compute probable login state to prevent header buttons/badges flickering/disappearing during page loading states
     const isGuest = searchParams.get('mode') === 'guest';
     const hasFirebaseUser = Object.keys(localStorage).some(key => key.startsWith('firebase:authUser'));
-    const isProbablyLoggedIn = !!user || hasFirebaseUser || !!localStorage.getItem('accessToken') || isGuest;
+    const isProbablyLoggedIn = !!user || hasFirebaseUser || isGuest;
     const isProbablyGuest = isGuest || (user && user.isAnonymous);
     const {
         topPlayers,
@@ -45,11 +45,6 @@ const Leaderboard = () => {
     const backLabel = isProbablyLoggedIn ? 'Back to Home' : 'Back to Sign In';
 
     const handleLogout = async () => {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('tokenExpiry');
-        localStorage.removeItem('verifier');
-        sessionStorage.removeItem('accessToken');
 
         try {
             await signOut(auth);
@@ -65,8 +60,6 @@ const Leaderboard = () => {
                 <span className="account-badge">Signed in as Guest</span>
             ) : user ? (
                 <SignedInBadge user={user} />
-            ) : !isProbablyGuest && localStorage.getItem('accessToken') ? (
-                <span className="account-badge">Signed in with Spotify</span>
             ) : null}
         </div>
     );

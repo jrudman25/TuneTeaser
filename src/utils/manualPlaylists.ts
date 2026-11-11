@@ -20,6 +20,7 @@ export interface ManualPlaylist {
     status?: 'ready' | 'importing' | 'error';
     importedCount?: number;
     totalCount?: number;
+    ownerName?: string;
     tracksUrl?: string;
     importError?: string;
 }
@@ -191,8 +192,8 @@ export const parseTrackImportInput = (rawLines: string): ParsedTrackImport => {
         manualTracks.push(parsed.track);
     });
 
-    if (spotifyTrackIds.length > 200) {
-        errors.push('A single import can resolve up to 200 Spotify track links.');
+    if (spotifyTrackIds.length > 50) {
+        errors.push('A single import can resolve up to 50 Spotify track links.');
     }
 
     return { manualTracks, spotifyTrackIds, errors, duplicateCount };

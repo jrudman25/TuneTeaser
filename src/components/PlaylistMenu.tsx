@@ -152,19 +152,6 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
             ) : (
                 <>
                     <ul className="record-grid">
-                        {clampedPage === 0 && !isGuest && !searchQuery && sortBy === 'default' && sortDir === 'asc' && (
-                            <li>
-                                <button
-                                    className="playlist-card playlist-card-featured"
-                                    onClick={() => onSelectPlaylist('LIKED_SONGS')}
-                                    disabled={isLoading}
-                                >
-                                    <span className="playlist-label">Spotify shelf</span>
-                                    <span className="playlist-name">Liked Songs</span>
-                                    <span className="playlist-meta" style={{ fontSize: '0.85rem' }}>Your library</span>
-                                </button>
-                            </li>
-                        )}
                         {currentPagePlaylists.map((playlist: any) => {
                             const isImporting = playlist.status === 'importing';
                             const hasImportError = playlist.status === 'error';
@@ -186,8 +173,9 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
                                                 </span>
                                             </div>
                                         )}
-                                        <span className="playlist-label">Playlist</span>
+                                        <span className="playlist-label">{playlist.sourceUrl && playlist.sourceUrl.includes('spotify.com') ? 'Spotify import' : playlist.id.startsWith('guest_') && !playlist.id.startsWith('guest_manual_') ? 'Playlist' : 'Custom mix'}</span>
                                         <span className="playlist-name">{playlist.name}</span>
+                                        {playlist.ownerName && <span className="playlist-meta" style={{ fontSize: '0.85rem' }}>by {playlist.ownerName}</span>}
                                         <span className="playlist-meta" style={{ fontSize: '0.85rem' }}>
                                             {playlist.tracks?.total ?? playlist.tracks?.length ?? 0} tracks
                                         </span>

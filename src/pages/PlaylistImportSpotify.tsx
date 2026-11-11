@@ -39,11 +39,13 @@ const PlaylistImportSpotify = () => {
     const [importedTracks, setImportedTracks] = useState<ManualTrack[]>([]);
     const [importedTotal, setImportedTotal] = useState(0);
     const [importedForUrl, setImportedForUrl] = useState('');
+    const [importedOwnerName, setImportedOwnerName] = useState('');
     const [formError, setFormError] = useState('');
     const [importErrors, setImportErrors] = useState<string[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const [profilePlaylists, setProfilePlaylists] = useState<SpotifyUserPlaylist[]>([]);
     const [profilePlaylistsForUrl, setProfilePlaylistsForUrl] = useState('');
+    const [profileUserId, setProfileUserId] = useState('');
     const [selectedPlaylistIds, setSelectedPlaylistIds] = useState<string[]>([]);
     const [isLoadingProfilePlaylists, setIsLoadingProfilePlaylists] = useState(false);
     const [isBatchImporting, setIsBatchImporting] = useState(false);
@@ -220,10 +222,11 @@ const PlaylistImportSpotify = () => {
         setSaveSuccessMessage('');
         setIsImporting(true);
         try {
-            const result = await importSpotifyPlaylist(sourcePlaylistId, 0, 100);
+            const result = await importSpotifyPlaylist(sourcePlaylistId, 0, 50);
             setImportedTracks(result.tracks);
             setImportedTotal(result.total || result.tracks.length);
             setImportedForUrl(playlistUrl.trim());
+            setImportedOwnerName(result.ownerName || '');
             setImportErrors(result.errors || []);
 
             if (result.name && (!playlistName.trim() || nameWasAutoFilled.current)) {
@@ -254,6 +257,7 @@ const PlaylistImportSpotify = () => {
             const result = await fetchSpotifyUserPlaylists(profileUrl);
             setProfilePlaylists(result.playlists);
             setProfilePlaylistsForUrl(profileUrl.trim());
+            setProfileUserId(result.userId || '');
             setSelectedPlaylistIds(result.playlists.map(playlist => playlist.id));
             if (result.playlists.length === 0) {
                 setFormError('No public playlists were found for this Spotify profile.');
@@ -288,7 +292,7 @@ const PlaylistImportSpotify = () => {
         const results: BatchImportResult[] = [];
         for (const playlist of selectedSearchPlaylists) {
             try {
-                const importedPlaylist = await importSpotifyPlaylist(playlist.id, 0, 100);
+                const importedPlaylist = await importSpotifyPlaylist(playlist.id, 0, 50);
                 if (importedPlaylist.tracks.length < 2) {
                     throw new Error('At least 2 tracks are required.');
                 }
@@ -302,7 +306,8 @@ const PlaylistImportSpotify = () => {
                     importedPlaylist.tracks,
                     status,
                     importedPlaylist.tracks.length,
-                    total
+                    total,
+                    playlist.ownerName
                 );
                 const warningSuffix = importedPlaylist.errors?.length ? ` ${importedPlaylist.errors.join(' ')}` : '';
                 results.push({
@@ -364,7 +369,7 @@ const PlaylistImportSpotify = () => {
         const results: BatchImportResult[] = [];
         for (const playlist of selectedProfilePlaylists) {
             try {
-                const importedPlaylist = await importSpotifyPlaylist(playlist.id, 0, 100);
+                const importedPlaylist = await importSpotifyPlaylist(playlist.id, 0, 50);
                 if (importedPlaylist.tracks.length < 2) {
                     throw new Error('At least 2 tracks are required.');
                 }
@@ -378,7 +383,8 @@ const PlaylistImportSpotify = () => {
                     importedPlaylist.tracks,
                     status,
                     importedPlaylist.tracks.length,
-                    total
+                    total,
+                    profileUserId
                 );
                 const warningSuffix = importedPlaylist.errors?.length ? ` ${importedPlaylist.errors.join(' ')}` : '';
                 results.push({
@@ -443,7 +449,8 @@ const PlaylistImportSpotify = () => {
                 currentTracks,
                 status,
                 currentTracks.length,
-                total
+                total,
+                importedOwnerName
             );
             setSaveSuccessMessage(`Saved "${playlistName.trim()}". Paste another playlist URL to import another.`);
             setPlaylistUrl('');
@@ -451,6 +458,7 @@ const PlaylistImportSpotify = () => {
             setImportedTracks([]);
             setImportedTotal(0);
             setImportedForUrl('');
+            setImportedOwnerName('');
             setImportErrors([]);
             nameWasAutoFilled.current = false;
         } catch (error: any) {
@@ -471,11 +479,6 @@ const PlaylistImportSpotify = () => {
     );
 
     const handleLogout = async () => {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('tokenExpiry');
-        localStorage.removeItem('verifier');
-        sessionStorage.removeItem('accessToken');
 
         try {
             await signOut(auth);
@@ -832,7 +835,7 @@ const PlaylistImportSpotify = () => {
                                     {importIsCurrent && currentTracks.length > 0 && (
                                         <span className="snippet-meter">
                                             {importedTotal > currentTracks.length
-                                                ? `${importedTotal.toLocaleString()} tracks found (first 100 loaded, remainder will import in background)`
+                                                ? `${importedTotal.toLocaleString()} tracks found (first 50 loaded, remainder will import in background)`
                                                 : `${currentTracks.length} tracks imported`}
                                         </span>
                                     )}

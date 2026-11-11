@@ -17,8 +17,7 @@ const NavBar: React.FC<NavBarProps> = ({ statusBadge, actionButtons, onNavigate 
     const { user } = useTuneTeaserAuth();
     const isLoginPage = location.pathname === '/';
     const isGuest = searchParams.get('mode') === 'guest' || location.search.includes('mode=guest');
-    const isSpotifyUser = !!localStorage.getItem('accessToken') || !!sessionStorage.getItem('accessToken');
-    const isProbablyLoggedIn = (!!user || isGuest || isSpotifyUser) && !isLoginPage;
+    const isProbablyLoggedIn = (!!user || isGuest) && !isLoginPage;
 
     const handleLogoClick = () => {
         if (isLoginPage) {
@@ -88,7 +87,7 @@ const NavBar: React.FC<NavBarProps> = ({ statusBadge, actionButtons, onNavigate 
                                 statusBadge={statusBadge || (
                                     <div className="status-stack">
                                         <span className="account-badge">
-                                            {isGuest ? 'Signed in as Guest' : (isSpotifyUser ? 'Signed in with Spotify' : 'Signed in with TuneTeaser')}
+                                            {isGuest ? 'Signed in as Guest' : 'Signed in with TuneTeaser'}
                                         </span>
                                     </div>
                                 )}

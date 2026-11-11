@@ -4,6 +4,7 @@ import { ManualTrack } from './manualPlaylists';
 
 interface ImportSpotifyPlaylistResponse {
     name: string;
+    ownerName: string;
     tracks: ManualTrack[];
     total: number;
     errors: string[];
@@ -16,7 +17,7 @@ interface ImportSpotifyPlaylistResponse {
 export const importSpotifyPlaylist = async (
     playlistId: string,
     offset = 0,
-    limit = 100
+    limit = 50
 ): Promise<ImportSpotifyPlaylistResponse> => {
     const callable = httpsCallable<{ playlistId: string; offset?: number; limit?: number }, ImportSpotifyPlaylistResponse>(
         functions,

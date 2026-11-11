@@ -35,12 +35,38 @@ export interface SpotifyPlaylistSearchResult extends SpotifyUserPlaylist {
     imageUrl: string;
 }
 
+export class SpotifyRequestError extends Error {
+    constructor(
+        message: string,
+        public code: 'invalid-argument' | 'not-found' | 'permission-denied' | 'resource-exhausted' | 'unavailable' | 'internal'
+    ) {
+        super(message);
+    }
+}
+
 const SPOTIFY_TRACK_ID_PATTERN = /^[A-Za-z0-9]{22}$/;
 const SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token';
 const SPOTIFY_TRACKS_URL = 'https://api.spotify.com/v1/tracks';
 const SPOTIFY_PLAYLISTS_URL = 'https://api.spotify.com/v1/playlists';
 const SPOTIFY_USERS_URL = 'https://api.spotify.com/v1/users';
 const SPOTIFY_SEARCH_URL = 'https://api.spotify.com/v1/search';
+const SPOTIFY_FETCH_TIMEOUT_MS = 10_000;
+const SPOTIFY_TRACK_LOOKUP_CONCURRENCY = 5;
+const SPOTIFY_PLAYLIST_PAGE_LIMIT_MAX = 50;
+const SPOTIFY_SEARCH_PAGE_LIMIT = 10;
+const SPOTIFY_SEARCH_MAX_PAGES = 5;
+const SPOTIFY_RATE_LIMIT_MESSAGE = 'Spotify is rate limiting requests. Try again in a minute.';
+
+const spotifyFetch = async (url: string, init: RequestInit = {}) => {
+    const response = await fetch(url, {
+        ...init,
+        signal: AbortSignal.timeout(SPOTIFY_FETCH_TIMEOUT_MS)
+    });
+    if (response.status === 429) {
+        throw new SpotifyRequestError(SPOTIFY_RATE_LIMIT_MESSAGE, 'resource-exhausted');
+    }
+    return response;
+};
 
 let cachedAccessToken = '';
 let cachedAccessTokenExpiresAt = 0;
@@ -63,8 +89,8 @@ export const normalizeTrackIds = (input: unknown) => {
         trackIds.push(trimmed);
     });
 
-    if (trackIds.length > 200) {
-        throw new Error('A single import can resolve up to 200 Spotify track links.');
+    if (trackIds.length > 50) {
+        throw new Error('A single import can resolve up to 50 Spotify track links.');
     }
 
     return trackIds;
@@ -87,7 +113,7 @@ export const getSpotifyAccessToken = async (clientId: string, clientSecret: stri
     }
 
     const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-    const response = await fetch(SPOTIFY_TOKEN_URL, {
+    const response = await spotifyFetch(SPOTIFY_TOKEN_URL, {
         method: 'POST',
         headers: {
             Authorization: `Basic ${credentials}`,
@@ -97,12 +123,12 @@ export const getSpotifyAccessToken = async (clientId: string, clientSecret: stri
     });
 
     if (!response.ok) {
-        throw new Error(`Spotify token request failed with ${response.status}.`);
+        throw new SpotifyRequestError(`Spotify token request failed with ${response.status}.`, 'internal');
     }
 
     const data = await response.json() as { access_token?: string; expires_in?: number };
     if (!data.access_token) {
-        throw new Error('Spotify token response did not include an access token.');
+        throw new SpotifyRequestError('Spotify token response did not include an access token.', 'internal');
     }
 
     cachedAccessToken = data.access_token;
@@ -111,49 +137,56 @@ export const getSpotifyAccessToken = async (clientId: string, clientSecret: stri
 };
 
 export const fetchSpotifyTracks = async (trackIds: string[], accessToken: string) => {
-    const resolvedTracks: ResolvedSpotifyTrack[] = [];
-    const errors: string[] = [];
+    const resolvedByIndex: Array<ResolvedSpotifyTrack | null> = new Array(trackIds.length).fill(null);
+    const headers = { Authorization: `Bearer ${accessToken}` };
 
-    for (let offset = 0; offset < trackIds.length; offset += 50) {
-        const batch = trackIds.slice(offset, offset + 50);
-        const response = await fetch(`${SPOTIFY_TRACKS_URL}?ids=${batch.join(',')}`, {
-            headers: {
-                Authorization: `Bearer ${accessToken}`
-            }
-        });
+    for (let offset = 0; offset < trackIds.length; offset += SPOTIFY_TRACK_LOOKUP_CONCURRENCY) {
+        const batch = trackIds.slice(offset, offset + SPOTIFY_TRACK_LOOKUP_CONCURRENCY);
+        await Promise.all(batch.map(async (trackId, index) => {
+            const response = await spotifyFetch(`${SPOTIFY_TRACKS_URL}/${trackId}`, { headers });
 
-        if (!response.ok) {
-            throw new Error(`Spotify track lookup failed with ${response.status}.`);
-        }
-
-        const data = await response.json() as { tracks?: Array<SpotifyTrackApiResponse | null> };
-        (data.tracks || []).forEach((track, index) => {
-            if (!track) {
-                errors.push(`Track ${batch[index]} could not be found on Spotify.`);
+            if (response.status === 404) {
                 return;
             }
+            if (!response.ok) {
+                throw new SpotifyRequestError(`Spotify track lookup failed with ${response.status}.`, 'internal');
+            }
 
-            resolvedTracks.push(mapSpotifyTrack(track));
-        });
+            const track = await response.json() as SpotifyTrackApiResponse | null;
+            if (track && track.id) {
+                resolvedByIndex[offset + index] = mapSpotifyTrack(track);
+            }
+        }));
     }
+
+    const resolvedTracks: ResolvedSpotifyTrack[] = [];
+    const errors: string[] = [];
+    trackIds.forEach((trackId, index) => {
+        const track = resolvedByIndex[index];
+        if (track) {
+            resolvedTracks.push(track);
+        } else {
+            errors.push(`Track ${trackId} could not be found on Spotify.`);
+        }
+    });
 
     return { tracks: resolvedTracks, errors };
 };
 
 export const fetchPlaylistName = async (playlistId: string, accessToken: string): Promise<string> => {
-    const response = await fetch(`${SPOTIFY_PLAYLISTS_URL}/${playlistId}?fields=name`, {
+    const response = await spotifyFetch(`${SPOTIFY_PLAYLISTS_URL}/${playlistId}?fields=name`, {
         headers: {
             Authorization: `Bearer ${accessToken}`
         }
     });
 
     if (!response.ok) {
-        throw new Error(`Spotify playlist lookup failed with ${response.status}.`);
+        throw new SpotifyRequestError(`Spotify playlist lookup failed with ${response.status}.`, 'internal');
     }
 
     const data = await response.json() as { name?: string };
     if (!data.name) {
-        throw new Error('Spotify did not return a playlist name.');
+        throw new SpotifyRequestError('Spotify did not return a playlist name.', 'internal');
     }
 
     return data.name;
@@ -188,11 +221,23 @@ const extractSpotifyUserIdFromSearchInput = (value: string): string | null => {
     return SPOTIFY_USER_ID_PATTERN.test(trimmed) ? trimmed : null;
 };
 
+const SPOTIFY_PROFILE_UNAVAILABLE_MESSAGE = 'This Spotify profile could not be loaded. Spotify no longer shares other users\' playlists with apps like TuneTeaser, so paste playlist links or build a custom playlist instead.';
+
+interface SpotifyPlaylistCounts {
+    items?: { total?: number };
+    tracks?: { total?: number };
+}
+
+const getPlaylistTrackCount = (playlist: SpotifyPlaylistCounts) => {
+    return playlist.items?.total ?? playlist.tracks?.total ?? 0;
+};
+
 interface SpotifyUserPlaylistsPage {
     items?: Array<{
         id?: string;
         name?: string;
         images?: { url?: string }[];
+        items?: { total?: number };
         tracks?: { total?: number };
         external_urls?: { spotify?: string };
     }>;
@@ -205,22 +250,25 @@ export const fetchUserPlaylists = async (
 ): Promise<{ userId: string; playlists: SpotifyUserPlaylist[] }> => {
     const userId = extractSpotifyUserId(profileUrl);
     if (!userId) {
-        throw new Error('Enter a valid Spotify profile URL.');
+        throw new SpotifyRequestError('Enter a valid Spotify profile URL.', 'invalid-argument');
     }
 
     const headers = { Authorization: `Bearer ${accessToken}` };
     const playlists: SpotifyUserPlaylist[] = [];
-    let nextUrl: string | null = `${SPOTIFY_USERS_URL}/${encodeURIComponent(userId)}/playlists?limit=50&fields=items(id,name,images(url),tracks(total),external_urls(spotify)),next`;
+    let nextUrl: string | null = `${SPOTIFY_USERS_URL}/${encodeURIComponent(userId)}/playlists?limit=50`;
 
     while (nextUrl) {
-        const response = await fetch(nextUrl, { headers });
+        const response = await spotifyFetch(nextUrl, { headers });
 
         if (!response.ok) {
             if (response.status === 404) {
-                throw new Error('This Spotify user was not found.');
+                throw new SpotifyRequestError(SPOTIFY_PROFILE_UNAVAILABLE_MESSAGE, 'not-found');
+            }
+            if (response.status === 403 || response.status === 410) {
+                throw new SpotifyRequestError(SPOTIFY_PROFILE_UNAVAILABLE_MESSAGE, 'permission-denied');
             }
 
-            throw new Error(`Spotify returned an error (${response.status}). Please try again.`);
+            throw new SpotifyRequestError(`Spotify returned an error (${response.status}). Please try again.`, 'internal');
         }
 
         const data = await response.json() as SpotifyUserPlaylistsPage;
@@ -230,7 +278,7 @@ export const fetchUserPlaylists = async (
             playlists.push({
                 id: playlist.id,
                 name: playlist.name,
-                trackCount: playlist.tracks?.total || 0,
+                trackCount: getPlaylistTrackCount(playlist),
                 imageUrl: playlist.images?.find(image => typeof image?.url === 'string' && image.url.trim())?.url || '',
                 externalUrl: playlist.external_urls?.spotify || `https://open.spotify.com/playlist/${playlist.id}`
             });
@@ -246,6 +294,7 @@ type SpotifyPlaylistSearchItem = {
     id?: string;
     name?: string;
     images?: { url?: string }[];
+    items?: { total?: number };
     tracks?: { total?: number };
     owner?: { display_name?: string; id?: string };
     external_urls?: { spotify?: string };
@@ -254,6 +303,7 @@ type SpotifyPlaylistSearchItem = {
 interface SpotifyPlaylistSearchPage {
     playlists?: {
         total?: number;
+        next?: string | null;
         items?: Array<SpotifyPlaylistSearchItem | null>;
     };
 }
@@ -282,7 +332,7 @@ const mapSpotifyPlaylistSearchItems = (
                 name: playlist.name,
                 ownerName,
                 ownerSearchText,
-                trackCount: playlist.tracks?.total || 0,
+                trackCount: getPlaylistTrackCount(playlist),
                 imageUrl: playlist.images?.find(image => typeof image?.url === 'string' && image.url.trim())?.url || '',
                 externalUrl: playlist.external_urls?.spotify || `https://open.spotify.com/playlist/${playlist.id}`
             };
@@ -314,26 +364,40 @@ const searchSpotifyPlaylistCandidates = async (
     query: string,
     accessToken: string
 ): Promise<{ playlists: SpotifyPlaylistSearchCandidate[]; total: number }> => {
-    const params = new URLSearchParams({
-        q: query,
-        type: 'playlist',
-        limit: '50'
-    });
-    const response = await fetch(`${SPOTIFY_SEARCH_URL}?${params.toString()}`, {
-        headers: {
-            Authorization: `Bearer ${accessToken}`
-        }
-    });
+    const playlists: SpotifyPlaylistSearchCandidate[] = [];
+    let total = 0;
 
-    if (!response.ok) {
-        throw new Error(`Spotify playlist search failed with ${response.status}.`);
+    for (let page = 0; page < SPOTIFY_SEARCH_MAX_PAGES; page++) {
+        const params = new URLSearchParams({
+            q: query,
+            type: 'playlist',
+            limit: String(SPOTIFY_SEARCH_PAGE_LIMIT),
+            offset: String(page * SPOTIFY_SEARCH_PAGE_LIMIT)
+        });
+        const response = await spotifyFetch(`${SPOTIFY_SEARCH_URL}?${params.toString()}`, {
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new SpotifyRequestError(`Spotify playlist search failed with ${response.status}.`, 'internal');
+        }
+
+        const data = await response.json() as SpotifyPlaylistSearchPage;
+        if (page === 0) {
+            total = data.playlists?.total || 0;
+        }
+
+        const items = data.playlists?.items || [];
+        playlists.push(...mapSpotifyPlaylistSearchItems(items));
+
+        if (items.length < SPOTIFY_SEARCH_PAGE_LIMIT || !data.playlists?.next) {
+            break;
+        }
     }
 
-    const data = await response.json() as SpotifyPlaylistSearchPage;
-    return {
-        playlists: mapSpotifyPlaylistSearchItems(data.playlists?.items),
-        total: data.playlists?.total || 0
-    };
+    return { playlists, total };
 };
 
 export const searchSpotifyPlaylists = async (
@@ -344,7 +408,7 @@ export const searchSpotifyPlaylists = async (
     const trimmedQuery = query.trim();
     const trimmedOwnerHint = ownerHint.trim().toLowerCase();
     if (trimmedQuery.length < 2) {
-        throw new Error('Search for at least 2 characters.');
+        throw new SpotifyRequestError('Search for at least 2 characters.', 'invalid-argument');
     }
 
     const searchResult = await searchSpotifyPlaylistCandidates(trimmedQuery, accessToken);
@@ -383,7 +447,7 @@ export const searchSpotifyPlaylists = async (
                 total: userPlaylistSuggestions.length
             };
         } catch (error: any) {
-            if (!error.message?.includes('not found')) {
+            if (!(error instanceof SpotifyRequestError) || error.code !== 'not-found') {
                 throw error;
             }
         }
@@ -421,69 +485,71 @@ export const searchSpotifyPlaylists = async (
     };
 };
 
-interface SpotifyPlaylistTracksPage {
-    items?: Array<{ track: SpotifyTrackApiResponse | null }>;
+interface SpotifyPlaylistItemsPage {
+    items?: Array<{
+        item?: (SpotifyTrackApiResponse & { is_local?: boolean; type?: string }) | null;
+        track?: (SpotifyTrackApiResponse & { is_local?: boolean; type?: string }) | null;
+    } | null>;
     next: string | null;
     total: number;
 }
-const PLAYLIST_TRACKS_FIELDS = 'items(track(id,name,artists(name),album(name,images(url)),external_urls(spotify))),next,total';
+
+const SPOTIFY_PLAYLIST_OWNER_ONLY_MESSAGE = 'Spotify no longer lets TuneTeaser read the tracks in this playlist. Add its tracks as "Song - Artist" lines with Build Custom Playlist instead.';
+const SPOTIFY_PLAYLIST_NOT_FOUND_MESSAGE = 'This playlist was not found. It may be private or deleted.';
+
+const throwForPlaylistStatus = (status: number, context: string): never => {
+    if (status === 403) {
+        throw new SpotifyRequestError(SPOTIFY_PLAYLIST_OWNER_ONLY_MESSAGE, 'permission-denied');
+    }
+    if (status === 404) {
+        throw new SpotifyRequestError(SPOTIFY_PLAYLIST_NOT_FOUND_MESSAGE, 'not-found');
+    }
+    throw new SpotifyRequestError(`Spotify returned an error (${status})${context}.`, 'internal');
+};
+
+const mapPlaylistItemsPage = (data: SpotifyPlaylistItemsPage, tracks: ResolvedSpotifyTrack[]) => {
+    for (const entry of data.items || []) {
+        const item = entry?.item ?? entry?.track;
+        if (!item || item.is_local) continue;
+        if (typeof item.type === 'string' && item.type !== 'track') continue;
+        tracks.push(mapSpotifyTrack(item));
+    }
+    return typeof data.total === 'number' ? data.total : 0;
+};
 
 export const fetchPlaylistTracks = async (
     playlistId: string,
     accessToken: string,
     offset = 0,
     limit = 100
-): Promise<{ name: string; tracks: ResolvedSpotifyTrack[]; total: number; errors: string[] }> => {
+): Promise<{ name: string; ownerName: string; tracks: ResolvedSpotifyTrack[]; total: number; errors: string[] }> => {
     const headers = { Authorization: `Bearer ${accessToken}` };
+    const pageLimit = Math.min(Math.max(1, limit), SPOTIFY_PLAYLIST_PAGE_LIMIT_MAX);
     const tracks: ResolvedSpotifyTrack[] = [];
     const errors: string[] = [];
 
+    let name = '';
+    let ownerName = '';
     if (offset === 0) {
-        // Fetch playlist name and the first page of tracks
-        const url = `${SPOTIFY_PLAYLISTS_URL}/${playlistId}?fields=name,tracks(${PLAYLIST_TRACKS_FIELDS})`;
-        const response = await fetch(url, { headers });
-
-        if (!response.ok) {
-            if (response.status === 404) {
-                throw new Error('This playlist was not found. It may be private -- make it public on Spotify, then try again.');
-            }
-            if (response.status === 403) {
-                throw new Error('This playlist is private. Make it public on Spotify, then try again.');
-            }
-            throw new Error(`Spotify returned an error (${response.status}). Please try again.`);
+        const metadataResponse = await spotifyFetch(`${SPOTIFY_PLAYLISTS_URL}/${playlistId}?fields=name,owner(display_name,id)`, { headers });
+        if (!metadataResponse.ok) {
+            throwForPlaylistStatus(metadataResponse.status, '');
         }
-
-        const data = await response.json() as {
+        const metadata = await metadataResponse.json() as {
             name?: string;
-            tracks?: SpotifyPlaylistTracksPage;
+            owner?: { display_name?: string; id?: string };
         };
-
-        const playlistName = data.name || 'Untitled Playlist';
-        const total = data.tracks?.total || 0;
-
-        for (const item of data.tracks?.items || []) {
-            if (!item.track) continue;
-            tracks.push(mapSpotifyTrack(item.track));
-        }
-
-        return { name: playlistName, tracks, total, errors };
-    } else {
-        // Fetch a specific page of tracks
-        const url = `${SPOTIFY_PLAYLISTS_URL}/${playlistId}/tracks?offset=${offset}&limit=${limit}&fields=${PLAYLIST_TRACKS_FIELDS}`;
-        const response = await fetch(url, { headers });
-
-        if (!response.ok) {
-            throw new Error(`Spotify returned an error (${response.status}) for offset ${offset}.`);
-        }
-
-        const data = await response.json() as SpotifyPlaylistTracksPage;
-        const total = data.total || 0;
-
-        for (const item of data.items || []) {
-            if (!item.track) continue;
-            tracks.push(mapSpotifyTrack(item.track));
-        }
-
-        return { name: '', tracks, total, errors };
+        name = metadata.name || 'Untitled Playlist';
+        ownerName = metadata.owner?.display_name || metadata.owner?.id || '';
     }
+
+    const itemsResponse = await spotifyFetch(`${SPOTIFY_PLAYLISTS_URL}/${playlistId}/items?offset=${offset}&limit=${pageLimit}`, { headers });
+    if (!itemsResponse.ok) {
+        throwForPlaylistStatus(itemsResponse.status, ` for offset ${offset}`);
+    }
+
+    const data = await itemsResponse.json() as SpotifyPlaylistItemsPage;
+    const total = mapPlaylistItemsPage(data, tracks);
+
+    return { name, ownerName, tracks, total, errors };
 };

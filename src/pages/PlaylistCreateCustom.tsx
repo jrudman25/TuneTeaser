@@ -57,8 +57,8 @@ const PlaylistCreateCustom = () => {
             return;
         }
 
-        if (parsedImport.spotifyTrackIds.length > 200) {
-            setFormError('A single import can resolve up to 200 Spotify track links.');
+        if (parsedImport.spotifyTrackIds.length > 50) {
+            setFormError('A single import can resolve up to 50 Spotify track links.');
             return;
         }
 
@@ -116,11 +116,6 @@ const PlaylistCreateCustom = () => {
     };
 
     const handleLogout = async () => {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('tokenExpiry');
-        localStorage.removeItem('verifier');
-        sessionStorage.removeItem('accessToken');
 
         await signOut(auth);
         navigate('/');

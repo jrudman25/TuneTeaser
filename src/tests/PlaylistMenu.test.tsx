@@ -45,13 +45,10 @@ describe('PlaylistMenu', () => {
         expect(screen.getByRole('alert')).toHaveTextContent('No playable tracks found in this playlist.');
     });
 
-    it('shows Liked Songs for signed-in users and calls the selection callback', async () => {
-        const user = userEvent.setup();
-        const { onSelectPlaylist } = renderMenu();
+    it('does not offer Liked Songs', () => {
+        renderMenu();
 
-        await user.click(screen.getByRole('button', { name: /liked songs/i }));
-
-        expect(onSelectPlaylist).toHaveBeenCalledWith('LIKED_SONGS');
+        expect(screen.queryByRole('button', { name: /liked songs/i })).not.toBeInTheDocument();
     });
 
     it('filters premade playlists and persists the toggle preference', async () => {
@@ -87,12 +84,12 @@ describe('PlaylistMenu', () => {
 
         await user.selectOptions(screen.getByRole('combobox'), 'tracks');
 
-        const cardsAscending = screen.getAllByRole('button', { name: /playlist/i });
+        const cardsAscending = screen.getAllByRole('button', { name: /tracks/i });
         expect(within(cardsAscending[0]).getByText('Acoustic Night')).toBeInTheDocument();
 
         await user.click(screen.getByRole('button', { name: /sort descending/i }));
 
-        const cardsDescending = screen.getAllByRole('button', { name: /playlist/i });
+        const cardsDescending = screen.getAllByRole('button', { name: /tracks/i });
         expect(within(cardsDescending[0]).getByText('Top Hits')).toBeInTheDocument();
     });
 

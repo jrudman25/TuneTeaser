@@ -40,11 +40,6 @@ const Help = () => {
     const backLabel = user || isGuest ? 'Back to Home' : 'Back to Sign In';
 
     const handleLogout = async () => {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('tokenExpiry');
-        localStorage.removeItem('verifier');
-        sessionStorage.removeItem('accessToken');
 
         try {
             await signOut(auth);
@@ -60,8 +55,6 @@ const Help = () => {
                 <span className="account-badge">Signed in as Guest</span>
             ) : user ? (
                 <SignedInBadge user={user} />
-            ) : localStorage.getItem('accessToken') ? (
-                <span className="account-badge">Signed in with Spotify</span>
             ) : null}
         </div>
     );
@@ -145,6 +138,7 @@ const Help = () => {
                                         <li><strong>Hear the Snippet:</strong> A random track is chosen, and a short audio preview will play.</li>
                                         <li><strong>Guess the Title:</strong> Type the song title. In solo play, incorrect guesses increase the snippet length. In multiplayer, race the shared round timer.</li>
                                         <li><strong>Earn Points:</strong> Correct guesses can reward points for registered TuneTeaser accounts, and answering quickly earns more.</li>
+                                        <li><strong>Keyboard Shortcuts:</strong> Press Space to play the snippet (when you are not typing), Enter to submit a guess, and Esc to give up after confirming.</li>
                                     </ul>
                                 </div>
                             )}
@@ -201,7 +195,7 @@ const Help = () => {
                                         </div>
                                     </div>
                                     <p className="helper-text" style={{ margin: 0, color: 'var(--ink-soft)', fontWeight: 800 }}>
-                                        Note: Search, playlist URL import, and profile URL import only show public Spotify data. Secret, private, or collaborative playlists require Spotify sign-in access.
+                                        Note: Search, playlist URL import, and profile URL import only show public Spotify data. Spotify now limits what TuneTeaser can read, so if a playlist or profile import fails, add the tracks as "Song - Artist" lines with Build Custom Playlist instead.
                                     </p>
                                 </div>
                             )}
@@ -277,7 +271,8 @@ const Help = () => {
                                         <li><strong>Eligible Playlists:</strong> To qualify for the global leaderboard, you must play on a playlist containing at least <strong>10</strong> tracks. Smaller mixes can be played for fun, but scores will not be uploaded.</li>
                                         <li><strong>Speed Bonus:</strong> Points are calculated based on your guess speed. Guessing a track title immediately awards 25 points, which decreases by 1 point for every additional 2 seconds of snippet length you need (4s = 24 points, 6s = 23 points, etc.).</li>
                                         <li><strong>Fair Play Cooldown:</strong> The same account cannot repeatedly score the same song from the same playlist within a short cooldown window.</li>
-                                        <li><strong>Account Required:</strong> You must be signed into a registered TuneTeaser email account to upload solo scores. Guest Mode and invite-only Spotify login games do not submit scores to the cloud leaderboard yet.</li>
+                                        <li><strong>Daily Points Limit:</strong> You can earn up to 1500 points per day (UTC). Correct guesses beyond the daily limit still reveal the song but award no points.</li>
+                                        <li><strong>Account Required:</strong> You must be signed into a registered TuneTeaser email account to upload solo scores. Guest Mode games do not submit scores to the cloud leaderboard. Scores are checked on the server.</li>
                                     </ul>
                                 </div>
                             )}
@@ -349,7 +344,7 @@ const Help = () => {
                                     </p>
                                     <ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px', fontWeight: 700, color: 'var(--ink-soft)' }}>
                                         <li><strong>TuneTeaser Account:</strong> Create an account with an email, password, and reserved username to back up playlists, sync multiple devices, and climb the leaderboard. Username changes in Settings use the same reserved-name check as signup.</li>
-                                        <li><strong>Spotify Sign In:</strong> Sign in directly via Spotify to use your Spotify library without pasting links manually. Only available via invite, and leaderboard scoring is not enabled for Spotify-only sessions yet.</li>
+
                                         <li><strong>Guest Mode:</strong> Play immediately. We sign you in anonymously behind the scenes using secure isolated tokens to separate your session. Playlist metadata is saved in your local browser storage, while track snapshots may be uploaded to cloud storage under your anonymous Firebase UID so the game can load them. No email is collected and no scores go to the global leaderboard.</li>
                                         <li><strong>Cleanup:</strong> Inactive anonymous guest users and expired multiplayer rooms are cleaned up automatically to limit retained data.</li>
                                     </ul>

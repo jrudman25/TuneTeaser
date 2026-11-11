@@ -91,6 +91,46 @@ describe('useManualPlaylists', () => {
             expect(storage.ref).toHaveBeenCalledWith({}, expect.stringMatching(/^users\/guest123\/playlists\/guest_manual_\d+\.json$/));
         });
 
+        it('accepts a second playlist with the same name', async () => {
+            const { result } = renderHook(() => useManualPlaylists(mockGuestUser, true));
+
+            await act(async () => {
+                await result.current.addManualPlaylist(
+                    'Same Name',
+                    'https://open.spotify.com/playlist/one',
+                    [{ id: 't1', name: 'Track 1', artists: [{ name: 'Artist 1' }], album: { name: '', images: [] } }]
+                );
+                await result.current.addManualPlaylist(
+                    'Same Name',
+                    'https://open.spotify.com/playlist/two',
+                    [{ id: 't2', name: 'Track 2', artists: [{ name: 'Artist 2' }], album: { name: '', images: [] } }]
+                );
+            });
+
+            const stored = JSON.parse(localStorage.getItem('guestPlaylists') || '[]');
+            expect(stored).toHaveLength(2);
+            expect(stored.every((p: any) => p.name === 'Same Name')).toBe(true);
+        });
+
+        it('persists ownerName on the playlist entry', async () => {
+            const { result } = renderHook(() => useManualPlaylists(mockGuestUser, true));
+
+            await act(async () => {
+                await result.current.addManualPlaylist(
+                    'Owned Mix',
+                    'https://open.spotify.com/playlist/abc',
+                    [{ id: 't1', name: 'Track 1', artists: [{ name: 'Artist 1' }], album: { name: '', images: [] } }],
+                    'ready',
+                    undefined,
+                    undefined,
+                    'DJ Tester'
+                );
+            });
+
+            const stored = JSON.parse(localStorage.getItem('guestPlaylists') || '[]');
+            expect(stored[0].ownerName).toBe('DJ Tester');
+        });
+
         it('deletes a guest playlist from localStorage', async () => {
             localStorage.setItem('guestPlaylists', JSON.stringify([
                 { id: 'playlist-1', name: 'Guest Playlist' }

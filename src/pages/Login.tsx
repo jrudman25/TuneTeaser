@@ -9,9 +9,8 @@ import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndP
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { auth, functions } from '../backend/FirebaseConfig';
-import { redirectToAuthCodeFlow, getAccessToken, getFreshSpotifyAccessToken } from '../utils/auth';
-import NavBar from '../components/NavBar';
 import { httpsCallable } from 'firebase/functions';
+import NavBar from '../components/NavBar';
 
 import { 
   RegExpMatcher, 
@@ -55,7 +54,6 @@ const getGracefulAuthErrorMessage = (error: any): string => {
 
 const Login = () => {
 
-    const [accountName, setAccountName] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
     const [username, setUsername] = useState('');
@@ -66,12 +64,7 @@ const Login = () => {
     const [tuneTeaserAuthError, setTuneTeaserAuthError] = useState('');
     const [isTuneTeaserSubmitting, setIsTuneTeaserSubmitting] = useState(false);
 
-    const clientId = `${import.meta.env.VITE_SPOTIFY_CLIENT_ID}`;
-    // Use environment variable if set, otherwise default to current origin + slash
-    const redirectUri = import.meta.env.VITE_REDIRECT_URI || `${window.location.origin}/`;
-
     const navigate = useNavigate();
-    const effectRan = React.useRef(false);
 
     useEffect(() => {
 
@@ -80,80 +73,25 @@ const Login = () => {
             return;
         }
 
-        let unsubscribeTuneTeaserAuth: (() => void) | undefined;
-
-        const handleAuthCallback = async () => {
-            const params = new URLSearchParams(window.location.search);
-            const code = params.get("code");
-
-            if (code && !effectRan.current) {
-                effectRan.current = true; // Prevent double firing in Strict Mode
-
-                try {
-                    const data = await getAccessToken(clientId, code, redirectUri);
-                    if (data.access_token) {
-                        const { access_token, refresh_token, expires_in } = data;
-                        localStorage.setItem('accessToken', access_token);
-                        localStorage.setItem('refreshToken', refresh_token);
-                        localStorage.setItem('tokenExpiry', (Date.now() + expires_in * 1000).toString());
-                        sessionStorage.setItem('accessToken', access_token);
-
-                        window.history.pushState({}, "", "/");
-
-                        const response = await fetch('https://api.spotify.com/v1/me', {
-                            headers: { 'Authorization': `Bearer ${access_token}` }
-                        });
-                        const profileData = await response.json();
-                        setAccountName(profileData.display_name);
-
-                        navigate('/home');
-                    } else {
-                        setIsLoading(false);
-                    }
-                } catch (error) {
-                    console.error("Error during auth callback:", error);
-                    setIsLoading(false);
+        const unsubscribeTuneTeaserAuth = onAuthStateChanged(auth, currentUser => {
+            if (currentUser) {
+                if (sessionStorage.getItem('isSigningUp') === 'true') {
+                    return;
                 }
-            } else if (!code) {
-                const existingToken = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken');
-                if (existingToken) {
-                    const freshToken = await getFreshSpotifyAccessToken(clientId);
-                    if (freshToken) {
-                        navigate('/home');
-                    } else {
-                        setIsLoading(false);
-                    }
+                if (currentUser.isAnonymous) {
+                    navigate('/home?mode=guest');
                 } else {
-                    unsubscribeTuneTeaserAuth = onAuthStateChanged(auth, currentUser => {
-                        if (currentUser) {
-                            if (sessionStorage.getItem('isSigningUp') === 'true') {
-                                return;
-                            }
-                            if (currentUser.isAnonymous) {
-                                navigate('/home?mode=guest');
-                            } else {
-                                navigate('/home');
-                            }
-                        } else {
-                            setIsLoading(false);
-                        }
-                    });
+                    navigate('/home');
                 }
+            } else {
+                setIsLoading(false);
             }
-        };
-
-        handleAuthCallback();
+        });
 
         return () => {
-            if (unsubscribeTuneTeaserAuth) {
-                unsubscribeTuneTeaserAuth();
-            }
+            unsubscribeTuneTeaserAuth();
         };
-    }, [clientId, navigate, redirectUri]);
-
-    const handleLogin = async () => {
-        await redirectToAuthCodeFlow(clientId, redirectUri);
-    };
+    }, [navigate]);
 
     const handleGuestLogin = async () => {
         try {
@@ -305,9 +243,7 @@ const Login = () => {
                             </ol>
                         </div>
                         <div className="hero-actions">
-                                {accountName ? (
-                                    <p className="lede">Welcome, {accountName}!</p>
-                                ) : (
+                                {
                                         <>
                                             <div className="auth-panel">
                                                 <div className="auth-toggle-row">
@@ -395,13 +331,9 @@ const Login = () => {
                                                 <button className="text-link" type="button" onClick={handleGuestLogin}>
                                                     Play as Guest
                                                 </button>
-                                                <span className="auth-alt-sep">{'\u00B7'}</span>
-                                                <button className="text-link" type="button" onClick={handleLogin}>
-                                                    Sign In with Spotify (invite only)
-                                                </button>
                                             </div>
                                         </>
-                                    )}
+                                    }
                         </div>
                     </div>
                     <div className="record-visual" aria-hidden="true" />

@@ -119,15 +119,14 @@ const Playlists = () => {
     };
 
     const getPlaylistSourceLabel = (sourceUrl: string) => {
-        return sourceUrl ? 'Spotify import' : 'Custom mix';
+        try {
+            return sourceUrl && new URL(sourceUrl).hostname.endsWith('spotify.com') ? 'Spotify import' : 'Custom mix';
+        } catch {
+            return 'Custom mix';
+        }
     };
 
     const handleLogout = async () => {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('tokenExpiry');
-        localStorage.removeItem('verifier');
-        sessionStorage.removeItem('accessToken');
 
         try {
             await signOut(auth);
@@ -258,6 +257,7 @@ const Playlists = () => {
                                                 <p className="playlist-meta">
                                                     {playlist.importedCount !== undefined ? playlist.importedCount : (playlist.tracks?.length || 0)} tracks
                                                 </p>
+                                                {playlist.ownerName && <p className="playlist-meta">by {playlist.ownerName}</p>}
                                                 <p className="playlist-meta">Added {formatPlaylistDate(playlist.createdAt)}</p>
                                                 {playlist.sourceUrl && (
                                                     <a className="text-link external-link" href={playlist.sourceUrl} target="_blank" rel="noreferrer">
