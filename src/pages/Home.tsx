@@ -7,14 +7,10 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { signOut, signInAnonymously } from 'firebase/auth';
 import { auth } from '../backend/FirebaseConfig';
-import { getFreshSpotifyAccessToken } from '../utils/auth';
-import { isEligibleForPoints } from '../utils/scoreUtils';
 import { usePlaylists } from '../hooks/usePlaylists';
 import { useGameLogic } from '../hooks/useGameLogic';
 import { useManualPlaylists } from '../hooks/useManualPlaylists';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
-import { useLeaderboard } from '../hooks/useLeaderboard';
-import { useRecentScores } from '../hooks/useRecentScores';
 import PlaylistMenu from '../components/PlaylistMenu';
 import ActiveGame from '../components/ActiveGame';
 import GameResult from '../components/GameResult';
@@ -33,7 +29,6 @@ const Home = () => {
         manualPlaylistError
     } = useManualPlaylists(user, isGuest);
     const isManualMode = !isGuest && !!user && !user.isAnonymous;
-    const [accessToken, setAccessToken] = useState(localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken'));
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const [onboardingDismissed, setOnboardingDismissed] = useState(false);
 
@@ -47,15 +42,11 @@ const Home = () => {
         if (onboardingDismissed) return false;
         if (isLoadingUser || isLoadingManualPlaylists) return false;
 
-        // Skip onboarding for Spotify-login users
-        const isSpotifyUser = !!accessToken && !isManualMode && !isGuest;
-        if (isSpotifyUser) return false;
-
         if (localStorage.getItem('onboardingComplete') === 'true') return false;
 
         // Show for new email users with no playlists, or first-visit guests
         return (isManualMode && manualPlaylists.length === 0) || isGuest;
-    }, [onboardingDismissed, isLoadingUser, isLoadingManualPlaylists, accessToken, isManualMode, isGuest, manualPlaylists.length]);
+    }, [onboardingDismissed, isLoadingUser, isLoadingManualPlaylists, isManualMode, isGuest, manualPlaylists.length]);
 
     useEffect(() => {
         if (isGuest && !isLoadingUser && !user) {
@@ -66,33 +57,12 @@ const Home = () => {
     }, [isGuest, isLoadingUser, user]);
 
     useEffect(() => {
-        if (isGuest) return;
-
-        const checkToken = async () => {
-            const tokenExpiry = localStorage.getItem('tokenExpiry');
-            const clientId = `${import.meta.env.VITE_SPOTIFY_CLIENT_ID}`;
-
-            if (accessToken && (!tokenExpiry || Date.now() > parseInt(tokenExpiry))) {
-                console.log("Token expired, refreshing...");
-                const freshToken = await getFreshSpotifyAccessToken(clientId);
-                if (freshToken) {
-                    setAccessToken(freshToken);
-                } else {
-                    setAccessToken(null);
-                    window.location.href = '/';
-                }
-            }
-        };
-        checkToken();
-    }, [accessToken, isGuest]);
-
-    useEffect(() => {
-        if (!isLoadingUser && !isGuest && !isManualMode && !accessToken) {
+        if (!isLoadingUser && !isGuest && !isManualMode) {
             navigate('/');
         }
-    }, [isLoadingUser, isGuest, isManualMode, accessToken, navigate]);
+    }, [isLoadingUser, isGuest, isManualMode, navigate]);
 
-    const { playlists, isLoadingPlaylists, playlistError } = usePlaylists(accessToken, isGuest, manualPlaylists, isManualMode);
+    const { playlists, isLoadingPlaylists, playlistError } = usePlaylists(isGuest, manualPlaylists, isManualMode);
     const {
         gameState,
         targetSong,
@@ -101,7 +71,6 @@ const Home = () => {
         setUserGuess,
         feedbackMessage,
         isLoadingGame,
-        selectedPlaylistId,
         selectedPlaylistName,
         loadPlaylist,
         handleGuessSubmit,
@@ -112,83 +81,59 @@ const Home = () => {
         isPlaying,
         playerError,
         currentTracks,
+        wrongGuesses,
+        isSubmittingGuess,
         volume,
         setVolume
-    } = useGameLogic(accessToken, isGuest, manualPlaylists, isManualMode);
+    } = useGameLogic(isGuest, manualPlaylists, isManualMode);
 
-    const { submitScore } = useLeaderboard(user);
-    const { canScoreSong, recordScore } = useRecentScores();
     const [displayedPoints, setDisplayedPoints] = useState<number | null>(null);
+    const [pointsNote, setPointsNote] = useState<string | null>(null);
 
     const handleGiveUp = () => {
         setDisplayedPoints(null);
+        setPointsNote(null);
         originalHandleGiveUp();
     };
 
     const handlePlayAgain = () => {
         setDisplayedPoints(null);
+        setPointsNote(null);
         originalHandlePlayAgain();
     };
 
     const handleSelectNewPlaylist = () => {
         setDisplayedPoints(null);
+        setPointsNote(null);
         originalHandleSelectNewPlaylist();
     };
 
-    // Wrap handleGuessSubmit to score points inline (event-driven, not effect-driven)
     const handleGuessWithScoring = async (specificGuess?: string) => {
-        const points = handleGuessSubmit(specificGuess);
+        const result = await handleGuessSubmit(specificGuess);
 
-        if (points == null || points <= 0) {
+        if (result?.result !== 'correct') {
             setDisplayedPoints(null);
+            setPointsNote(null);
             return;
         }
 
-        const isAnonymous = !user || user.isAnonymous;
-        const trackCount = currentTracks.length;
-        const songId = targetSong?.id;
-        const playlistId = selectedPlaylistId;
-
-        if (!isEligibleForPoints(trackCount, isGuest, isAnonymous)
-            || !canScoreSong(playlistId, songId)) {
-            setDisplayedPoints(null);
-            return;
-        }
-
-        const awardedPoints = await submitScore({
-            playlistId,
-            songId,
-            playlistTrackCount: trackCount,
-            snippetDurationMs: snippetDuration
-        });
-
-        if (awardedPoints == null) {
-            setDisplayedPoints(null);
-            return;
-        }
-
-        recordScore(playlistId, songId);
-        setDisplayedPoints(awardedPoints);
+        setDisplayedPoints(result.pointsAwarded);
+        setPointsNote(
+            result.pointsNote === 'cooldown'
+                ? 'No points: you scored this song recently.'
+                : result.pointsNote === 'daily-cap'
+                    ? 'No points: daily points limit reached.'
+                    : null
+        );
     };
 
     const onSelectPlaylist = (playlistId: string) => {
-        let name = '';
-        if (playlistId === 'LIKED_SONGS') {
-            name = 'Liked Songs';
-        } else {
-            const p = playlists.find((pl: any) => pl.id === playlistId);
-            if (p) name = p.name;
-        }
-        loadPlaylist(playlistId, name);
+        const p = playlists.find((pl: any) => pl.id === playlistId);
+        loadPlaylist(playlistId, p ? p.name : '');
     };
 
     const handleLogout = async () => {
         setIsLoggingOut(true);
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('tokenExpiry');
-        localStorage.removeItem('verifier');
-        sessionStorage.removeItem('accessToken');
 
         try {
             await signOut(auth);
@@ -203,9 +148,7 @@ const Home = () => {
                 <span className="account-badge">Signed in as Guest</span>
             ) : isProbablyManualMode ? (
                 <SignedInBadge user={user} />
-            ) : (
-                <span className="account-badge">Signed in with Spotify</span>
-            )}
+            ) : null}
         </div>
     );
 
@@ -280,6 +223,8 @@ const Home = () => {
                         isPlaying={isPlaying}
                         selectedPlaylistName={selectedPlaylistName}
                         songs={currentTracks}
+                        wrongGuesses={wrongGuesses}
+                        isSubmittingGuess={isSubmittingGuess}
                         volume={volume}
                         setVolume={setVolume}
                     />
@@ -293,6 +238,7 @@ const Home = () => {
                         onSelectNewPlaylist={handleSelectNewPlaylist}
                         isLoading={isLoadingGame}
                         earnedPoints={displayedPoints}
+                        pointsNote={pointsNote}
                     />
                 )}
 

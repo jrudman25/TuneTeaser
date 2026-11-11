@@ -23,16 +23,16 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const appCheckSiteKey = import.meta.env.VITE_FIREBASE_APPCHECK_SITE_KEY;
 
-if (
+export const appCheck = (
     import.meta.env.PROD
     && typeof appCheckSiteKey === 'string'
     && appCheckSiteKey.trim()
-) {
-    initializeAppCheck(app, {
+)
+    ? initializeAppCheck(app, {
         provider: new ReCaptchaV3Provider(appCheckSiteKey),
         isTokenAutoRefreshEnabled: true
-    });
-}
+    })
+    : null;
 
 export const db = getFirestore(app);
 export const auth = getAuth(app);

@@ -1,46 +1,21 @@
 /**
  * useGameLogic.ts
- * Handles the core game logic, including track selection, scoring, and state management.
- * @version 2026.02.11
+ * Handles the core game logic. Rounds are started, judged, and ended by the
+ * server callables in utils/soloRounds; the client never sees the answer early.
+ * @version 2026.06.01
  */
 import { useState, useRef, useEffect } from 'react';
 import usePreviewPlayer from './usePreviewPlayer';
-import { getItunesPreview } from '../utils/itunes';
-import { normalizeSongTitleForGuess, normalizeString } from '../utils/stringUtils';
 import { GUEST_TRACKS } from '../utils/guestData';
 import { ManualPlaylist, ManualTrack, manualTracksToGameItems } from '../utils/manualPlaylists';
-import { calculatePoints } from '../utils/scoreUtils';
 import { getManualPlaylistTracks } from '../utils/spotifyPlaylistImporter';
+import { startSoloRound, submitSoloGuess, giveUpSoloRound, SubmitSoloGuessResponse } from '../utils/soloRounds';
 
-const ITUNES_LOOKUP_ATTEMPT_LIMIT = 12;
-const FAILED_ITUNES_LOOKUP_STORAGE_KEY = 'tuneteaserFailedItunesLookups';
-const FAILED_ITUNES_LOOKUP_STORAGE_LIMIT = 500;
-
-const getTrackLookupKey = (track: any) => {
-    const artistName = track.artists?.[0]?.name || '';
-    return `${track.id || track.name}|${track.name}|${artistName}`.toLowerCase();
-};
-
-const loadFailedItunesLookups = () => {
-    try {
-        const stored = localStorage.getItem(FAILED_ITUNES_LOOKUP_STORAGE_KEY);
-        return new Set<string>(stored ? JSON.parse(stored) : []);
-    } catch {
-        return new Set<string>();
-    }
-};
-
-const saveFailedItunesLookups = (failedLookups: Set<string>) => {
-    try {
-        const cappedLookups = Array.from(failedLookups).slice(-FAILED_ITUNES_LOOKUP_STORAGE_LIMIT);
-        localStorage.setItem(FAILED_ITUNES_LOOKUP_STORAGE_KEY, JSON.stringify(cappedLookups));
-    } catch {
-        return;
-    }
+const getErrorMessage = (error: unknown, fallback: string) => {
+    return error instanceof Error && error.message ? error.message : fallback;
 };
 
 export const useGameLogic = (
-    accessToken: string | null,
     isGuest: boolean,
     manualPlaylists: ManualPlaylist[] = [],
     isManualMode: boolean = false
@@ -56,173 +31,107 @@ export const useGameLogic = (
 
     const { playPreview, pause, isPlaying, error: playerError, volume, setVolume } = usePreviewPlayer();
     const [currentTracks, setCurrentTracks] = useState<any[]>([]);
-    const [recentTracks, setRecentTracks] = useState<string[]>([]);
-    const [failedTracks, setFailedTracks] = useState<string[]>([]);
     const [targetSong, setTargetSong] = useState<any | null>(null);
     const [currentPreviewUrl, setCurrentPreviewUrl] = useState<string | null>(null);
-    const [snippetDuration, setSnippetDuration] = useState<number>(1000); // ms
+    const [currentRoundId, setCurrentRoundId] = useState<string | null>(null);
+    const [snippetDuration, setSnippetDuration] = useState<number>(2000); // ms
     const [gameState, setGameState] = useState<'idle' | 'playing' | 'end'>('idle');
     const [userGuess, setUserGuess] = useState('');
+    const [wrongGuesses, setWrongGuesses] = useState<string[]>([]);
     const [feedbackMessage, setFeedbackMessage] = useState('');
     const [selectedPlaylistId, setSelectedPlaylistId] = useState('');
     const [selectedPlaylistName, setSelectedPlaylistName] = useState('');
     const [isLoadingGame, setIsLoadingGame] = useState(false);
-    const [lastEarnedPoints, setLastEarnedPoints] = useState<number | null>(null);
+    const [isSubmittingGuess, setIsSubmittingGuess] = useState(false);
+    const isSubmittingGuessRef = useRef(false);
+    const selectedPlaylistIdRef = useRef('');
+    useEffect(() => {
+        selectedPlaylistIdRef.current = selectedPlaylistId;
+    }, [selectedPlaylistId]);
 
-    const startGame = async (tracks: any[], explicitSkipId?: string, loadGeneration?: number) => {
+    const startRound = async (playlistId: string, loadGeneration?: number) => {
         const isStaleLoad = () => loadGeneration !== undefined && playlistLoadGenerationRef.current !== loadGeneration;
-        if (isStaleLoad() || (isLoadingGame && !explicitSkipId)) return;
+        if (isStaleLoad()) return;
         setIsLoadingGame(true);
         pause();
 
-        const persistedFailedLookupKeys = loadFailedItunesLookups();
-        const sessionFailedTrackIds = new Set(failedTracks);
-
-        const isCandidateValid = (t: any) => {
-            const id = t.track.id;
-            if (recentTracks.includes(id)) return false;
-            if (sessionFailedTrackIds.has(id)) return false;
-            if (persistedFailedLookupKeys.has(getTrackLookupKey(t.track))) return false;
-            if (explicitSkipId && id === explicitSkipId) return false;
-            return true;
-        };
-
-        let candidates = tracks.filter(isCandidateValid);
-
-        if (candidates.length === 0 && tracks.length > 0) {
-
-            setRecentTracks([]);
-            // allow recent tracks again, but maintain failedTracks blacklist
-            candidates = tracks.filter(t =>
-                !sessionFailedTrackIds.has(t.track.id) &&
-                !persistedFailedLookupKeys.has(getTrackLookupKey(t.track)) &&
-                (!explicitSkipId || t.track.id !== explicitSkipId)
-            );
-        }
-
-        let selectedTrack: any | null = null;
-        let previewUrl = null;
-
-        const shuffled = [...candidates].sort(() => 0.5 - Math.random());
-        const lookupCandidates = shuffled.slice(0, ITUNES_LOOKUP_ATTEMPT_LIMIT);
-        const roundFailedTrackIds = new Set<string>();
-        let failedLookupKeysChanged = false;
-
-        for (const candidate of lookupCandidates) {
-            const track = candidate.track;
-            const artistName = track.artists[0]?.name || "";
-            const albumName = track.album?.name || "";
-            const lookupKey = getTrackLookupKey(track);
-            const data = await getItunesPreview(track.name, artistName, albumName);
+        try {
+            const round = await startSoloRound(playlistId);
             if (isStaleLoad()) return;
-
-            if (data && data.previewUrl) {
-                selectedTrack = track;
-                previewUrl = data.previewUrl;
-
-                // For Guest Mode or missing artwork, use iTunes artwork
-                if (data.artworkUrl) {
-                    if (!selectedTrack.album) selectedTrack.album = { images: [] };
-                    if (!selectedTrack.album.images) selectedTrack.album.images = [];
-
-                    if (isGuest || selectedTrack.album.images.length === 0) {
-                        // Clear any existing (potentially broken) URLs if Guest
-                        selectedTrack.album.images = [{ url: data.artworkUrl }];
-                    }
-                }
-                break;
-            } else {
-
-                roundFailedTrackIds.add(track.id);
-                persistedFailedLookupKeys.add(lookupKey);
-                failedLookupKeysChanged = true;
-            }
-        }
-
-        if (roundFailedTrackIds.size > 0) {
-            setFailedTracks(prev => Array.from(new Set([...prev, ...roundFailedTrackIds])));
-        }
-        if (failedLookupKeysChanged) {
-            saveFailedItunesLookups(persistedFailedLookupKeys);
-        }
-
-        if (selectedTrack && previewUrl) {
-
-            setTargetSong(selectedTrack);
-            setCurrentPreviewUrl(previewUrl);
-            setGameState('playing');
-            setSnippetDuration(2000);
-            setFeedbackMessage('');
+            setCurrentRoundId(round.roundId);
+            setCurrentPreviewUrl(round.previewUrl);
+            setSnippetDuration(round.snippetDurationMs);
+            setTargetSong(null);
+            setWrongGuesses([]);
             setUserGuess('');
-            setLastEarnedPoints(null);
-
-            setRecentTracks(prev => {
-                const newRecent = [...prev, selectedTrack.id];
-                const limit = Math.min(50, Math.ceil(tracks.length * 0.5));
-                if (newRecent.length > limit) {
-                    return newRecent.slice(newRecent.length - limit);
-                }
-                return newRecent;
-            });
-        } else {
-
-            setFeedbackMessage('No playable tracks found in this playlist (checked all).');
+            setFeedbackMessage('');
+            setGameState('playing');
+        } catch (error) {
+            if (isStaleLoad()) return;
+            setFeedbackMessage(getErrorMessage(error, 'Could not start a round. Try again.'));
+            setGameState('idle');
             setTargetSong(null);
             setCurrentPreviewUrl(null);
-            setGameState('idle');
-        }
-        setIsLoadingGame(false);
-    };
-
-    const handleGuessSubmit = (specificGuess?: string): number | null => {
-        const guessToCheck = specificGuess !== undefined ? specificGuess : userGuess;
-        if (!targetSong) return null;
-
-        const checkGuess = normalizeString(guessToCheck);
-        const checkTitle = normalizeSongTitleForGuess(targetSong.name);
-
-        const targetArtist = targetSong.artists?.[0]?.name;
-        const targetOption = targetArtist ? `${targetSong.name} - ${targetArtist}` : targetSong.name;
-        const checkTargetOption = normalizeString(targetOption);
-
-        const isExactOptionMatch = checkTargetOption === checkGuess && checkGuess.length > 0;
-        const guessCoversEnoughOfTitle = checkTitle.length > 0 && checkGuess.length / checkTitle.length >= 0.5;
-        const isTitleMatch = checkTitle === checkGuess || (
-            checkGuess.length > 2
-            && guessCoversEnoughOfTitle
-            && checkTitle.includes(checkGuess)
-        );
-
-        const isCorrect = isExactOptionMatch || isTitleMatch;
-
-        if (isCorrect) {
-            const points = calculatePoints(snippetDuration);
-            setLastEarnedPoints(points);
-            setGameState('end');
-            setFeedbackMessage(`Correct! You won! Guessed the song in ${snippetDuration / 1000} seconds.`);
-            return points;
-        } else {
-            if (snippetDuration >= 30000) {
-                setLastEarnedPoints(null);
-                setGameState('end');
-                setFeedbackMessage(`Game Over! You didn't get it. The song was: ${targetSong.name}`);
-            } else {
-                setFeedbackMessage('Incorrect. Increasing snippet length!');
-                setSnippetDuration(prev => Math.min(prev + 2000, 30000));
+            setCurrentRoundId(null);
+        } finally {
+            if (!isStaleLoad()) {
+                setIsLoadingGame(false);
             }
         }
-        return null;
+    };
+
+    const handleGuessSubmit = async (specificGuess?: string): Promise<SubmitSoloGuessResponse | null> => {
+        if (isSubmittingGuessRef.current || !currentRoundId || gameState !== 'playing') return null;
+        isSubmittingGuessRef.current = true;
+        setIsSubmittingGuess(true);
+
+        const guessToCheck = specificGuess !== undefined ? specificGuess : userGuess;
+        const guessText = guessToCheck.trim();
+
+        try {
+            const result = await submitSoloGuess(currentRoundId, guessText);
+
+            if (result.result === 'correct') {
+                setTargetSong(result.answer);
+                setGameState('end');
+                setFeedbackMessage(`Correct! You won! Guessed the song in ${result.snippetDurationMs / 1000} seconds.`);
+            } else if (result.result === 'out-of-snippet') {
+                setTargetSong(result.answer);
+                setGameState('end');
+                setFeedbackMessage(`Game Over! You didn't get it. The song was: ${result.answer?.name || 'unknown'}`);
+            } else {
+                setSnippetDuration(result.snippetDurationMs);
+                if (guessText) {
+                    setWrongGuesses(prev => (
+                        prev.some(guess => guess.toLowerCase() === guessText.toLowerCase())
+                            ? prev
+                            : [...prev, guessText]
+                    ));
+                    setFeedbackMessage('Incorrect. Increasing snippet length!');
+                } else {
+                    setFeedbackMessage(`Snippet extended to ${result.snippetDurationMs / 1000} seconds.`);
+                }
+            }
+
+            return result;
+        } catch (error) {
+            setFeedbackMessage(getErrorMessage(error, 'Could not submit your guess. Try again.'));
+            return null;
+        } finally {
+            isSubmittingGuessRef.current = false;
+            setIsSubmittingGuess(false);
+        }
     };
 
     const playSnippet = async () => {
-        if (!targetSong) {
-            setFeedbackMessage("No song selected.");
+        if (gameState !== 'playing') {
+            setFeedbackMessage('No song playing.');
             return;
         }
 
         if (!currentPreviewUrl) {
-            setFeedbackMessage("Error: Preview URL missing. Skipping...");
-            await startGame(currentTracks, targetSong.id);
+            setFeedbackMessage('Error: Preview URL missing. Loading another track...');
+            await startRound(selectedPlaylistIdRef.current);
             return;
         }
 
@@ -230,13 +139,21 @@ export const useGameLogic = (
         playPreview(currentPreviewUrl, snippetDuration);
     };
 
-    const handleGiveUp = () => {
-        setGameState('end');
-        setFeedbackMessage(`The song was: ${targetSong.name}`);
+    const handleGiveUp = async () => {
+        if (!currentRoundId) return;
+
+        try {
+            const result = await giveUpSoloRound(currentRoundId);
+            setTargetSong(result.answer);
+            setGameState('end');
+            setFeedbackMessage(`The song was: ${result.answer.name}`);
+        } catch (error) {
+            setFeedbackMessage(getErrorMessage(error, 'Could not reveal the song. Try again.'));
+        }
     };
 
     const handlePlayAgain = () => {
-        startGame(currentTracks);
+        startRound(selectedPlaylistIdRef.current);
     };
 
     const handleSelectNewPlaylist = () => {
@@ -249,7 +166,9 @@ export const useGameLogic = (
         setFeedbackMessage('');
         setSelectedPlaylistId('');
         setSelectedPlaylistName('');
-        setFailedTracks([]);
+        setCurrentRoundId(null);
+        setCurrentPreviewUrl(null);
+        setWrongGuesses([]);
     };
 
     const loadPlaylist = async (playlistId: string, playlistName: string) => {
@@ -260,169 +179,40 @@ export const useGameLogic = (
         setSelectedPlaylistName(playlistName);
         setSelectedPlaylistId(playlistId);
         setIsLoadingGame(true);
-        setFeedbackMessage("Loading tracks... Game will start soon.");
+        setFeedbackMessage('Loading tracks... Game will start soon.');
 
-        setFeedbackMessage("Loading tracks... Game will start soon.");
-
-        if (isGuest || isManualMode) {
-            const tracks = GUEST_TRACKS[playlistId];
-            if (tracks) {
-                setCurrentTracks(tracks);
-                await startGame(tracks, undefined, loadGeneration);
-            } else {
-                const playlist = manualPlaylistsRef.current.find((manualPlaylist) => manualPlaylist.id === playlistId);
-                if (playlist) {
-                    let rawTracks: ManualTrack[] = [];
-                    if (playlist.tracksUrl) {
-                        try {
-                            rawTracks = await getManualPlaylistTracks(playlist.id);
-                        } catch (e) {
-                            console.error("Failed to load tracks from Storage URL:", e);
-                            rawTracks = playlist.tracks || [];
-                        }
-                    } else {
-                        rawTracks = playlist.tracks || [];
-                    }
-                    if (isStaleLoad()) return;
-                    const tracks = manualTracksToGameItems(rawTracks);
-                    setCurrentTracks(tracks);
-                    await startGame(tracks, undefined, loadGeneration);
-                } else {
-                    setFeedbackMessage("Error: Playlist not found.");
-                    setIsLoadingGame(false);
-                }
-            }
+        const featuredTracks = GUEST_TRACKS[playlistId];
+        if (featuredTracks) {
+            if (isStaleLoad()) return;
+            setCurrentTracks(featuredTracks);
+            await startRound(playlistId, loadGeneration);
             return;
         }
 
-        if (accessToken) {
-            try {
-                let initialUrl = '';
-                if (playlistId === 'LIKED_SONGS') {
-                    initialUrl = 'https://api.spotify.com/v1/me/tracks?market=from_token&limit=50';
-                } else {
-                    initialUrl = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?market=from_token&limit=100`;
+        const playlist = (isGuest || isManualMode)
+            ? manualPlaylistsRef.current.find((manualPlaylist) => manualPlaylist.id === playlistId)
+            : undefined;
+        if (playlist) {
+            let rawTracks: ManualTrack[] = [];
+            if (playlist.tracksUrl) {
+                try {
+                    rawTracks = await getManualPlaylistTracks(playlist.id);
+                } catch (e) {
+                    console.error('Failed to load tracks from Storage URL:', e);
+                    rawTracks = playlist.tracks || [];
                 }
-
-                const response = await fetch(initialUrl, {
-                    headers: { 'Authorization': `Bearer ${accessToken}` }
-                });
-                if (isStaleLoad()) return;
-
-                if (response.ok) {
-                    const data = await response.json();
-                    if (isStaleLoad()) return;
-                    const fetchedTracks = [...data.items];
-                    const total = data.total;
-
-
-                    const validInitialTracks = fetchedTracks.filter((item: any) =>
-                        item.track && item.track.id && !item.is_local
-                    );
-
-                    if (validInitialTracks.length === 0 && total === 0) {
-                        setFeedbackMessage('No playable tracks found in this playlist.');
-                        setIsLoadingGame(false);
-                        return;
-                    }
-
-                    setCurrentTracks(validInitialTracks);
-
-                    const limit = playlistId === 'LIKED_SONGS' ? 50 : 100;
-
-                    if (total > fetchedTracks.length) {
-                        const numPages = Math.ceil(total / limit);
-                        const randomPage = Math.floor(Math.random() * numPages);
-
-                        let startingTracks = validInitialTracks;
-
-                        if (randomPage > 0) {
-                            setFeedbackMessage(`Loading random page (${randomPage + 1}/${numPages}) for better variety...`);
-                            const offset = randomPage * limit;
-                            const url = playlistId === 'LIKED_SONGS'
-                                ? `https://api.spotify.com/v1/me/tracks?market=from_token&limit=${limit}&offset=${offset}`
-                                : `https://api.spotify.com/v1/playlists/${playlistId}/tracks?market=from_token&limit=${limit}&offset=${offset}`;
-
-                            try {
-                                const randomPageResponse = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
-                                if (isStaleLoad()) return;
-                                if (randomPageResponse.ok) {
-                                    const randomPageData = await randomPageResponse.json();
-                                    if (isStaleLoad()) return;
-                                    const validRandomTracks = randomPageData.items.filter((item: any) =>
-                                        item.track && item.track.id && !item.is_local
-                                    );
-                                    if (validRandomTracks.length > 0) {
-                                        startingTracks = validRandomTracks;
-                                        setCurrentTracks(prev => [...prev, ...validRandomTracks]);
-                                    }
-                                }
-                            } catch (e) {
-                                console.error('Failed to fetch random starting page', e);
-                            }
-                        }
-
-                        await startGame(startingTracks, undefined, loadGeneration);
-                        if (isStaleLoad()) return;
-                        setIsLoadingGame(false);
-
-                        const BATCH_SIZE = 3;
-                        const requests = [];
-
-                        for (let offset = 0; offset < total; offset += limit) {
-                            if (offset === 0 || offset === randomPage * limit) continue;
-
-                            const url = playlistId === 'LIKED_SONGS'
-                                ? `https://api.spotify.com/v1/me/tracks?market=from_token&limit=${limit}&offset=${offset}`
-                                : `https://api.spotify.com/v1/playlists/${playlistId}/tracks?market=from_token&limit=${limit}&offset=${offset}`;
-                            requests.push(url);
-                        }
-
-                        for (let i = 0; i < requests.length; i += BATCH_SIZE) {
-                            const batchUrls = requests.slice(i, i + BATCH_SIZE);
-                            const batchPromises = batchUrls.map(url =>
-                                fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } })
-                                    .then(res => res.json())
-                            );
-
-                            const results = await Promise.all(batchPromises);
-                            if (isStaleLoad()) return;
-                            const newTracks: any[] = [];
-                            results.forEach((res: any) => {
-                                if (res && res.items) {
-                                    newTracks.push(...res.items);
-                                }
-                            });
-
-                            const validNewTracks = newTracks.filter((item: any) =>
-                                item.track && item.track.id && !item.is_local
-                            );
-
-                            setCurrentTracks(prev => [...prev, ...validNewTracks]);
-
-                        }
-                    } else {
-                        await startGame(validInitialTracks, undefined, loadGeneration);
-                        if (isStaleLoad()) return;
-                        setIsLoadingGame(false);
-                    }
-
-                } else {
-                    console.error('Failed to fetch playlist tracks:', response.statusText);
-                    setFeedbackMessage(`Error fetching tracks: ${response.status} ${response.statusText}`);
-                    setIsLoadingGame(false);
-                }
-            } catch (error) {
-                if (isStaleLoad()) return;
-                console.error('Error fetching playlist tracks:', error);
-                setFeedbackMessage(`Error: ${error}`);
-                setIsLoadingGame(false);
+            } else {
+                rawTracks = playlist.tracks || [];
             }
-        } else {
-            console.error("No access token provided to useGameLogic");
-            setFeedbackMessage("Authentication error. Please refresh.");
-            setIsLoadingGame(false);
+            if (isStaleLoad()) return;
+            const tracks = manualTracksToGameItems(rawTracks);
+            setCurrentTracks(tracks);
+            await startRound(playlistId, loadGeneration);
+            return;
         }
+
+        setFeedbackMessage('Error: Playlist not found.');
+        setIsLoadingGame(false);
     };
 
     return {
@@ -432,14 +222,16 @@ export const useGameLogic = (
         snippetDuration,
         userGuess,
         setUserGuess,
+        wrongGuesses,
         feedbackMessage,
         setFeedbackMessage,
         isLoadingGame,
+        isSubmittingGuess,
         selectedPlaylistId,
         selectedPlaylistName,
         currentTracks,
+        currentRoundId,
         loadPlaylist,
-        startGame,
         handleGuessSubmit,
         handleGiveUp,
         playSnippet,
@@ -448,7 +240,6 @@ export const useGameLogic = (
         isPlaying,
         playerError,
         volume,
-        setVolume,
-        lastEarnedPoints
+        setVolume
     };
 };

@@ -4,9 +4,12 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { signInAnonymously, signOut } from 'firebase/auth';
 import { FirebaseError } from 'firebase/app';
 import NavBar from '../components/NavBar';
+import ConfirmDialog from '../components/ConfirmDialog';
 import ToastMessage from '../components/ToastMessage';
+import { useGameShortcuts } from '../hooks/useGameShortcuts';
 
-import { auth } from '../backend/FirebaseConfig';
+import { appCheck, auth } from '../backend/FirebaseConfig';
+import { getToken } from 'firebase/app-check';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
 import { useManualPlaylists } from '../hooks/useManualPlaylists';
 import { usePlaylists } from '../hooks/usePlaylists';
@@ -59,11 +62,10 @@ const Multiplayer = () => {
     const initialRoomId = (roomCodeParam || queryRoomId).toUpperCase();
     const isGuest = searchParams.get('mode') === 'guest';
     const { user, isLoadingUser } = useTuneTeaserAuth();
-    const accessToken = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken');
-    const effectiveGuest = isGuest || (!!user?.isAnonymous && !accessToken);
+    const effectiveGuest = isGuest || !!user?.isAnonymous;
     const { manualPlaylists, isLoadingManualPlaylists, manualPlaylistError } = useManualPlaylists(user, effectiveGuest);
     const isManualMode = !effectiveGuest && !!user && !user.isAnonymous;
-    const { playlists, isLoadingPlaylists, playlistError } = usePlaylists(accessToken, effectiveGuest, manualPlaylists, isManualMode);
+    const { playlists, isLoadingPlaylists, playlistError } = usePlaylists(effectiveGuest, manualPlaylists, isManualMode);
     const [roomName, setRoomName] = useState(getDefaultRoomName);
     const [roomCode, setRoomCode] = useState(initialRoomId);
     const [activeRoomId, setActiveRoomId] = useState(initialRoomId);
@@ -79,7 +81,14 @@ const Multiplayer = () => {
     const [roundData, setRoundData] = useState<MultiplayerRoundData | null>(null);
     const [roundDataId, setRoundDataId] = useState('');
     const [userGuess, setUserGuess] = useState('');
+    const [wrongGuesses, setWrongGuesses] = useState<string[]>([]);
+    const [guessesRoundId, setGuessesRoundId] = useState<string | undefined>(undefined);
+    if (room?.currentRound?.id !== guessesRoundId) {
+        setGuessesRoundId(room?.currentRound?.id);
+        setWrongGuesses([]);
+    }
     const [isGuessFocused, setIsGuessFocused] = useState(false);
+    const [giveUpConfirmRoundId, setGiveUpConfirmRoundId] = useState<string | null>(null);
     const [roundFeedback, setRoundFeedback] = useState('');
     const { playPreview, pause, isPlaying, error: playerError, volume, setVolume } = usePreviewPlayer();
 
@@ -350,19 +359,27 @@ const Multiplayer = () => {
     // Pre-cache the auth token so the page-exit handler can fire synchronously.
     // getIdToken() is async and would not resolve during beforeunload/pagehide.
     const cachedTokenRef = useRef('');
+    const cachedAppCheckTokenRef = useRef('');
     useEffect(() => {
         if (!activeRoomId || !currentPlayer) {
             cachedTokenRef.current = '';
+            cachedAppCheckTokenRef.current = '';
             return;
         }
         const refreshToken = () => {
             auth.currentUser?.getIdToken().then(token => {
                 cachedTokenRef.current = token;
             }).catch(() => { });
+            if (appCheck) {
+                getToken(appCheck).then(result => {
+                    cachedAppCheckTokenRef.current = result.token;
+                }).catch(() => { });
+            }
         };
         refreshToken();
-        // Firebase tokens expire after ~1 hour; refresh every 50 minutes while in lobby
-        const interval = setInterval(refreshToken, 50 * 60 * 1000);
+        // Both SDKs return cached tokens while valid, so a short interval is cheap and
+        // keeps a fresh token ready for the page-exit leave request.
+        const interval = setInterval(refreshToken, 5 * 60 * 1000);
         return () => clearInterval(interval);
     }, [activeRoomId, currentPlayer]);
 
@@ -384,7 +401,11 @@ const Multiplayer = () => {
             fetch(url, {
                 method: 'POST',
                 body,
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                    ...(cachedAppCheckTokenRef.current ? { 'X-Firebase-AppCheck': cachedAppCheckTokenRef.current } : {})
+                },
                 keepalive: true
             }).catch(() => { });
         };
@@ -476,9 +497,7 @@ const Multiplayer = () => {
     };
 
     const handleSelectPlaylist = async (playlistId: string) => {
-        const playlistName = playlistId === 'LIKED_SONGS'
-            ? 'Liked Songs'
-            : playlists.find((playlist: any) => playlist.id === playlistId)?.name || '';
+        const playlistName = playlists.find((playlist: any) => playlist.id === playlistId)?.name || '';
 
         setSelectedPlaylistId(playlistId);
         setSelectedPlaylistName(playlistName);
@@ -536,6 +555,25 @@ const Multiplayer = () => {
         }
     };
 
+    const canGiveUpRound = room?.status === 'playing'
+        && isCurrentPlayerGuessing
+        && room.currentRound?.state !== 'advancing';
+
+    const isGiveUpConfirmOpen = canGiveUpRound
+        && !!room?.currentRound?.id
+        && giveUpConfirmRoundId === room.currentRound.id;
+    const closeGiveUpConfirm = () => setGiveUpConfirmRoundId(null);
+
+    useGameShortcuts({
+        enabled: canGiveUpRound && !isBusy && !isGiveUpConfirmOpen,
+        onPlay: () => {
+            if (!isPlaying && roundData?.previewUrl) {
+                handlePlayRoundSnippet();
+            }
+        },
+        onGiveUpRequest: () => setGiveUpConfirmRoundId(room?.currentRound?.id || null)
+    });
+
     const handlePlayRoundSnippet = () => {
         const snippetDuration = currentPlayer?.roundSnippetDurationMs || room?.currentRound?.snippetDurationMs || 2000;
         if (!roundData?.previewUrl) {
@@ -558,12 +596,16 @@ const Multiplayer = () => {
 
         try {
             const result = await submitMultiplayerGuess(activeRoomId, roundId, userGuess, snippetDuration);
+            const trimmedGuess = userGuess.trim();
             if (result.correct) {
                 setRoundFeedback(`Correct! +${result.points} pts`);
             } else if (result.done) {
                 setRoundFeedback('Round complete. Waiting for the next song.');
             } else {
                 setRoundFeedback(`Incorrect. Snippet is now ${result.snippetDurationMs / 1000} seconds.`);
+                if (trimmedGuess) {
+                    setWrongGuesses(prev => prev.some(g => g.toLowerCase() === trimmedGuess.toLowerCase()) ? prev : [...prev, trimmedGuess]);
+                }
             }
             setUserGuess('');
         } catch (err) {
@@ -675,11 +717,6 @@ const Multiplayer = () => {
 
     const handleLogout = async () => {
         await leaveActiveLobby();
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('tokenExpiry');
-        localStorage.removeItem('verifier');
-        sessionStorage.removeItem('accessToken');
 
         try {
             await signOut(auth);
@@ -892,26 +929,14 @@ const Multiplayer = () => {
                                                         </div>
                                                     ) : (
                                                         <ul className="multiplayer-playlist-list">
-                                                            {!(effectiveGuest || isManualMode) && !playlistSearch && (
-                                                                <li>
-                                                                    <button
-                                                                        className={`multiplayer-playlist-item${selectedPlaylistId === 'LIKED_SONGS' ? ' multiplayer-playlist-item-active' : ''}`}
-                                                                        type="button"
-                                                                        onClick={() => handleSelectPlaylist('LIKED_SONGS')}
-                                                                        disabled={isBusy}
-                                                                    >
-                                                                        <span className="multiplayer-playlist-item-name">Liked Songs</span>
-                                                                        <span className="multiplayer-playlist-item-meta">Library</span>
-                                                                    </button>
-                                                                </li>
-                                                            )}
+                                                            
                                                             {filteredPlaylists.map((playlist: any) => (
                                                                 <li key={playlist.id}>
                                                                     <button
                                                                         className={`multiplayer-playlist-item${selectedPlaylistId === playlist.id ? ' multiplayer-playlist-item-active' : ''}`}
                                                                         type="button"
                                                                         onClick={() => handleSelectPlaylist(playlist.id)}
-                                                                        disabled={isBusy || playlist.status === 'importing'}
+                                                                        disabled={isBusy || playlist.status === 'importing' || playlist.status === 'error'}
                                                                     >
                                                                         <span className="multiplayer-playlist-item-name">{playlist.name}</span>
                                                                         <span className="multiplayer-playlist-item-meta">
@@ -989,6 +1014,9 @@ const Multiplayer = () => {
                                                         if (event.key === 'Enter') {
                                                             event.preventDefault();
                                                             void handleSubmitRoundGuess();
+                                                        } else if (event.key === 'Escape' && isGuessFocused && guessSuggestions.length > 0) {
+                                                            event.preventDefault();
+                                                            setIsGuessFocused(false);
                                                         }
                                                     }}
                                                     placeholder="Enter song title..."
@@ -1044,6 +1072,16 @@ const Multiplayer = () => {
                                                         Answer: {room.revealedRound.title} by {room.revealedRound.artistName}
                                                     </div>
                                                 )}
+                                                {wrongGuesses.length > 0 && (
+                                                    <div className="guess-history" aria-label="Previous guesses">
+                                                        <span className="guess-history-label">Previous guesses:</span>
+                                                        <ul className="guess-history-list">
+                                                            {wrongGuesses.map((guess, index) => (
+                                                                <li key={`${guess}-${index}`} className="guess-history-item">{guess}</li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
                                                 {roundFeedback && <div className="feedback-pill">{roundFeedback}</div>}
 
                                                 <div className="give-up-zone">
@@ -1056,7 +1094,23 @@ const Multiplayer = () => {
                                                     >
                                                         Give Up
                                                     </button>
+                                                    <div className="shortcut-hint">
+                                                        Shortcuts: Space plays the snippet, Enter guesses, Esc gives up.
+                                                    </div>
                                                 </div>
+
+                                                <ConfirmDialog
+                                                    open={isGiveUpConfirmOpen}
+                                                    title="Give up this round?"
+                                                    message="You will score nothing this round."
+                                                    confirmLabel="Give Up"
+                                                    variant="danger"
+                                                    onConfirm={() => {
+                                                        closeGiveUpConfirm();
+                                                        void handleGiveUpRound();
+                                                    }}
+                                                    onCancel={closeGiveUpConfirm}
+                                                />
                                             </>
                                         )}
                                     </div>

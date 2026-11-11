@@ -12,6 +12,7 @@ interface GameResultProps {
     onSelectNewPlaylist: () => void;
     isLoading?: boolean;
     earnedPoints?: number | null;
+    pointsNote?: string | null;
 }
 
 const GameResult: React.FC<GameResultProps> = ({
@@ -20,7 +21,8 @@ const GameResult: React.FC<GameResultProps> = ({
     onPlayAgain,
     onSelectNewPlaylist,
     isLoading = false,
-    earnedPoints = null
+    earnedPoints = null,
+    pointsNote = null
 }) => {
     return (
         <section className="result-card">
@@ -38,6 +40,7 @@ const GameResult: React.FC<GameResultProps> = ({
                     {earnedPoints != null && earnedPoints > 0 && (
                         <span className="earned-points-badge">+{earnedPoints} pts</span>
                     )}
+                    {pointsNote && <span className="points-note">{pointsNote}</span>}
                     <h2 className="song-title">{targetSong.name}</h2>
                     <p className="artist-copy">Artist: {targetSong.artists.map((a: any) => a.name).join(', ')}</p>
                 </div>

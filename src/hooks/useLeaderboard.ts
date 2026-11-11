@@ -4,7 +4,7 @@
  * Reads the top players in real-time and allows submitting scores.
  * @version 2026.05.27
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
     collection,
     doc,
@@ -16,25 +16,13 @@ import {
     getCountFromServer
 } from 'firebase/firestore';
 import { User } from 'firebase/auth';
-import { httpsCallable } from 'firebase/functions';
-import { db, functions } from '../backend/FirebaseConfig';
+import { db } from '../backend/FirebaseConfig';
 
 export interface LeaderboardEntry {
     uid: string;
     displayName: string;
     totalPoints: number;
     gamesWon: number;
-}
-
-export interface LeaderboardScoreSubmission {
-    playlistId: string;
-    songId: string;
-    playlistTrackCount: number;
-    snippetDurationMs: number;
-}
-
-interface SubmitLeaderboardScoreResponse {
-    points: number;
 }
 
 const LEADERBOARD_COLLECTION = 'leaderboard';
@@ -108,31 +96,10 @@ export const useLeaderboard = (user: User | null) => {
         };
     }, [user]);
 
-    /**
-     * Submit points for a correct guess.
-     * Delegates validation and leaderboard increments to a callable Cloud Function.
-     */
-    const submitScore = useCallback(async (submission: LeaderboardScoreSubmission): Promise<number | null> => {
-        if (!user || user.isAnonymous) return null;
-
-        try {
-            const callable = httpsCallable<LeaderboardScoreSubmission, SubmitLeaderboardScoreResponse>(
-                functions,
-                'submitLeaderboardScore'
-            );
-            const result = await callable(submission);
-            return result.data.points;
-        } catch (error) {
-            console.error('Failed to submit score:', error);
-            return null;
-        }
-    }, [user]);
-
     return {
         topPlayers,
         currentUserEntry,
         currentUserRank,
-        isLoading,
-        submitScore
+        isLoading
     };
 };

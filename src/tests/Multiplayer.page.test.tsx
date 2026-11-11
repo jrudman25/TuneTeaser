@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -21,6 +21,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
     signInAnonymously: vi.fn(),
+    playPreview: vi.fn(),
     signOut: vi.fn(),
     roomSnapshot: null as Record<string, unknown> | null,
     playersSnapshot: [] as Array<Record<string, unknown>>,
@@ -62,7 +63,7 @@ vi.mock('../hooks/usePlaylists', () => ({
 
 vi.mock('../hooks/usePreviewPlayer', () => ({
     default: () => ({
-        playPreview: vi.fn(),
+        playPreview: mocks.playPreview,
         pause: vi.fn(),
         isPlaying: false,
         error: null,
@@ -100,7 +101,12 @@ vi.mock('firebase/auth', () => ({
 }));
 
 vi.mock('../backend/FirebaseConfig', () => ({
-    auth: { currentUser: { uid: 'host-1', getIdToken: mocks.getIdToken } }
+    auth: { currentUser: { uid: 'host-1', getIdToken: mocks.getIdToken } },
+    appCheck: { name: 'mock-appcheck' }
+}));
+
+vi.mock('firebase/app-check', () => ({
+    getToken: vi.fn(() => Promise.resolve({ token: 'act-token' }))
 }));
 
 const room = {
@@ -513,6 +519,67 @@ describe('Multiplayer page', () => {
 
         await waitFor(() => {
             expect(updateMultiplayerRoomSettings).toHaveBeenCalledWith('ABC123', 'playlist-1', 'Party Mix', 100, 60);
+        });
+    });
+    it('does not offer Liked Songs even when a legacy accessToken exists', async () => {
+        localStorage.setItem('accessToken', 'legacy-token');
+        mocks.roomSnapshot = room;
+        mocks.playersSnapshot = [hostPlayer, guestPlayer];
+
+        renderPage('/multiplayer/ABC123');
+
+        await waitFor(() => {
+            expect(screen.getByText('Friday Party')).toBeInTheDocument();
+        });
+        expect(screen.queryByRole('button', { name: /liked songs/i })).not.toBeInTheDocument();
+    });
+
+    it('sends auth and App Check headers on the pagehide leave request', async () => {
+        mocks.roomSnapshot = room;
+        mocks.playersSnapshot = [hostPlayer, guestPlayer];
+        const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+        vi.stubGlobal('fetch', fetchMock);
+
+        renderPage('/multiplayer/ABC123');
+
+        await waitFor(() => {
+            expect(mocks.getIdToken).toHaveBeenCalled();
+        });
+        await act(async () => {
+            window.dispatchEvent(new Event('pagehide'));
+        });
+
+        await waitFor(() => {
+            expect(fetchMock).toHaveBeenCalled();
+        });
+        const headers = fetchMock.mock.calls[0][1].headers;
+        expect(headers.Authorization).toBe('Bearer mock-token');
+        expect(headers['X-Firebase-AppCheck']).toBe('act-token');
+        vi.unstubAllGlobals();
+    });
+
+    it('supports keyboard shortcuts in active gameplay', async () => {
+        const user = userEvent.setup();
+        mocks.roomSnapshot = playingRoom;
+        mocks.playersSnapshot = [guessingHostPlayer, correctGuestPlayer];
+
+        renderPage('/multiplayer/ABC123');
+
+        await waitFor(() => {
+            expect(getMultiplayerRoundData).toHaveBeenCalledWith('ABC123', 'round-1');
+        });
+
+        await user.keyboard(' ');
+        expect(mocks.playPreview).toHaveBeenCalledWith('https://example.com/preview.m4a', 2000);
+
+        await user.keyboard('{Escape}');
+        expect(await screen.findByText('Give up this round?')).toBeInTheDocument();
+        expect(giveUpMultiplayerRound).not.toHaveBeenCalled();
+
+        await user.click(screen.getAllByRole('button', { name: /give up/i }).pop()!);
+
+        await waitFor(() => {
+            expect(giveUpMultiplayerRound).toHaveBeenCalledWith('ABC123', 'round-1');
         });
     });
 });

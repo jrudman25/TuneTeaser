@@ -2,13 +2,21 @@ import { initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getStorage } from 'firebase-admin/storage';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
-import { HttpsError, onCall, type CallableOptions } from 'firebase-functions/v2/https';
+import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import * as functionsV1 from 'firebase-functions/v1';
 import { createHash } from 'crypto';
-import { fetchPlaylistName, fetchPlaylistTracks, fetchSpotifyTracks, fetchUserPlaylists, getSpotifyAccessToken, normalizeTrackIds, searchSpotifyPlaylists } from './spotify';
-import { GUEST_TRACKS } from './premadePlaylists';
+import { fetchPlaylistName, fetchPlaylistTracks, fetchSpotifyTracks, fetchUserPlaylists, getSpotifyAccessToken, normalizeTrackIds, searchSpotifyPlaylists, SpotifyRequestError } from './spotify';
+import { assertUidRateLimit, getAuthedUid, PUBLIC_CALLABLE_OPTIONS } from './callableUtils';
+import { calculateLeaderboardPoints, isCorrectGuess, MAX_SNIPPET_DURATION_MS, MIN_SNIPPET_DURATION_MS, normalizeAnswer } from './answerMatching';
+import { shuffle } from './shuffle';
+import { pickTrackWithPreview } from './itunesPreview';
+import { getPlayableTracks, getTrackArtistName, getTrackArtworkUrl, getTrackName, loadPlaylistTracks } from './playlistTracks';
+import { containsProfanity, censorProfanity } from './profanity';
+
+export { shouldEnforceAppCheck } from './callableUtils';
+export { startSoloRound, submitSoloGuess, giveUpSoloRound } from './soloRounds';
 
 initializeApp();
 
@@ -17,15 +25,11 @@ const spotifyClientSecret = defineSecret('SPOTIFY_CLIENT_SECRET');
 const MULTIPLAYER_ROOM_LIMIT_FREE = 5;
 const MULTIPLAYER_ROOM_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MULTIPLAYER_ROOM_CODE_LENGTH = 6;
-const MIN_TRACKS_FOR_LEADERBOARD_POINTS = 10;
 const DEFAULT_ROUND_TIMER_SECONDS = 90;
 const MIN_ROUND_TIMER_SECONDS = 15;
 const MAX_ROUND_TIMER_SECONDS = 300;
-const LEADERBOARD_SCORE_COOLDOWN_MS = 10 * 60 * 1000;
-const MIN_SNIPPET_DURATION_MS = 2000;
-const MAX_SNIPPET_DURATION_MS = 30000;
-const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const SPOTIFY_READ_RATE_LIMIT = 20;
+const MULTIPLAYER_CREATE_RATE_LIMIT = 5;
 const SPOTIFY_IMPORT_RATE_LIMIT = 30;
 const SPOTIFY_IMPORT_PAGE_LIMIT_MAX = 100;
 const SPOTIFY_IMPORT_OFFSET_MAX = 5000;
@@ -33,19 +37,6 @@ const MULTIPLAYER_ROUND_LOOKUP_ATTEMPTS = 8;
 const ROUND_REVEAL_DELAY_MS = 5000;
 const MULTIPLAYER_ADVANCE_LOCK_TIMEOUT_MS = 30 * 1000;
 const MULTIPLAYER_ROOM_CLEANUP_BATCH_SIZE = 50;
-
-export const shouldEnforceAppCheck = () => process.env.FUNCTIONS_EMULATOR !== 'true';
-
-const PUBLIC_CALLABLE_OPTIONS = {
-    timeoutSeconds: 30,
-    memory: '256MiB',
-    invoker: 'public',
-    enforceAppCheck: shouldEnforceAppCheck()
-} satisfies CallableOptions;
-
-const normalizeAnswer = (value: unknown) => {
-    return typeof value === 'string' ? value.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
-};
 
 const parseImportPageNumber = (value: unknown, fallback: number, min: number, max: number, label: string) => {
     if (value === undefined) return fallback;
@@ -55,128 +46,10 @@ const parseImportPageNumber = (value: unknown, fallback: number, min: number, ma
     return value;
 };
 
-const songVersionKeywordPattern = /(remaster(?:ed)?|version|edit|mix|live|demo|mono|stereo|anniversary|deluxe|radio)/i;
-
-const normalizeSongTitleForGuess = (value: unknown) => {
-    const title = typeof value === 'string' ? value.trim() : '';
-    const withoutBracketedVersion = title.replace(/\s*[[(][^\])]*(remaster(?:ed)?|version|edit|mix|live|demo|mono|stereo|anniversary|deluxe|radio)[^\])]*[\])]\s*$/i, '').trim();
-    const bracketCleaned = withoutBracketedVersion || title;
-    const withoutDashVersion = bracketCleaned.replace(/\s+-\s+.*(remaster(?:ed)?|version|edit|mix|live|demo|mono|stereo|anniversary|deluxe|radio).*$/i, '').trim();
-    const cleaned = songVersionKeywordPattern.test(bracketCleaned) ? withoutDashVersion || bracketCleaned : bracketCleaned;
-    return normalizeAnswer(cleaned);
-};
-
-const getTrackArtistName = (track: any) => {
-    const firstArtist = Array.isArray(track?.artists) ? track.artists[0] : null;
-    return typeof firstArtist?.name === 'string' ? firstArtist.name : '';
-};
-
-const getTrackArtworkUrl = (track: any) => {
-    const images = Array.isArray(track?.album?.images) ? track.album.images : [];
-    const firstImage = images.find((image: any) => typeof image?.url === 'string' && image.url.trim());
-    return firstImage?.url || null;
-};
-
-const getTrackName = (track: any) => {
-    return typeof track?.name === 'string' ? track.name : '';
-};
-
 const makeAnswerHash = (roomId: string, roundId: string, title: string) => {
     return createHash('sha256')
         .update(`${roomId}:${roundId}:${normalizeAnswer(title)}`)
         .digest('hex');
-};
-
-const cleanItunesQuery = (value: string) => {
-    return value.replace(/ - .*/, '').replace(/[([].*?[)\]]/g, '').trim();
-};
-
-const getItunesPreview = async (
-    trackName: string,
-    artistName: string,
-    albumName?: string
-): Promise<{ previewUrl: string; artworkUrl: string } | null> => {
-    const searchTerm = cleanItunesQuery(trackName);
-    const term = encodeURIComponent(`${searchTerm} ${artistName}`);
-    const response = await fetch(`https://itunes.apple.com/search?term=${term}&media=music&entity=song&limit=50`);
-
-    if (!response.ok) {
-        return null;
-    }
-
-    const data = await response.json() as {
-        resultCount?: number;
-        results?: Array<{
-            previewUrl?: string;
-            artworkUrl100?: string;
-            trackName?: string;
-            artistName?: string;
-            collectionName?: string;
-        }>;
-    };
-
-    if (!data.resultCount || !Array.isArray(data.results)) {
-        return null;
-    }
-
-    const bannedTerms = ['remix', 'mix', 'live', 'instrumental', 'club', 'edit'];
-    const normalizedTarget = normalizeAnswer(cleanItunesQuery(trackName));
-    const normalizedArtist = artistName.toLowerCase();
-
-    const bestMatch = data.results
-        .map(result => {
-            const resultName = (result.trackName || '').toLowerCase();
-            const resultArtist = (result.artistName || '').toLowerCase();
-            const resultAlbum = (result.collectionName || '').toLowerCase();
-            let score = 0;
-
-            if (!result.previewUrl || !resultArtist.includes(normalizedArtist) && !normalizedArtist.includes(resultArtist)) {
-                return { result, score: -1 };
-            }
-
-            const hasBannedTerm = bannedTerms.some(term => resultName.includes(term) && !trackName.toLowerCase().includes(term));
-            if (hasBannedTerm) {
-                return { result, score: -1 };
-            }
-
-            const normalizedResult = normalizeAnswer(cleanItunesQuery(result.trackName || ''));
-            if (normalizedResult === normalizedTarget) {
-                score += 10;
-            } else if (normalizedResult.includes(normalizedTarget) || normalizedTarget.includes(normalizedResult)) {
-                const maxLength = Math.max(normalizedResult.length, normalizedTarget.length);
-                const lengthDiff = Math.abs(normalizedResult.length - normalizedTarget.length);
-                if (maxLength > 0 && (1 - lengthDiff / maxLength) > 0.7) {
-                    score += 5;
-                } else {
-                    return { result, score: -1 };
-                }
-            } else {
-                return { result, score: -1 };
-            }
-
-            if (albumName) {
-                const normalizedAlbumTarget = normalizeAnswer(cleanItunesQuery(albumName));
-                const normalizedAlbumResult = normalizeAnswer(cleanItunesQuery(resultAlbum));
-                if (normalizedAlbumResult === normalizedAlbumTarget) {
-                    score += 5;
-                } else if (normalizedAlbumResult.includes(normalizedAlbumTarget) || normalizedAlbumTarget.includes(normalizedAlbumResult)) {
-                    score += 2;
-                }
-            }
-
-            return { result, score };
-        })
-        .filter(match => match.score > 0)
-        .sort((a, b) => b.score - a.score)[0]?.result;
-
-    if (!bestMatch?.previewUrl) {
-        return null;
-    }
-
-    return {
-        previewUrl: bestMatch.previewUrl,
-        artworkUrl: bestMatch.artworkUrl100 ? bestMatch.artworkUrl100.replace('100x100', '600x600') : ''
-    };
 };
 
 const makeRoomCode = () => {
@@ -192,6 +65,9 @@ const getRoomName = (value: unknown) => {
     if (!roomName) {
         throw new HttpsError('invalid-argument', 'Room name is required.');
     }
+    if (containsProfanity(roomName)) {
+        throw new HttpsError('invalid-argument', 'Room name contains offensive or inappropriate language. Please choose a different one.');
+    }
     return roomName;
 };
 
@@ -201,13 +77,6 @@ const getRoomId = (value: unknown) => {
         throw new HttpsError('invalid-argument', 'Enter a valid room code.');
     }
     return roomId;
-};
-
-const getAuthedUid = (request: any) => {
-    if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'You must be signed in.');
-    }
-    return request.auth.uid;
 };
 
 const getPlayerDisplayName = async (uid: string) => {
@@ -228,92 +97,14 @@ const getSignupUsername = (value: unknown) => {
     if (username.includes('  ')) {
         throw new HttpsError('invalid-argument', 'Username cannot contain consecutive spaces.');
     }
+    if (containsProfanity(username)) {
+        throw new HttpsError('invalid-argument', 'Username contains offensive or inappropriate language. Please choose a different one.');
+    }
     return username;
 };
 
 const getUsernameReservationId = (username: string) => {
     return username.toLowerCase().replace(/\s+/g, ' ').trim();
-};
-
-const calculateLeaderboardPoints = (snippetDurationMs: number) => {
-    const base = 10;
-    const maxBonus = 15;
-    const clamped = Math.max(MIN_SNIPPET_DURATION_MS, Math.min(MAX_SNIPPET_DURATION_MS, snippetDurationMs));
-    const fraction = 1 - (clamped - MIN_SNIPPET_DURATION_MS) / (MAX_SNIPPET_DURATION_MS - MIN_SNIPPET_DURATION_MS);
-    return base + Math.round(maxBonus * fraction);
-};
-
-const isCorrectGuess = (guess: string, title: string, artistName: string) => {
-    const checkGuess = normalizeAnswer(guess);
-    const checkTitle = normalizeSongTitleForGuess(title);
-    const targetOption = artistName ? `${title} - ${artistName}` : title;
-    const checkTargetOption = normalizeAnswer(targetOption);
-    const isExactOptionMatch = checkTargetOption === checkGuess && checkGuess.length > 0;
-    const guessCoversEnoughOfTitle = checkTitle.length > 0 && checkGuess.length / checkTitle.length >= 0.5;
-    const isTitleMatch = checkTitle === checkGuess || (
-        checkGuess.length > 2
-        && guessCoversEnoughOfTitle
-        && checkTitle.includes(checkGuess)
-    );
-
-    return isExactOptionMatch || isTitleMatch;
-};
-
-const getScoreString = (value: unknown, fieldName: string, maxLength: number) => {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    if (!normalized || normalized.length > maxLength || normalized.includes('/')) {
-        throw new HttpsError('invalid-argument', `${fieldName} is invalid.`);
-    }
-    return normalized;
-};
-
-const getScoreInteger = (value: unknown, fieldName: string) => {
-    if (!Number.isInteger(value)) {
-        throw new HttpsError('invalid-argument', `${fieldName} is invalid.`);
-    }
-    return value as number;
-};
-
-const getScoreCooldownId = (playlistId: string, songId: string) => {
-    return createHash('sha256').update(`${playlistId}:${songId}`).digest('hex');
-};
-
-const assertUidRateLimit = async (uid: string, action: string, maxRequests: number) => {
-    const db = getFirestore();
-    const now = Date.now();
-    const limitRef = db.collection('callableRateLimits').doc(`${uid}_${action}`);
-
-    await db.runTransaction(async transaction => {
-        const limitSnap = await transaction.get(limitRef);
-        const limit = limitSnap.exists ? limitSnap.data() : null;
-        const windowStartedAtMillis = typeof limit?.windowStartedAtMillis === 'number'
-            ? limit.windowStartedAtMillis
-            : 0;
-        const count = typeof limit?.count === 'number' ? limit.count : 0;
-        const isCurrentWindow = now - windowStartedAtMillis < RATE_LIMIT_WINDOW_MS;
-
-        if (isCurrentWindow && count >= maxRequests) {
-            throw new HttpsError('resource-exhausted', 'Too many requests. Try again in a minute.');
-        }
-
-        if (isCurrentWindow) {
-            transaction.update(limitRef, {
-                count: FieldValue.increment(1),
-                updatedAtMillis: now,
-                expiresAtMillis: now + RATE_LIMIT_WINDOW_MS
-            });
-            return;
-        }
-
-        transaction.set(limitRef, {
-            uid,
-            action,
-            count: 1,
-            windowStartedAtMillis: now,
-            updatedAtMillis: now,
-            expiresAtMillis: now + RATE_LIMIT_WINDOW_MS
-        }, { merge: true });
-    });
 };
 
 const deleteCollectionDocs = async (docs: any[]) => {
@@ -343,6 +134,10 @@ const cleanupUserData = async (uid: string) => {
     await deleteCollectionDocs(recentScoresSnapshot.docs);
     console.log(`[cleanupUserData] Deleted ${recentScoresSnapshot.size || 0} recent score docs for user: ${uid}`);
 
+    const dailyPointsSnapshot = await leaderboardRef.collection('dailyPoints').get();
+    await deleteCollectionDocs(dailyPointsSnapshot.docs);
+    console.log(`[cleanupUserData] Deleted ${dailyPointsSnapshot.size || 0} daily points docs for user: ${uid}`);
+
     if (typeof displayName === 'string' && displayName.trim()) {
         await db.collection('usernames').doc(getUsernameReservationId(displayName)).delete();
         console.log(`[cleanupUserData] Deleted username reservation for user: ${uid}`);
@@ -358,6 +153,9 @@ const cleanupUserData = async (uid: string) => {
 
     await userRef.delete();
     console.log(`[cleanupUserData] Deleted user doc: ${uid}`);
+
+    await db.collection('soloRounds').doc(uid).delete();
+    console.log(`[cleanupUserData] Deleted solo round doc for user: ${uid}`);
 
     await bucket.deleteFiles({ prefix: `users/${uid}/` });
     console.log(`[cleanupUserData] Deleted Storage files for user: ${uid}`);
@@ -468,63 +266,6 @@ export const updateTuneTeaserUsername = onCall(PUBLIC_CALLABLE_OPTIONS, async (r
     return { displayName };
 });
 
-export const submitLeaderboardScore = onCall(PUBLIC_CALLABLE_OPTIONS, async (request) => {
-    const uid = getAuthedUid(request);
-    const signInProvider = request.auth?.token?.firebase?.sign_in_provider;
-
-    if (signInProvider === 'anonymous') {
-        throw new HttpsError('permission-denied', 'Anonymous users cannot submit leaderboard scores.');
-    }
-
-    const playlistId = getScoreString(request.data?.playlistId, 'Playlist ID', 160);
-    const songId = getScoreString(request.data?.songId, 'Song ID', 160);
-    const playlistTrackCount = getScoreInteger(request.data?.playlistTrackCount, 'Playlist track count');
-    const snippetDurationMs = getScoreInteger(request.data?.snippetDurationMs, 'Snippet duration');
-
-    if (playlistTrackCount < MIN_TRACKS_FOR_LEADERBOARD_POINTS) {
-        throw new HttpsError('failed-precondition', 'This playlist is not eligible for leaderboard points.');
-    }
-
-    if (snippetDurationMs < MIN_SNIPPET_DURATION_MS || snippetDurationMs > MAX_SNIPPET_DURATION_MS) {
-        throw new HttpsError('invalid-argument', 'Snippet duration is invalid.');
-    }
-
-    const userRecord = await getAuth().getUser(uid);
-    const displayName = userRecord.displayName
-        || userRecord.email?.split('@')[0]
-        || 'Anonymous';
-    const points = calculateLeaderboardPoints(snippetDurationMs);
-    const db = getFirestore();
-    const leaderboardRef = db.collection('leaderboard').doc(uid);
-    const cooldownRef = leaderboardRef.collection('recentScores').doc(getScoreCooldownId(playlistId, songId));
-    const now = Date.now();
-
-    await db.runTransaction(async transaction => {
-        const cooldownSnap = await transaction.get(cooldownRef);
-        const lastScoredAt = cooldownSnap.exists ? cooldownSnap.data()?.scoredAtMillis : null;
-
-        if (typeof lastScoredAt === 'number' && now - lastScoredAt < LEADERBOARD_SCORE_COOLDOWN_MS) {
-            throw new HttpsError('failed-precondition', 'This song was scored recently. Try another song.');
-        }
-
-        transaction.set(leaderboardRef, {
-            displayName,
-            totalPoints: FieldValue.increment(points),
-            gamesWon: FieldValue.increment(1),
-            lastUpdated: FieldValue.serverTimestamp()
-        }, { merge: true });
-
-        transaction.set(cooldownRef, {
-            playlistId,
-            songId,
-            scoredAtMillis: now,
-            expiresAtMillis: now + LEADERBOARD_SCORE_COOLDOWN_MS
-        }, { merge: true });
-    });
-
-    return { points };
-});
-
 const getRoomRefForHost = async (roomId: string, uid: string) => {
     const db = getFirestore();
     const roomRef = db.collection('multiplayerRooms').doc(roomId);
@@ -540,45 +281,6 @@ const getRoomRefForHost = async (roomId: string, uid: string) => {
     }
 
     return { db, roomRef, room };
-};
-
-const getHostPlaylistTracks = async (uid: string, playlistId: string) => {
-    if (Array.isArray(GUEST_TRACKS[playlistId])) {
-        return GUEST_TRACKS[playlistId].map((item: any) => item.track);
-    }
-
-    const db = getFirestore();
-    const playlistRef = db.collection('users').doc(uid).collection('playlists').doc(playlistId);
-    const playlistSnap = await playlistRef.get();
-    const playlist = playlistSnap.exists ? playlistSnap.data() : null;
-
-    if (!playlistSnap.exists) {
-        throw new HttpsError('not-found', 'Host playlist not found.');
-    }
-
-    if (Array.isArray(playlist?.tracks) && playlist.tracks.length > 0) {
-        return playlist.tracks;
-    }
-
-    const bucket = getStorage().bucket();
-    const file = bucket.file(`users/${uid}/playlists/${playlistId}.json`);
-    const [exists] = await file.exists();
-
-    if (!exists) {
-        return [];
-    }
-
-    const [content] = await file.download();
-    const tracks = JSON.parse(content.toString('utf-8'));
-    return Array.isArray(tracks) ? tracks : [];
-};
-
-const getPlayableTracks = (tracks: any[]) => {
-    return tracks.filter(track => (
-        typeof track?.id === 'string'
-        && normalizeAnswer(getTrackName(track)).length > 0
-        && getTrackArtistName(track)
-    ));
 };
 
 const buildRoundChoices = (tracks: any[]) => {
@@ -605,36 +307,24 @@ const startNextMultiplayerRound = async (
     roundNumber: number,
     roundTimerSeconds: number
 ) => {
-    const tracks = await getHostPlaylistTracks(hostUid, playlistId);
+    const { tracks } = await loadPlaylistTracks(hostUid, playlistId, 'Host playlist not found.');
     const playableTracks = getPlayableTracks(tracks);
 
     if (playableTracks.length < 2) {
         throw new HttpsError('failed-precondition', 'Pick a playlist with at least 2 playable tracks.');
     }
 
-    const shuffled = [...playableTracks].sort(() => 0.5 - Math.random());
-    let roundTrack: any | null = null;
-    let preview: { previewUrl: string; artworkUrl: string } | null = null;
-
-    for (const candidate of shuffled.slice(0, MULTIPLAYER_ROUND_LOOKUP_ATTEMPTS)) {
-        const artistName = getTrackArtistName(candidate);
-        const albumName = typeof candidate.album?.name === 'string' ? candidate.album.name : '';
-        preview = await getItunesPreview(getTrackName(candidate), artistName, albumName);
-        if (preview?.previewUrl) {
-            roundTrack = candidate;
-            break;
-        }
-    }
-
-    if (!roundTrack || !preview?.previewUrl) {
+    const pick = await pickTrackWithPreview(shuffle(playableTracks), MULTIPLAYER_ROUND_LOOKUP_ATTEMPTS);
+    if (!pick) {
         throw new HttpsError('failed-precondition', 'Could not find a playable preview for this playlist. Try another playlist.');
     }
 
+    const roundTrack = pick.track;
     const now = Date.now();
     const roundId = makeRoundId(roomId, roundTrack.id);
     const artistName = getTrackArtistName(roundTrack);
     const albumName = typeof roundTrack.album?.name === 'string' ? roundTrack.album.name : '';
-    const artworkUrl = preview.artworkUrl || getTrackArtworkUrl(roundTrack);
+    const artworkUrl = pick.artworkUrl || getTrackArtworkUrl(roundTrack);
     const choices = buildRoundChoices(tracks);
     const currentRound = {
         id: roundId,
@@ -674,7 +364,7 @@ const startNextMultiplayerRound = async (
         albumName,
         artworkUrl,
         answerHash: makeAnswerHash(roomId, roundId, getTrackName(roundTrack)),
-        previewUrl: preview.previewUrl,
+        previewUrl: pick.previewUrl,
         choices,
         createdAt: now
     });
@@ -874,6 +564,7 @@ const expireMultiplayerRoundIfNeeded = async (roomId: string, now: number) => {
 
 export const createMultiplayerRoom = onCall(PUBLIC_CALLABLE_OPTIONS, async (request) => {
     const uid = getAuthedUid(request);
+    await assertUidRateLimit(uid, 'createMultiplayerRoom', MULTIPLAYER_CREATE_RATE_LIMIT);
     const roomName = getRoomName(request.data?.roomName);
     const displayName = await getPlayerDisplayName(uid);
     const now = Date.now();
@@ -882,11 +573,6 @@ export const createMultiplayerRoom = onCall(PUBLIC_CALLABLE_OPTIONS, async (requ
     for (let attempt = 0; attempt < 5; attempt++) {
         const roomId = makeRoomCode();
         const roomRef = db.collection('multiplayerRooms').doc(roomId);
-        const roomSnap = await roomRef.get();
-
-        if (roomSnap.exists) {
-            continue;
-        }
 
         const roomData = {
             id: roomId,
@@ -916,9 +602,16 @@ export const createMultiplayerRoom = onCall(PUBLIC_CALLABLE_OPTIONS, async (requ
         };
 
         const batch = db.batch();
-        batch.set(roomRef, roomData);
+        batch.create(roomRef, roomData);
         batch.set(roomRef.collection('players').doc(uid), playerData);
-        await batch.commit();
+        try {
+            await batch.commit();
+        } catch (err: any) {
+            if (err?.code === 6 || err?.code === 'already-exists') {
+                continue;
+            }
+            throw err;
+        }
 
         return { roomId };
     }
@@ -1024,7 +717,7 @@ export const updateMultiplayerRoomSettings = onCall(PUBLIC_CALLABLE_OPTIONS, asy
 
     await roomRef.update({
         playlistId,
-        playlistName,
+        playlistName: censorProfanity(playlistName),
         pointGoal,
         roundTimerSeconds,
         status: 'lobby',
@@ -1039,6 +732,10 @@ export const startMultiplayerGame = onCall(PUBLIC_CALLABLE_OPTIONS, async (reque
     const uid = getAuthedUid(request);
     const roomId = getRoomId(request.data?.roomId);
     const { db, roomRef, room } = await getRoomRefForHost(roomId, uid);
+
+    if (room?.status !== 'lobby') {
+        throw new HttpsError('failed-precondition', 'The game has already started.');
+    }
 
     if (!room?.playlistId || !room?.playlistName) {
         throw new HttpsError('failed-precondition', 'Pick a playlist before starting.');
@@ -1348,6 +1045,7 @@ export const kickMultiplayerPlayer = onCall(PUBLIC_CALLABLE_OPTIONS, async (requ
 
     const { db, roomRef } = await getRoomRefForHost(roomId, uid);
     const playerRef = roomRef.collection('players').doc(targetUid);
+    let roomAfterKick: any = null;
 
     await db.runTransaction(async transaction => {
         const playerSnap = await transaction.get(playerRef);
@@ -1358,6 +1056,7 @@ export const kickMultiplayerPlayer = onCall(PUBLIC_CALLABLE_OPTIONS, async (requ
         }
 
         const room = roomSnap.data();
+        roomAfterKick = room;
         const playerCount = Math.max(0, (room?.playerCount || 1) - 1);
         transaction.delete(playerRef);
         transaction.update(roomRef, {
@@ -1365,6 +1064,10 @@ export const kickMultiplayerPlayer = onCall(PUBLIC_CALLABLE_OPTIONS, async (requ
             updatedAt: Date.now()
         });
     });
+
+    if (roomAfterKick?.status === 'playing' && typeof roomAfterKick?.currentRound?.id === 'string') {
+        await settleRoundIfComplete(roomId, roomAfterKick.currentRound.id, Date.now());
+    }
 
     return { roomId };
 });
@@ -1425,6 +1128,12 @@ export const leaveMultiplayerRoom = onCall(PUBLIC_CALLABLE_OPTIONS, async (reque
     return { roomId };
 });
 
+const toSpotifyHttpsError = (error: any, fallbackMessage: string) => {
+    const message = error?.message || fallbackMessage;
+    const code = error instanceof SpotifyRequestError ? error.code : 'internal';
+    return new HttpsError(code, message);
+};
+
 export const resolveSpotifyTracks = onCall({
     ...PUBLIC_CALLABLE_OPTIONS,
     secrets: [spotifyClientId, spotifyClientSecret],
@@ -1444,7 +1153,7 @@ export const resolveSpotifyTracks = onCall({
         const accessToken = await getSpotifyAccessToken(spotifyClientId.value(), spotifyClientSecret.value());
         return await fetchSpotifyTracks(trackIds, accessToken);
     } catch (error: any) {
-        throw new HttpsError('internal', error.message || 'Could not resolve Spotify tracks.');
+        throw toSpotifyHttpsError(error, 'Could not resolve Spotify tracks.');
     }
 });
 
@@ -1471,7 +1180,7 @@ export const getPlaylistName = onCall({
         const name = await fetchPlaylistName(playlistId, accessToken);
         return { name };
     } catch (error: any) {
-        throw new HttpsError('internal', error.message || 'Could not fetch playlist name.');
+        throw toSpotifyHttpsError(error, 'Could not fetch playlist name.');
     }
 });
 
@@ -1496,14 +1205,7 @@ export const getUserPlaylists = onCall({
         const accessToken = await getSpotifyAccessToken(spotifyClientId.value(), spotifyClientSecret.value());
         return await fetchUserPlaylists(profileUrl, accessToken);
     } catch (error: any) {
-        const message = error.message || 'Could not fetch user playlists.';
-        if (message.includes('valid Spotify profile URL')) {
-            throw new HttpsError('invalid-argument', message);
-        }
-        if (message.includes('not found')) {
-            throw new HttpsError('not-found', message);
-        }
-        throw new HttpsError('internal', message);
+        throw toSpotifyHttpsError(error, 'Could not fetch user playlists.');
     }
 });
 
@@ -1537,11 +1239,7 @@ export const searchPublicPlaylists = onCall({
         const accessToken = await getSpotifyAccessToken(spotifyClientId.value(), spotifyClientSecret.value());
         return await searchSpotifyPlaylists(query, ownerHint, accessToken);
     } catch (error: any) {
-        const message = error.message || 'Could not search Spotify playlists.';
-        if (message.includes('at least 2')) {
-            throw new HttpsError('invalid-argument', message);
-        }
-        throw new HttpsError('internal', message);
+        throw toSpotifyHttpsError(error, 'Could not search Spotify playlists.');
     }
 });
 
@@ -1568,14 +1266,7 @@ export const importSpotifyPlaylist = onCall({
         const accessToken = await getSpotifyAccessToken(spotifyClientId.value(), spotifyClientSecret.value());
         return await fetchPlaylistTracks(playlistId, accessToken, offset, limit);
     } catch (error: any) {
-        const message = error.message || 'Could not import playlist.';
-        if (message.includes('not found')) {
-            throw new HttpsError('not-found', message);
-        }
-        if (message.includes('private')) {
-            throw new HttpsError('permission-denied', message);
-        }
-        throw new HttpsError('internal', message);
+        throw toSpotifyHttpsError(error, 'Could not import playlist.');
     }
 });
 

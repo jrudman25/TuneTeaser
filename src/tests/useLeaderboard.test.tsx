@@ -2,7 +2,6 @@ import { renderHook, act } from '@testing-library/react';
 import { useLeaderboard } from '../hooks/useLeaderboard';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as firestore from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
 
 vi.mock('firebase/firestore', async () => {
     const actual = await vi.importActual('firebase/firestore');
@@ -18,10 +17,6 @@ vi.mock('firebase/firestore', async () => {
         getCountFromServer: vi.fn()
     };
 });
-
-vi.mock('firebase/functions', () => ({
-    httpsCallable: vi.fn()
-}));
 
 vi.mock('../backend/FirebaseConfig', () => ({
     db: {},
@@ -116,40 +111,4 @@ describe('useLeaderboard', () => {
         expect(result.current.currentUserRank).toBeNull();
     });
 
-    it('submitScore calls the leaderboard score function', async () => {
-        const mockCallable = vi.fn().mockResolvedValue({ data: { points: 25 } });
-        vi.mocked(httpsCallable).mockReturnValue(mockCallable);
-        const { result } = renderHook(() => useLeaderboard(mockUser));
-        const submission = {
-            playlistId: 'playlist123',
-            songId: 'song123',
-            playlistTrackCount: 10,
-            snippetDurationMs: 2000
-        };
-        let points: number | null = null;
-
-        await act(async () => {
-            points = await result.current.submitScore(submission);
-        });
-
-        expect(httpsCallable).toHaveBeenCalledWith('mock-functions', 'submitLeaderboardScore');
-        expect(mockCallable).toHaveBeenCalledWith(submission);
-        expect(points).toBe(25);
-    });
-
-    it('submitScore does nothing for anonymous user', async () => {
-        const anonymousUser = { ...mockUser, isAnonymous: true };
-        const { result } = renderHook(() => useLeaderboard(anonymousUser));
-
-        await act(async () => {
-            await result.current.submitScore({
-                playlistId: 'playlist123',
-                songId: 'song123',
-                playlistTrackCount: 10,
-                snippetDurationMs: 2000
-            });
-        });
-
-        expect(httpsCallable).not.toHaveBeenCalled();
-    });
 });
