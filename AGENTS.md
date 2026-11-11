@@ -13,8 +13,8 @@
 
 ## CI
 - `.github/workflows/ci.yml` runs on pushes to `main` and on PRs, using Node 22: frontend `tsc --noEmit`, `npm run lint`, `vitest run`, and `vite build`; functions `npm run build` and `npm test`. A report-only `npm audit --omit=dev` job runs for both packages.
-- `.github/dependabot.yml` opens weekly grouped npm updates for `/` and `/functions` with a 7-day release cooldown.
-- Local Node is v24, but CI and Cloud Functions use Node 22.
+- `.github/dependabot.yml` opens weekly grouped npm minor/patch updates for `/` and `/functions` with a 7-day release cooldown. npm major version updates are ignored (do them by hand with the migration guide); security updates still open regardless.
+- Local Node is v24 (npm 11), but CI and Cloud Functions use Node 22 (npm 10). npm 10 is stricter about lockfile/peer mismatches, so after dependency changes verify with `npx -y npm@10 ci --dry-run` in a temp copy of `package.json` + `package-lock.json`. Frontend TypeScript must stay on 5.x for now: `vite-tsconfig-paths` -> `tsconfck` peers `typescript ^5`.
 
 ## Code style
 - TypeScript strict mode
