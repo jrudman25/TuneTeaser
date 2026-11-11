@@ -17,7 +17,7 @@ describe('resolveSpotifyTracks', () => {
             errors: ['one skipped']
         };
         const callable = vi.fn().mockResolvedValue({ data: response });
-        vi.mocked(httpsCallable).mockReturnValue(callable);
+        vi.mocked(httpsCallable).mockReturnValue(callable as any);
 
         const result = await resolveSpotifyTracks(['abc123']);
 

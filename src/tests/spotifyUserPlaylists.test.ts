@@ -15,7 +15,7 @@ describe('spotifyUserPlaylists', () => {
         it('calls the httpsCallable function and returns playlists', async () => {
             const mockData = { playlists: [{ id: 'p1', name: 'My Playlist', image: '', totalTracks: 10 }] };
             const mockCallable = vi.fn().mockResolvedValue({ data: mockData });
-            vi.mocked(httpsCallable).mockReturnValue(mockCallable);
+            vi.mocked(httpsCallable).mockReturnValue(mockCallable as any);
 
             const result = await fetchSpotifyUserPlaylists('https://open.spotify.com/user/12345');
 

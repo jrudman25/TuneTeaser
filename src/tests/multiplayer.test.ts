@@ -40,7 +40,7 @@ describe('multiplayer utils', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockCallable.mockResolvedValue({ data: { roomId: 'ABC234' } });
-        vi.mocked(httpsCallable).mockReturnValue(mockCallable);
+        vi.mocked(httpsCallable).mockReturnValue(mockCallable as any);
         vi.mocked(doc).mockReturnValue('room-ref' as any);
         vi.mocked(collection).mockReturnValue('players-collection' as any);
         vi.mocked(orderBy).mockReturnValue('joinedAt-order' as any);

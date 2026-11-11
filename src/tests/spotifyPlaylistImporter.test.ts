@@ -15,7 +15,7 @@ describe('spotifyPlaylistImporter', () => {
         it('calls the httpsCallable function with correct arguments', async () => {
             const mockData = { name: 'Test', tracks: [], total: 0, errors: [] };
             const mockCallable = vi.fn().mockResolvedValue({ data: mockData });
-            vi.mocked(httpsCallable).mockReturnValue(mockCallable);
+            vi.mocked(httpsCallable).mockReturnValue(mockCallable as any);
 
             const result = await importSpotifyPlaylist('1234567890123456789012', 0, 50);
 
@@ -33,7 +33,7 @@ describe('spotifyPlaylistImporter', () => {
         it('calls the httpsCallable function and returns tracks', async () => {
             const mockTracks = [{ id: 't1', name: 'T1', artists: [], album: { name: '', images: [] } }];
             const mockCallable = vi.fn().mockResolvedValue({ data: { tracks: mockTracks } });
-            vi.mocked(httpsCallable).mockReturnValue(mockCallable);
+            vi.mocked(httpsCallable).mockReturnValue(mockCallable as any);
 
             const result = await getManualPlaylistTracks('my-playlist-id');
 
