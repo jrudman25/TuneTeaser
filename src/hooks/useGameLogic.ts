@@ -10,6 +10,7 @@ import { GUEST_TRACKS } from '../utils/guestData';
 import { ManualPlaylist, ManualTrack, manualTracksToGameItems } from '../utils/manualPlaylists';
 import { getManualPlaylistTracks } from '../utils/spotifyPlaylistImporter';
 import { startSoloRound, submitSoloGuess, giveUpSoloRound, SubmitSoloGuessResponse } from '../utils/soloRounds';
+import { trackEvent } from '../utils/analytics';
 
 const getErrorMessage = (error: unknown, fallback: string) => {
     return error instanceof Error && error.message ? error.message : fallback;
@@ -66,6 +67,7 @@ export const useGameLogic = (
             setUserGuess('');
             setFeedbackMessage('');
             setGameState('playing');
+            trackEvent('solo-round-start');
         } catch (error) {
             if (isStaleLoad()) return;
             setFeedbackMessage(getErrorMessage(error, 'Could not start a round. Try again.'));
@@ -95,10 +97,12 @@ export const useGameLogic = (
                 setTargetSong(result.answer);
                 setGameState('end');
                 setFeedbackMessage(`Correct! You won! Guessed the song in ${result.snippetDurationMs / 1000} seconds.`);
+                trackEvent('solo-game-end', { result: 'correct' });
             } else if (result.result === 'out-of-snippet') {
                 setTargetSong(result.answer);
                 setGameState('end');
                 setFeedbackMessage(`Game Over! You didn't get it. The song was: ${result.answer?.name || 'unknown'}`);
+                trackEvent('solo-game-end', { result: 'out-of-snippet' });
             } else {
                 setSnippetDuration(result.snippetDurationMs);
                 if (guessText) {
@@ -147,6 +151,7 @@ export const useGameLogic = (
             setTargetSong(result.answer);
             setGameState('end');
             setFeedbackMessage(`The song was: ${result.answer.name}`);
+            trackEvent('solo-game-end', { result: 'gave-up' });
         } catch (error) {
             setFeedbackMessage(getErrorMessage(error, 'Could not reveal the song. Try again.'));
         }

@@ -23,6 +23,7 @@
 *   **Playlist Sorting & Filtering**: Find the perfect playlist in your library quickly with title-based searching and sorting by Name, Track Count, and Date Added (including reverse sorting).
 *   **Account Clarity**: Signed-in pages show which TuneTeaser account is active.
 *   **Retro Arcade Design**: A record-shop inspired interface with arcade-style game panels, responsive layouts, dark mode, toast feedback, and accessible focus states.
+*   **Privacy-Friendly Analytics**: Production builds use cookieless Umami analytics for page views and a few game events (guest session, signup, solo round start and finish). Development and emulator sessions send nothing.
 *   **Real-Time Leaderboard**: Compete with other music experts! A real-time scoreboard shows the top 10 players and your current position/rank.
 *   **Online Multiplayer Rooms**: Create a private room, share a short code or `/multiplayer/{roomCode}` link, let players join with their TuneTeaser usernames, pick a playlist, set a point goal and round timer, then play synchronized rounds with answer reveals, give-up/timed-out states, host kick controls, Play again, and Return to lobby.
 *   **Dynamic Scoring**: Points are based on correct guesses and speed. Solve a song in the initial 2-second snippet for a maximum score of 25 points. Slower answers scale down linearly to a base of 10 points.
@@ -47,6 +48,7 @@
 *   Google Cloud Functions and scheduled cleanup jobs
 *   Spotify API
 *   iTunes API
+*   Umami Analytics
 *   Material UI
 *   styled-components
 

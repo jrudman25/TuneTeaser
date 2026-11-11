@@ -618,7 +618,7 @@ const PlaylistImportSpotify = () => {
                                     <div className="profile-playlist-picker-header">
                                         <div>
                                             <h3 className="subsection-title">Choose search results</h3>
-                                            <p className="helper-text">Only public playlists can be found without Spotify login.</p>
+                                            <p className="helper-text">Only public playlists can be found.</p>
                                         </div>
                                     </div>
 
@@ -706,7 +706,7 @@ const PlaylistImportSpotify = () => {
                                     <div className="profile-playlist-picker-header">
                                         <div>
                                             <h3 className="subsection-title">Choose playlists</h3>
-                                            <p className="helper-text">Only public playlists are available without Spotify login.</p>
+                                            <p className="helper-text">Only public playlists are available.</p>
                                         </div>
                                         <button
                                             className="button button-secondary"

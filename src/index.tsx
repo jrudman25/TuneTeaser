@@ -3,8 +3,10 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import { clearLegacySpotifySession } from './utils/auth';
+import { initAnalytics } from './utils/analytics';
 
 clearLegacySpotifySession();
+initAnalytics();
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement

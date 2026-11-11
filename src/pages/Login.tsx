@@ -10,6 +10,7 @@ import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { auth, functions } from '../backend/FirebaseConfig';
 import { httpsCallable } from 'firebase/functions';
+import { trackEvent } from '../utils/analytics';
 import NavBar from '../components/NavBar';
 
 import { 
@@ -96,6 +97,7 @@ const Login = () => {
     const handleGuestLogin = async () => {
         try {
             await signInAnonymously(auth);
+            trackEvent('guest-session');
             navigate('/home?mode=guest');
         } catch (error) {
             console.error("Failed to sign in guest anonymously:", error);
@@ -178,6 +180,7 @@ const Login = () => {
                     await userCredential.user.reload();
 
                     sessionStorage.removeItem('isSigningUp');
+                    trackEvent('account-signup');
                     navigate('/home');
                 } catch (setupError: any) {
                     // Roll back the Firebase Auth account
