@@ -3,18 +3,23 @@
 
 <head>
   <meta charset="utf-8" />
-  <meta name="description" content="Spotify playlist guessing game" />
+  <meta name="description" content="Name That Tune with your own playlists: hear a short snippet, guess the song, climb the leaderboard, or play live with friends." />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script>
-    (function() {
-      try {
-        var isDark = localStorage.getItem('tuneteaser-theme') === 'dark';
-        if (isDark) {
-          document.body.classList.add('dark-theme');
-        }
-      } catch (e) {}
-    })();
-  </script>
+  <meta name="theme-color" content="#d74332" />
+  <link rel="canonical" href="https://tuneteaser.web.app/" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="TuneTeaser" />
+  <meta property="og:title" content="TuneTeaser" />
+  <meta property="og:description" content="Name That Tune with your own playlists: hear a short snippet, guess the song, climb the leaderboard, or play live with friends." />
+  <meta property="og:url" content="https://tuneteaser.web.app/" />
+  <meta property="og:image" content="https://tuneteaser.web.app/android-chrome-512x512.png" />
+  <meta property="og:image:width" content="512" />
+  <meta property="og:image:height" content="512" />
+  <meta property="og:image:alt" content="TuneTeaser" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="TuneTeaser" />
+  <meta name="twitter:description" content="Name That Tune with your own playlists: hear a short snippet, guess the song, climb the leaderboard, or play live with friends." />
+  <meta name="twitter:image" content="https://tuneteaser.web.app/android-chrome-512x512.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
@@ -23,6 +28,7 @@
 </head>
 
 <body>
+  <script src="/theme-init.js"></script>
   <noscript>You need to enable JavaScript to run this app.</noscript>
   <div id="root"></div>
   <script type="module" src="/src/index.tsx"></script>
