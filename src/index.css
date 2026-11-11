@@ -2052,3 +2052,142 @@
     }
   }
 }
+
+/* Solo round result points note */
+.points-note {
+    display: inline-block;
+    margin-top: 4px;
+    font-family: var(--body);
+    font-weight: 800;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+}
+
+/* Per-round guess history (solo + multiplayer) */
+.guess-history {
+    margin: -4px 0 12px;
+    text-align: center;
+}
+
+.guess-history-label {
+    font-family: var(--body);
+    font-weight: 900;
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.guess-history-list {
+    list-style: none;
+    margin: 6px 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+}
+
+.guess-history-item {
+    font-family: var(--body);
+    font-weight: 800;
+    font-size: 0.85rem;
+    color: var(--ink);
+    background: rgba(33, 23, 15, 0.08);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    padding: 3px 10px;
+}
+
+/* Settings accordion + cards (replaces inline styles) */
+.faq-card {
+    background: var(--cream);
+    border-radius: 20px;
+    padding: 24px;
+    border: 3px solid var(--ink);
+    box-shadow: 6px 6px 0 var(--ink);
+    transition: all 0.2s ease;
+    color: var(--ink);
+}
+
+.faq-card.settings-danger-card {
+    border-color: var(--red);
+}
+
+.settings-accordion-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+}
+
+.settings-accordion-icon {
+    transform: rotate(0deg);
+    transition: transform 0.2s ease;
+    font-size: 1rem;
+    color: var(--teal);
+}
+
+.faq-card.open .settings-accordion-icon {
+    transform: rotate(90deg);
+}
+
+.settings-success-text {
+    color: var(--green);
+    font-weight: bold;
+    margin-top: 8px;
+}
+
+.settings-toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.settings-toggle-copy {
+    flex: 1;
+}
+
+.settings-toggle-copy h4 {
+    margin: 0 0 4px;
+    font-size: 1.1rem;
+    font-weight: 900;
+}
+
+.settings-toggle-copy p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+    font-weight: 800;
+}
+
+.settings-danger-box {
+    padding: 16px;
+    background: rgba(215, 67, 50, 0.1);
+    border-radius: 12px;
+    border: 2px solid rgba(215, 67, 50, 0.3);
+}
+
+.settings-danger-box h4 {
+    margin: 0 0 8px;
+    color: var(--red);
+    font-size: 1.1rem;
+    font-weight: 900;
+}
+
+.settings-danger-box p {
+    margin: 0 0 16px;
+    font-size: 0.95rem;
+    color: var(--ink);
+    font-weight: 700;
+}
+
+/* Keyboard shortcut hint under the guess controls */
+.shortcut-hint {
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    font-weight: 800;
+    margin-top: -4px;
+    margin-bottom: 12px;
+    text-align: center;
+}

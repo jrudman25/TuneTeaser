@@ -3,7 +3,8 @@
  * Tests the ActiveGame component.
  * @version 2026.02.09
  */
-import { render, screen } from '@testing-library/react';
+import React from 'react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ActiveGame from '../components/ActiveGame';
 import { vi, describe, it, expect } from 'vitest';
@@ -63,5 +64,86 @@ describe('ActiveGame - Enter Key Behavior', () => {
         await user.keyboard('{Enter}');
 
         expect(onGuessSubmit).toHaveBeenCalled();
+    });
+});
+
+describe('ActiveGame - keyboard shortcuts', () => {
+    const defaultProps = {
+        targetSong: { name: 'Test Song' },
+        snippetDuration: 1000,
+        userGuess: '',
+        setUserGuess: vi.fn(),
+        onGuessSubmit: vi.fn(),
+        onPlaySnippet: vi.fn(),
+        onGiveUp: vi.fn(),
+        feedbackMessage: '',
+        isPlaying: false,
+        selectedPlaylistName: 'Test Playlist',
+        songs: [{ track: { name: 'Test Song' } }, { track: { name: 'Another Song' } }],
+        volume: 0.5,
+        setVolume: vi.fn()
+    };
+
+    it('plays the snippet when Space is pressed outside editable controls', async () => {
+        const user = userEvent.setup();
+        const onPlaySnippet = vi.fn();
+
+        render(<ActiveGame {...defaultProps} onPlaySnippet={onPlaySnippet} />);
+        await user.keyboard(' ');
+
+        expect(onPlaySnippet).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not play when Space is pressed inside the guess input', async () => {
+        const user = userEvent.setup();
+        const onPlaySnippet = vi.fn();
+
+        const GuessWrapper = () => {
+            const [guess, setGuess] = React.useState('');
+            return (
+                <ActiveGame
+                    {...defaultProps}
+                    userGuess={guess}
+                    setUserGuess={setGuess}
+                    onPlaySnippet={onPlaySnippet}
+                />
+            );
+        };
+        render(<GuessWrapper />);
+
+        const input = screen.getByLabelText('Enter song title...');
+        await user.type(input, 'abc def');
+
+        expect(onPlaySnippet).not.toHaveBeenCalled();
+        expect(input).toHaveValue('abc def');
+    });
+
+    it('does not play on Space while a snippet is already playing', async () => {
+        const user = userEvent.setup();
+        const onPlaySnippet = vi.fn();
+
+        render(<ActiveGame {...defaultProps} isPlaying onPlaySnippet={onPlaySnippet} />);
+        await user.keyboard(' ');
+
+        expect(onPlaySnippet).not.toHaveBeenCalled();
+    });
+
+    it('Esc opens give-up confirmation; cancel keeps the round, confirm gives up', async () => {
+        const user = userEvent.setup();
+        const onGiveUp = vi.fn();
+
+        render(<ActiveGame {...defaultProps} onGiveUp={onGiveUp} />);
+
+        await user.keyboard('{Escape}');
+        expect(screen.getByText('Give up this round?')).toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: /cancel/i }));
+        expect(onGiveUp).not.toHaveBeenCalled();
+
+        await user.keyboard('{Escape}');
+        const dialog = screen.getByRole('dialog');
+        await user.click(within(dialog).getByRole('button', { name: /^give up$/i }));
+
+        expect(onGiveUp).toHaveBeenCalledTimes(1);
     });
 });

@@ -10,6 +10,7 @@ import NavBar from '../components/NavBar';
 import SignedInBadge from '../components/SignedInBadge';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import ConfirmDialog from '../components/ConfirmDialog';
+import ToastMessage from '../components/ToastMessage';
 
 const Settings = () => {
     const navigate = useNavigate();
@@ -25,6 +26,7 @@ const Settings = () => {
     const [usernameSuccess, setUsernameSuccess] = useState('');
 
     const [isDeleting, setIsDeleting] = useState(false);
+    const [deleteError, setDeleteError] = useState('');
     const [showDeleteAccountDialog, setShowDeleteAccountDialog] = useState(false);
 
     // Track which accordion sections are open
@@ -43,21 +45,25 @@ const Settings = () => {
 
     if (isLoadingUser) {
         return (
-            <div className="page home-page">
+            <>
                 <NavBar />
-                <div className="loading-card" style={{ marginTop: '32px' }}>Loading...</div>
-            </div>
+                <main className="page home-page">
+                    <div className="loading-card">Loading...</div>
+                </main>
+            </>
         );
     }
 
     if (!user) {
         return (
-            <div className="page home-page">
+            <>
                 <NavBar />
-                <div className="error-card" style={{ marginTop: '32px' }}>
-                    <p className="body-copy">You must be signed in to view settings.</p>
-                </div>
-            </div>
+                <main className="page home-page">
+                    <div className="error-card">
+                        <p className="body-copy">You must be signed in to view settings.</p>
+                    </div>
+                </main>
+            </>
         );
     }
 
@@ -119,9 +125,9 @@ const Settings = () => {
         } catch (err: any) {
             console.error("Failed to delete account:", err);
             if (err.code === 'auth/requires-recent-login') {
-                alert("For security reasons, please sign out and sign back in before deleting your account.");
+                setDeleteError('For security reasons, please sign out and sign back in before deleting your account.');
             } else {
-                alert("Failed to delete account: " + err.message);
+                setDeleteError('Failed to delete account: ' + err.message);
             }
             setIsDeleting(false);
         }
@@ -133,18 +139,11 @@ const Settings = () => {
                 <span className="account-badge">Signed in as Guest</span>
             ) : user ? (
                 <SignedInBadge user={user} />
-            ) : localStorage.getItem('accessToken') ? (
-                <span className="account-badge">Signed in with Spotify</span>
             ) : null}
         </div>
     );
 
     const handleLogout = async () => {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('tokenExpiry');
-        localStorage.removeItem('verifier');
-        sessionStorage.removeItem('accessToken');
 
         try {
             await signOut(auth);
@@ -169,16 +168,6 @@ const Settings = () => {
         </div>
     );
 
-    const cardStyle = {
-        background: 'var(--cream)',
-        borderRadius: '20px',
-        padding: '24px',
-        border: '3px solid var(--ink)',
-        boxShadow: '6px 6px 0 var(--ink)',
-        transition: 'all 0.2s ease',
-        color: 'var(--ink)'
-    };
-
     return (
         <>
             <NavBar statusBadge={statusBadge} actionButtons={actionButtons} />
@@ -194,21 +183,11 @@ const Settings = () => {
                         {/* Section 1: Profile Settings */}
                         <article
                             className={`faq-card ${openSections.profile ? 'open' : ''}`}
-                            style={cardStyle}
+                           
                         >
-                            <header
-                                onClick={() => toggleSection('profile')}
-                                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
-                            >
+                            <header className="settings-accordion-header" onClick={() => toggleSection('profile')}>
                                 <h3 className="subsection-title" style={{ margin: 0, fontSize: '1.25rem', color: openSections.profile ? 'var(--teal)' : 'var(--ink)' }}>Profile</h3>
-                                <ArrowForwardIosIcon
-                                    style={{
-                                        transform: openSections.profile ? 'rotate(90deg)' : 'rotate(0deg)',
-                                        transition: 'transform 0.2s ease',
-                                        fontSize: '1rem',
-                                        color: 'var(--teal)'
-                                    }}
-                                />
+                                <ArrowForwardIosIcon className="settings-accordion-icon" />
                             </header>
                             {openSections.profile && (
                                 <div className="faq-content" style={{ marginTop: '16px' }}>
@@ -229,7 +208,7 @@ const Settings = () => {
                                             3-20 characters. Letters, numbers, single spaces, underscores, and hyphens only. Username changes use the same server-controlled reservation check as signup.
                                         </div>
                                         {usernameError && <div className="inline-error" style={{ marginTop: '8px' }}>{usernameError}</div>}
-                                        {usernameSuccess && <div style={{ color: 'var(--green)', fontWeight: 'bold', marginTop: '8px' }}>{usernameSuccess}</div>}
+                                        {usernameSuccess && <div className="settings-success-text">{usernameSuccess}</div>}
 
                                         <div className="action-row" style={{ marginTop: '12px', justifyContent: 'flex-start' }}>
                                             <button
@@ -248,28 +227,18 @@ const Settings = () => {
                         {/* Section 2: Appearance */}
                         <article
                             className={`faq-card ${openSections.appearance ? 'open' : ''}`}
-                            style={cardStyle}
+                           
                         >
-                            <header
-                                onClick={() => toggleSection('appearance')}
-                                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
-                            >
+                            <header className="settings-accordion-header" onClick={() => toggleSection('appearance')}>
                                 <h3 className="subsection-title" style={{ margin: 0, fontSize: '1.25rem', color: openSections.appearance ? 'var(--teal)' : 'var(--ink)' }}>Appearance</h3>
-                                <ArrowForwardIosIcon
-                                    style={{
-                                        transform: openSections.appearance ? 'rotate(90deg)' : 'rotate(0deg)',
-                                        transition: 'transform 0.2s ease',
-                                        fontSize: '1rem',
-                                        color: 'var(--teal)'
-                                    }}
-                                />
+                                <ArrowForwardIosIcon className="settings-accordion-icon" />
                             </header>
                             {openSections.appearance && (
                                 <div className="faq-content" style={{ marginTop: '24px' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                                        <div style={{ flex: 1 }}>
-                                            <h4 style={{ margin: '0 0 4px 0', fontSize: '1.1rem', fontWeight: 900 }}>Dark Mode</h4>
-                                            <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--ink-soft)', fontWeight: 800 }}>
+                                    <div className="settings-toggle-row">
+                                        <div className="settings-toggle-copy">
+                                            <h4>Dark Mode</h4>
+                                            <p>
                                                 Switch to a darker neon arcade theme.
                                             </p>
                                         </div>
@@ -286,13 +255,10 @@ const Settings = () => {
 
                         {/* Section 3: Danger Zone */}
                         <article
-                            className={`faq-card ${openSections.dangerZone ? 'open' : ''}`}
-                            style={{ ...cardStyle, border: '3px solid var(--red)' }}
+                            className={`faq-card settings-danger-card ${openSections.dangerZone ? 'open' : ''}`}
+                           
                         >
-                            <header
-                                onClick={() => toggleSection('dangerZone')}
-                                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
-                            >
+                            <header className="settings-accordion-header" onClick={() => toggleSection('dangerZone')}>
                                 <h3 className="subsection-title" style={{ margin: 0, fontSize: '1.25rem', color: 'var(--red)' }}>Danger Zone</h3>
                                 <ArrowForwardIosIcon
                                     style={{
@@ -305,9 +271,9 @@ const Settings = () => {
                             </header>
                             {openSections.dangerZone && (
                                 <div className="faq-content" style={{ marginTop: '24px' }}>
-                                    <div style={{ padding: '16px', background: 'rgba(215, 67, 50, 0.1)', borderRadius: '12px', border: '2px solid rgba(215, 67, 50, 0.3)' }}>
-                                        <h4 style={{ margin: '0 0 8px 0', color: 'var(--red)', fontSize: '1.1rem', fontWeight: 900 }}>Delete Account</h4>
-                                        <p style={{ margin: '0 0 16px 0', fontSize: '0.95rem', color: 'var(--ink)', fontWeight: 700 }}>
+                                    <div className="settings-danger-box">
+                                        <h4>Delete Account</h4>
+                                        <p>
                                             Permanently delete your TuneTeaser account, all saved playlists, and your leaderboard history.
                                             <strong> This action cannot be undone.</strong>
                                         </p>
@@ -337,6 +303,7 @@ const Settings = () => {
                         loadingLabel="Deleting..."
                     />
                 </section>
+                            <ToastMessage message={deleteError} type="error" onClose={() => setDeleteError('')} />
             </main>
         </>
     );

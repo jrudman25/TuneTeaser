@@ -7,6 +7,8 @@ import React from 'react';
 import { Autocomplete, TextField, Slider } from "@mui/material";
 import VolumeDown from '@mui/icons-material/VolumeDown';
 import VolumeUp from '@mui/icons-material/VolumeUp';
+import ConfirmDialog from './ConfirmDialog';
+import { useGameShortcuts } from '../hooks/useGameShortcuts';
 
 interface ActiveGameProps {
     targetSong: any;
@@ -20,6 +22,8 @@ interface ActiveGameProps {
     isPlaying: boolean;
     selectedPlaylistName: string;
     songs: any[];
+    wrongGuesses?: string[];
+    isSubmittingGuess?: boolean;
     volume: number;
     setVolume: (volume: number) => void;
 }
@@ -35,6 +39,8 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
     isPlaying,
     selectedPlaylistName,
     songs,
+    wrongGuesses = [],
+    isSubmittingGuess = false,
     volume,
     setVolume
 }) => {
@@ -48,6 +54,17 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
     const [inputValue, setInputValue] = React.useState('');
     const [open, setOpen] = React.useState(false);
     const [highlightedOption, setHighlightedOption] = React.useState<string | null>(null);
+    const [isGiveUpConfirmOpen, setIsGiveUpConfirmOpen] = React.useState(false);
+
+    useGameShortcuts({
+        enabled: !isGiveUpConfirmOpen,
+        onPlay: () => {
+            if (!isPlaying) {
+                onPlaySnippet();
+            }
+        },
+        onGiveUpRequest: () => setIsGiveUpConfirmOpen(true)
+    });
 
     const handleVolumeChange = (event: Event, newValue: number | number[]) => {
         setVolume(newValue as number / 100);
@@ -178,16 +195,44 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
                         />
                     )}
                 />
-                <button className="button button-tertiary" onClick={() => onGuessSubmit()}>Guess</button>
+                <button className="button button-tertiary" onClick={() => onGuessSubmit()} disabled={isSubmittingGuess}>Guess</button>
             </div>
+
+            {wrongGuesses.length > 0 && (
+                <div className="guess-history" aria-label="Previous guesses">
+                    <span className="guess-history-label">Previous guesses:</span>
+                    <ul className="guess-history-list">
+                        {wrongGuesses.map((guess, index) => (
+                            <li key={`${guess}-${index}`} className="guess-history-item">{guess}</li>
+                        ))}
+                    </ul>
+                </div>
+            )}
 
             <div className="guess-hint" style={{ fontSize: '0.85rem', color: 'var(--ink-soft)', fontWeight: 800, marginTop: '-6px', marginBottom: '12px', textAlign: 'center' }}>
                 💡 <strong>Pro Tip:</strong> Press "Guess" with a blank input to get 2 more seconds of song snippet (up to 30s)!
             </div>
 
+            <div className="shortcut-hint">
+                Shortcuts: Space plays the snippet, Enter guesses, Esc gives up.
+            </div>
+
             {feedbackMessage && <div className="feedback-pill">{feedbackMessage}</div>}
 
             <button className="button button-quiet" onClick={onGiveUp}>Give Up</button>
+
+            <ConfirmDialog
+                open={isGiveUpConfirmOpen}
+                title="Give up this round?"
+                message="The answer will be revealed and this round will not score."
+                confirmLabel="Give Up"
+                variant="danger"
+                onConfirm={() => {
+                    setIsGiveUpConfirmOpen(false);
+                    onGiveUp();
+                }}
+                onCancel={() => setIsGiveUpConfirmOpen(false)}
+            />
         </section>
     );
 };
