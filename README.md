@@ -60,6 +60,7 @@
 *   **Run dev server against emulators**: `npm run dev:emulator`
 *   **Run frontend unit tests**: `npm run test`
 *   **Run functions tests**: `npm run test-functions`
+*   **Run security rules tests** (Firebase CLI and Java 21 required): `npm run test:rules`
 *   **Build production frontend**: `npm run build`
 *   **Build functions**: `npm run build-functions`
 *   **Deploy to Firebase Hosting**: `npm run deploy`

@@ -8,11 +8,12 @@
 - Start dev server against emulators: `npm run dev:emulator`
 - Run frontend tests: `npm run test`
 - Run functions tests: `npm run test-functions`
+- Run Firestore/Storage security rules tests: `npm run test:rules` (needs the Firebase CLI and Java 21; starts the firestore and storage emulators under project `demo-tuneteaser`)
 - Build frontend: `npm run build`
 - Build functions: `npm run build-functions`
 
 ## CI
-- `.github/workflows/ci.yml` runs on pushes to `main` and on PRs, using Node 22: frontend `tsc --noEmit`, `npm run lint`, `vitest run`, and `vite build`; functions `npm run build` and `npm test`. On PRs only, `actions/dependency-review-action` fails if the PR adds a runtime dependency with a high or critical advisory. There is no `npm audit` job: existing advisories are tracked by Dependabot alerts and security updates (enabled in repo settings, along with malware alerts).
+- `.github/workflows/ci.yml` runs on pushes to `main` and on PRs, using Node 22: frontend `tsc --noEmit`, `npm run lint`, `vitest run`, and `vite build`; functions `npm run build` and `npm test`; a `rules` job installs Java 21 and `firebase-tools@15.34.2` and runs `npm run test:rules`. On PRs only, `actions/dependency-review-action` fails if the PR adds a runtime dependency with a high or critical advisory. There is no `npm audit` job: existing advisories are tracked by Dependabot alerts and security updates (enabled in repo settings, along with malware alerts).
 - `.github/dependabot.yml` opens weekly grouped npm minor/patch updates for `/` and `/functions` with a 7-day release cooldown. npm major version updates are ignored (do them by hand with the migration guide); security updates still open regardless.
 - Local Node is v24 (npm 11), but CI and Cloud Functions use Node 22 (npm 10). npm 10 is stricter about lockfile/peer mismatches, so after dependency changes verify with `npx -y npm@10 ci --dry-run` in a temp copy of `package.json` + `package-lock.json`. Frontend TypeScript must stay on 5.x for now: `vite-tsconfig-paths` -> `tsconfck` peers `typescript ^5`.
 
@@ -33,6 +34,9 @@
 - `functions/tsconfig.json` sets `rootDir: "src"` explicitly (required by TypeScript 6 editors); output stays at `functions/lib/index.js`.
 - Firestore TTL deletes expired docs on the Timestamp `expiresAt` field for collection groups `itunesPreviewCache`, `leaderboard/{uid}/dailyPoints`, `callableRateLimits`, and `leaderboard/{uid}/recentScores`. Manage policies with `gcloud firestore fields ttls update` in Cloud Shell; the Firebase console has no TTL UI. Do not reintroduce numeric `expiresAtMillis` on these docs; solo round state still uses `expiresAtMillis` for its own expiry check, which is unrelated to TTL.
 
+- Scheduled multiplayer jobs filter and order by deadline and page through results with `processQueryPages` (batches of 50, 40s budget). Their composite indexes live in `firestore.indexes.json`; deploy indexes (`firebase deploy --only firestore:indexes`) and let them build before deploying functions that use new queries.
+
 ## Testing notes
+- Rules tests live in `rules-tests/` with their own `vitest.config.ts` (node environment) and are excluded from the root `vitest run`. `@firebase/rules-unit-testing` v6 contexts return the compat SDK (`.doc()`, `.ref().put()`, `.getMetadata()`; no `getBytes()`). When changing `firestore.rules` or `storage.rules`, add or update a case there.
 - CI has no `.env`, so any test that imports `src/backend/FirebaseConfig` (directly or through a util) must `vi.mock('../backend/FirebaseConfig', ...)`, or it fails with `auth/invalid-api-key`. Reproduce locally with `VITE_FIREBASE_API_KEY= npx vitest run` (process env overrides `.env`).
 - A full frontend `vitest run` can hit intermittent 5s timeouts or "Failed to start forks worker" errors under load (TODO MED-26). Re-run the failing files alone before treating them as real failures.
