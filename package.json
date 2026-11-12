@@ -1,22 +1,18 @@
 {
   "name": "tuneteaser",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "dependencies": {
     "@emotion/react": "^11.11.1",
     "@emotion/styled": "^11.11.0",
     "@mui/icons-material": "^7.3.7",
     "@mui/material": "^7.3.7",
-    "@types/jest": "^27.5.2",
-    "@types/react": "^18.2.20",
-    "@types/react-dom": "^18.2.7",
     "firebase": "^13.1.0",
     "obscenity": "^0.4.6",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.30.6",
-    "styled-components": "^6.0.8",
-    "typescript": "~5.9.3"
+    "styled-components": "^6.0.8"
   },
   "scripts": {
     "dev": "vite",
@@ -28,6 +24,7 @@
     "preview": "vite preview",
     "test": "vitest",
     "test-functions": "cd functions && npm run test",
+    "test:rules": "firebase emulators:exec --only firestore,storage --project demo-tuneteaser \"vitest run --config rules-tests/vitest.config.ts\"",
     "emulators": "set FUNCTIONS_DISCOVERY_TIMEOUT=120 && firebase emulators:start --only auth,firestore,functions,storage --import=./emulator_data --export-on-exit=./emulator_data",
     "deploy": "npm run build && firebase deploy --only hosting",
     "deploy-functions": "cd functions && npm run deploy",
@@ -35,14 +32,16 @@
     "deploy-storage-rules": "firebase deploy --only storage"
   },
   "devDependencies": {
-    "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
     "@eslint/js": "^9.39.4",
+    "@firebase/rules-unit-testing": "^6.0.0",
     "@playwright/test": "^1.38.1",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^25.1.0",
+    "@types/react": "^18.2.20",
+    "@types/react-dom": "^18.2.7",
     "@vitejs/plugin-react": "^5.1.2",
     "eslint": "^9.39.4",
     "eslint-plugin-react": "^7.37.5",
@@ -50,6 +49,7 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
     "jsdom": "^27.4.0",
+    "typescript": "~5.9.3",
     "typescript-eslint": "^8.59.4",
     "vite": "^7.3.1",
     "vite-tsconfig-paths": "^6.0.5",
