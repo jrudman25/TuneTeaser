@@ -10,7 +10,9 @@ const mockDocGet = vi.fn();
 const mockDocUpdate = vi.fn();
 const mockCollectionGet = vi.fn();
 const mockQueryWhere = vi.fn();
+const mockQueryOrderBy = vi.fn();
 const mockQueryLimit = vi.fn();
+const mockQueryStartAfter = vi.fn();
 const mockQueryGet = vi.fn();
 const mockBatchDelete = vi.fn();
 const mockBatchSet = vi.fn();
@@ -189,8 +191,10 @@ describe('Cloud Functions (index.ts)', () => {
         ));
         mockCollectionGet.mockResolvedValue({ empty: true, size: 0, docs: [] });
         mockQueryGet.mockResolvedValue({ empty: true, size: 0, docs: [] });
-        mockQueryLimit.mockReturnValue({ get: mockQueryGet });
-        mockQueryWhere.mockReturnValue({ where: mockQueryWhere, limit: mockQueryLimit, get: mockQueryGet });
+        mockQueryOrderBy.mockReturnValue({ orderBy: mockQueryOrderBy, limit: mockQueryLimit, startAfter: mockQueryStartAfter, get: mockQueryGet });
+        mockQueryStartAfter.mockReturnValue({ startAfter: mockQueryStartAfter, limit: mockQueryLimit, get: mockQueryGet });
+        mockQueryLimit.mockReturnValue({ startAfter: mockQueryStartAfter, get: mockQueryGet });
+        mockQueryWhere.mockReturnValue({ where: mockQueryWhere, orderBy: mockQueryOrderBy, limit: mockQueryLimit, startAfter: mockQueryStartAfter, get: mockQueryGet });
         mockDeleteUsers.mockResolvedValue({ successCount: 0, failureCount: 0, errors: [] });
         mockFieldValueIncrement.mockImplementation((value: number) => ({ _increment: value }));
         mockFieldValueServerTimestamp.mockReturnValue('server-timestamp');
@@ -1507,6 +1511,10 @@ describe('Cloud Functions (index.ts)', () => {
             await (expireStuckMultiplayerRounds as any)();
 
             expect(mockQueryWhere).toHaveBeenCalledWith('currentRound.state', '==', 'playing');
+            expect(mockQueryWhere).toHaveBeenCalledWith('currentRound.endsAt', '<=', 10_000);
+            expect(mockQueryOrderBy).toHaveBeenCalledWith('currentRound.endsAt');
+            expect(mockQueryGet).toHaveBeenCalledTimes(1);
+            expect(mockQueryStartAfter).not.toHaveBeenCalled();
             expect(mockTransactionUpdate).toHaveBeenCalledWith('player1-ref', expect.objectContaining({
                 state: 'timed-out',
                 roundCompletedAt: 10_000
@@ -1515,21 +1523,48 @@ describe('Cloud Functions (index.ts)', () => {
                 currentRound: expect.objectContaining({ state: 'advancing' })
             }));
         });
+
+        it('keeps fetching overdue rounds while a page is full', async () => {
+            vi.spyOn(Date, 'now').mockReturnValue(10_000);
+            const pageOneDocs = Array.from({ length: 50 }, (_, index) => ({
+                id: `ROOM${index}`,
+                data: () => ({ currentRound: { endsAt: 9_000 } })
+            }));
+            const pageTwoDocs = Array.from({ length: 3 }, (_, index) => ({
+                id: `ROOM5${index}`,
+                data: () => ({ currentRound: { endsAt: 9_000 } })
+            }));
+            mockQueryGet
+                .mockResolvedValueOnce({ empty: false, size: 50, docs: pageOneDocs })
+                .mockResolvedValueOnce({ empty: false, size: 3, docs: pageTwoDocs });
+
+            await (expireStuckMultiplayerRounds as any)();
+
+            expect(mockQueryGet).toHaveBeenCalledTimes(2);
+            expect(mockQueryStartAfter).toHaveBeenCalledTimes(1);
+            expect(mockQueryStartAfter).toHaveBeenCalledWith(pageOneDocs[49]);
+            expect(mockRunTransaction).toHaveBeenCalledTimes(53);
+        });
     });
 
     describe('advanceStuckMultiplayerRounds', () => {
-        it('skips advancing rooms whose reveal delay has not elapsed', async () => {
+        it('queries overdue advancing rooms and re-checks them inside a transaction', async () => {
             vi.spyOn(Date, 'now').mockReturnValue(1000);
             mockQueryGet.mockResolvedValueOnce({
                 empty: false,
                 size: 1,
-                docs: [{ id: 'ABC234', data: () => ({ currentRound: { advancesAt: 2000 } }) }]
+                docs: [{ id: 'ABC234', data: () => ({ currentRound: { advancesAt: 500 } }) }]
             });
 
             await (advanceStuckMultiplayerRounds as any)();
 
             expect(mockQueryWhere).toHaveBeenCalledWith('currentRound.state', '==', 'advancing');
-            expect(mockRunTransaction).not.toHaveBeenCalled();
+            expect(mockQueryWhere).toHaveBeenCalledWith('currentRound.advancesAt', '<=', 1000);
+            expect(mockQueryOrderBy).toHaveBeenCalledWith('currentRound.advancesAt');
+            expect(mockQueryGet).toHaveBeenCalledTimes(1);
+            expect(mockQueryStartAfter).not.toHaveBeenCalled();
+            expect(mockRunTransaction).toHaveBeenCalledTimes(1);
+            expect(mockTransactionUpdate).not.toHaveBeenCalled();
         });
     });
 
@@ -1551,8 +1586,32 @@ describe('Cloud Functions (index.ts)', () => {
             await (cleanupExpiredMultiplayerRooms as any)();
 
             expect(mockQueryWhere).toHaveBeenCalledWith('expiresAt', '<=', expect.any(Number));
+            expect(mockQueryOrderBy).toHaveBeenCalledWith('expiresAt');
+            expect(mockQueryGet).toHaveBeenCalledTimes(1);
+            expect(mockQueryStartAfter).not.toHaveBeenCalled();
             expect(mockBatchDelete).toHaveBeenCalledTimes(2);
             expect(mockDocDelete).toHaveBeenCalled();
+        });
+
+        it('keeps deleting expired rooms while a page is full', async () => {
+            const makeDocs = (count: number, offset: number) => Array.from({ length: count }, (_, index) => ({
+                ref: {
+                    collection: vi.fn(() => ({ get: mockCollectionGet })),
+                    delete: mockDocDelete
+                },
+                data: () => ({ expiresAt: offset + index })
+            }));
+            const pageOneDocs = makeDocs(50, 0);
+            mockQueryGet
+                .mockResolvedValueOnce({ empty: false, size: 50, docs: pageOneDocs })
+                .mockResolvedValueOnce({ empty: false, size: 3, docs: makeDocs(3, 50) });
+
+            await (cleanupExpiredMultiplayerRooms as any)();
+
+            expect(mockQueryGet).toHaveBeenCalledTimes(2);
+            expect(mockQueryStartAfter).toHaveBeenCalledTimes(1);
+            expect(mockQueryStartAfter).toHaveBeenCalledWith(pageOneDocs[49]);
+            expect(mockDocDelete).toHaveBeenCalledTimes(53);
         });
     });
 

@@ -37,6 +37,7 @@ const MULTIPLAYER_ROUND_LOOKUP_ATTEMPTS = 8;
 const ROUND_REVEAL_DELAY_MS = 5000;
 const MULTIPLAYER_ADVANCE_LOCK_TIMEOUT_MS = 30 * 1000;
 const MULTIPLAYER_ROOM_CLEANUP_BATCH_SIZE = 50;
+const SCHEDULED_JOB_TIME_BUDGET_MS = 40_000;
 
 const parseImportPageNumber = (value: unknown, fallback: number, min: number, max: number, label: string) => {
     if (value === undefined) return fallback;
@@ -1324,26 +1325,47 @@ const deleteMultiplayerRoomData = async (roomRef: any) => {
     await roomRef.delete();
 };
 
+const processQueryPages = async (
+    baseQuery: any,
+    handleDoc: (doc: any) => Promise<boolean>,
+    jobStart: number
+): Promise<number> => {
+    let handled = 0;
+    let query = baseQuery;
+
+    for (;;) {
+        const page = await query.get();
+        for (const doc of page.docs) {
+            if (await handleDoc(doc)) {
+                handled += 1;
+            }
+        }
+
+        if (page.docs.length < MULTIPLAYER_ROOM_CLEANUP_BATCH_SIZE
+            || Date.now() - jobStart >= SCHEDULED_JOB_TIME_BUDGET_MS) {
+            break;
+        }
+
+        query = baseQuery.startAfter(page.docs[page.docs.length - 1]);
+    }
+
+    return handled;
+};
+
 export const expireStuckMultiplayerRounds = onSchedule('every 1 minutes', async () => {
     const db = getFirestore();
     const now = Date.now();
 
     try {
-        const roomsSnapshot = await db
-            .collection('multiplayerRooms')
-            .where('currentRound.state', '==', 'playing')
-            .limit(MULTIPLAYER_ROOM_CLEANUP_BATCH_SIZE)
-            .get();
-
-        let expiredCount = 0;
-        for (const roomDoc of roomsSnapshot.docs) {
-            const room = roomDoc.data();
-            if (typeof room?.currentRound?.endsAt === 'number'
-                && room.currentRound.endsAt <= now
-                && await expireMultiplayerRoundIfNeeded(roomDoc.id, now)) {
-                expiredCount += 1;
-            }
-        }
+        const expiredCount = await processQueryPages(
+            db.collection('multiplayerRooms')
+                .where('currentRound.state', '==', 'playing')
+                .where('currentRound.endsAt', '<=', now)
+                .orderBy('currentRound.endsAt')
+                .limit(MULTIPLAYER_ROOM_CLEANUP_BATCH_SIZE),
+            (roomDoc) => expireMultiplayerRoundIfNeeded(roomDoc.id, now),
+            now
+        );
 
         console.log(`[expireStuckMultiplayerRounds] Expired ${expiredCount} multiplayer rounds.`);
     } catch (error) {
@@ -1356,21 +1378,15 @@ export const advanceStuckMultiplayerRounds = onSchedule('every 1 minutes', async
     const now = Date.now();
 
     try {
-        const roomsSnapshot = await db
-            .collection('multiplayerRooms')
-            .where('currentRound.state', '==', 'advancing')
-            .limit(MULTIPLAYER_ROOM_CLEANUP_BATCH_SIZE)
-            .get();
-
-        let advancedCount = 0;
-        for (const roomDoc of roomsSnapshot.docs) {
-            const room = roomDoc.data();
-            if (typeof room?.currentRound?.advancesAt === 'number'
-                && room.currentRound.advancesAt <= now
-                && await advanceMultiplayerRoomIfReady(roomDoc.id, now)) {
-                advancedCount += 1;
-            }
-        }
+        const advancedCount = await processQueryPages(
+            db.collection('multiplayerRooms')
+                .where('currentRound.state', '==', 'advancing')
+                .where('currentRound.advancesAt', '<=', now)
+                .orderBy('currentRound.advancesAt')
+                .limit(MULTIPLAYER_ROOM_CLEANUP_BATCH_SIZE),
+            (roomDoc) => advanceMultiplayerRoomIfReady(roomDoc.id, now),
+            now
+        );
 
         console.log(`[advanceStuckMultiplayerRounds] Advanced ${advancedCount} multiplayer rooms.`);
     } catch (error) {
@@ -1378,22 +1394,24 @@ export const advanceStuckMultiplayerRounds = onSchedule('every 1 minutes', async
     }
 });
 
-export const cleanupExpiredMultiplayerRooms = onSchedule('every 24 hours', async () => {
+export const cleanupExpiredMultiplayerRooms = onSchedule('every 1 hours', async () => {
     const db = getFirestore();
     const now = Date.now();
 
     try {
-        const roomsSnapshot = await db
-            .collection('multiplayerRooms')
-            .where('expiresAt', '<=', now)
-            .limit(MULTIPLAYER_ROOM_CLEANUP_BATCH_SIZE)
-            .get();
+        const deletedCount = await processQueryPages(
+            db.collection('multiplayerRooms')
+                .where('expiresAt', '<=', now)
+                .orderBy('expiresAt')
+                .limit(MULTIPLAYER_ROOM_CLEANUP_BATCH_SIZE),
+            async (roomDoc) => {
+                await deleteMultiplayerRoomData(roomDoc.ref);
+                return true;
+            },
+            now
+        );
 
-        for (const roomDoc of roomsSnapshot.docs) {
-            await deleteMultiplayerRoomData(roomDoc.ref);
-        }
-
-        console.log(`[cleanupExpiredMultiplayerRooms] Deleted ${roomsSnapshot.size || 0} expired multiplayer rooms.`);
+        console.log(`[cleanupExpiredMultiplayerRooms] Deleted ${deletedCount} expired multiplayer rooms.`);
     } catch (error) {
         console.error('[cleanupExpiredMultiplayerRooms] Error cleaning up multiplayer rooms:', error);
     }
