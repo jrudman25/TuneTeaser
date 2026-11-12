@@ -1,5 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { extractSpotifyPlaylistId } from '../utils/spotifyPlaylistName';
+
+vi.mock('../backend/FirebaseConfig', () => ({
+    functions: {},
+}));
 
 describe('extractSpotifyPlaylistId', () => {
     it('extracts ID from standard playlist URL', () => {

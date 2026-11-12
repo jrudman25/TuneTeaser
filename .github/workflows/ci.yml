@@ -67,23 +67,16 @@ jobs:
       - name: Unit tests
         run: npm test
 
-  audit:
-    name: Dependency audit (report only)
+  dependency-review:
+    name: Dependency review
+    # Fails PRs that add runtime dependencies with high or critical advisories.
+    # Existing advisories are tracked by Dependabot alerts in the Security tab.
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Report-only: existing advisories need dependency upgrades tracked in TODO.md.
-    # Flip to blocking once the runtime audit is clean.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/dependency-review-action@v5
         with:
-          node-version: 22
-
-      - name: Audit frontend runtime dependencies
-        run: npm audit --omit=dev --audit-level=high
-
-      - name: Audit functions runtime dependencies
-        if: always()
-        run: npm --prefix functions audit --omit=dev --audit-level=high
+          fail-on-severity: high
