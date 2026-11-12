@@ -2182,6 +2182,21 @@
     font-weight: 700;
 }
 
+/* Pro tip hint under the guess controls */
+.guess-hint {
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    font-weight: 800;
+    margin-top: -6px;
+    margin-bottom: 12px;
+    text-align: center;
+}
+
+.guess-hint svg {
+    vertical-align: -4px;
+    margin-right: 2px;
+}
+
 /* Keyboard shortcut hint under the guess controls */
 .shortcut-hint {
     font-size: 0.85rem;

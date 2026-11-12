@@ -214,7 +214,9 @@ describe('useManualPlaylists', () => {
                 "John's Mix",
                 'A, B & C',
                 'Mix [Vol 1]',
-                'Test/Track'
+                'Test/Track',
+                'Spotify: Top Hits',
+                'Live: 2024'
             ];
 
             for (const name of validNames) {

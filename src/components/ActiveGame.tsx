@@ -5,6 +5,7 @@
  */
 import React from 'react';
 import { Autocomplete, TextField, Slider } from "@mui/material";
+import LightbulbOutlined from '@mui/icons-material/LightbulbOutlined';
 import VolumeDown from '@mui/icons-material/VolumeDown';
 import VolumeUp from '@mui/icons-material/VolumeUp';
 import ConfirmDialog from './ConfirmDialog';
@@ -209,8 +210,8 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
                 </div>
             )}
 
-            <div className="guess-hint" style={{ fontSize: '0.85rem', color: 'var(--ink-soft)', fontWeight: 800, marginTop: '-6px', marginBottom: '12px', textAlign: 'center' }}>
-                💡 <strong>Pro Tip:</strong> Press "Guess" with a blank input to get 2 more seconds of song snippet (up to 30s)!
+            <div className="guess-hint">
+                <LightbulbOutlined aria-hidden fontSize="small" /> <strong>Pro Tip:</strong> Press "Guess" with a blank input to get 2 more seconds of song snippet (up to 30s)!
             </div>
 
             <div className="shortcut-hint">
