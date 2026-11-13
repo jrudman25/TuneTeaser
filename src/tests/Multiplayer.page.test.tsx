@@ -68,7 +68,10 @@ vi.mock('../hooks/usePreviewPlayer', () => ({
         isPlaying: false,
         error: null,
         volume: 0.5,
-        setVolume: vi.fn()
+        setVolume: vi.fn(),
+        positionMs: 0,
+        playbackDurationMs: 0,
+        preloadPreview: vi.fn()
     })
 }));
 

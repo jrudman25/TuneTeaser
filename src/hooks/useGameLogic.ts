@@ -9,12 +9,16 @@ import usePreviewPlayer from './usePreviewPlayer';
 import { GUEST_TRACKS } from '../utils/guestData';
 import { ManualPlaylist, ManualTrack, manualTracksToGameItems } from '../utils/manualPlaylists';
 import { getManualPlaylistTracks } from '../utils/spotifyPlaylistImporter';
-import { startSoloRound, submitSoloGuess, giveUpSoloRound, SubmitSoloGuessResponse } from '../utils/soloRounds';
+import { startSoloRound, submitSoloGuess, giveUpSoloRound, SubmitSoloGuessResponse, StartSoloRoundResponse } from '../utils/soloRounds';
 import { trackEvent } from '../utils/analytics';
 
 const getErrorMessage = (error: unknown, fallback: string) => {
     return error instanceof Error && error.message ? error.message : fallback;
 };
+
+// The server keeps a solo round alive for 30 minutes; give the prefetch a
+// slightly shorter window so a stale promise is never consumed.
+const PREFETCH_MAX_AGE_MS = 25 * 60 * 1000;
 
 export const useGameLogic = (
     isGuest: boolean,
@@ -30,7 +34,7 @@ export const useGameLogic = (
         playlistLoadGenerationRef.current += 1;
     }, []);
 
-    const { playPreview, pause, isPlaying, error: playerError, volume, setVolume } = usePreviewPlayer();
+    const { playPreview, pause, isPlaying, error: playerError, volume, setVolume, positionMs, playbackDurationMs, preloadPreview } = usePreviewPlayer();
     const [currentTracks, setCurrentTracks] = useState<any[]>([]);
     const [targetSong, setTargetSong] = useState<any | null>(null);
     const [currentPreviewUrl, setCurrentPreviewUrl] = useState<string | null>(null);
@@ -50,14 +54,57 @@ export const useGameLogic = (
         selectedPlaylistIdRef.current = selectedPlaylistId;
     }, [selectedPlaylistId]);
 
+    const prefetchRef = useRef<{
+        playlistId: string;
+        generation: number;
+        startedAt: number;
+        promise: Promise<StartSoloRoundResponse>;
+    } | null>(null);
+
+    const prefetchNextRound = () => {
+        const playlistId = selectedPlaylistIdRef.current;
+        if (!playlistId) return;
+        const prefetch = {
+            playlistId,
+            generation: playlistLoadGenerationRef.current,
+            startedAt: Date.now(),
+            promise: startSoloRound(playlistId)
+        };
+        prefetchRef.current = prefetch;
+        prefetch.promise.then(round => {
+            if (prefetchRef.current === prefetch) {
+                preloadPreview(round.previewUrl);
+            }
+        }).catch(() => {
+            // Consumed prefetches fall back to a fresh startSoloRound call.
+        });
+    };
+
     const startRound = async (playlistId: string, loadGeneration?: number) => {
         const isStaleLoad = () => loadGeneration !== undefined && playlistLoadGenerationRef.current !== loadGeneration;
         if (isStaleLoad()) return;
         setIsLoadingGame(true);
         pause();
 
+        const prefetch = prefetchRef.current;
+        const canUsePrefetch = !!prefetch
+            && prefetch.playlistId === playlistId
+            && prefetch.generation === playlistLoadGenerationRef.current
+            && Date.now() - prefetch.startedAt < PREFETCH_MAX_AGE_MS;
+        prefetchRef.current = null;
+
         try {
-            const round = await startSoloRound(playlistId);
+            let round: StartSoloRoundResponse | null = null;
+            if (canUsePrefetch && prefetch) {
+                try {
+                    round = await prefetch.promise;
+                } catch {
+                    round = null;
+                }
+            }
+            if (!round) {
+                round = await startSoloRound(playlistId);
+            }
             if (isStaleLoad()) return;
             setCurrentRoundId(round.roundId);
             setCurrentPreviewUrl(round.previewUrl);
@@ -67,6 +114,7 @@ export const useGameLogic = (
             setUserGuess('');
             setFeedbackMessage('');
             setGameState('playing');
+            preloadPreview(round.previewUrl);
             trackEvent('solo-round-start');
         } catch (error) {
             if (isStaleLoad()) return;
@@ -98,11 +146,13 @@ export const useGameLogic = (
                 setGameState('end');
                 setFeedbackMessage(`Correct! You won! Guessed the song in ${result.snippetDurationMs / 1000} seconds.`);
                 trackEvent('solo-game-end', { result: 'correct' });
+                prefetchNextRound();
             } else if (result.result === 'out-of-snippet') {
                 setTargetSong(result.answer);
                 setGameState('end');
                 setFeedbackMessage(`Game Over! You didn't get it. The song was: ${result.answer?.name || 'unknown'}`);
                 trackEvent('solo-game-end', { result: 'out-of-snippet' });
+                prefetchNextRound();
             } else {
                 setSnippetDuration(result.snippetDurationMs);
                 if (guessText) {
@@ -152,6 +202,7 @@ export const useGameLogic = (
             setGameState('end');
             setFeedbackMessage(`The song was: ${result.answer.name}`);
             trackEvent('solo-game-end', { result: 'gave-up' });
+            prefetchNextRound();
         } catch (error) {
             setFeedbackMessage(getErrorMessage(error, 'Could not reveal the song. Try again.'));
         }
@@ -163,6 +214,7 @@ export const useGameLogic = (
 
     const handleSelectNewPlaylist = () => {
         playlistLoadGenerationRef.current += 1;
+        prefetchRef.current = null;
         pause();
         setIsLoadingGame(false);
         setGameState('idle');
@@ -180,6 +232,7 @@ export const useGameLogic = (
         if (isLoadingGame) return;
 
         const loadGeneration = ++playlistLoadGenerationRef.current;
+        prefetchRef.current = null;
         const isStaleLoad = () => playlistLoadGenerationRef.current !== loadGeneration;
         setSelectedPlaylistName(playlistName);
         setSelectedPlaylistId(playlistId);
@@ -245,6 +298,8 @@ export const useGameLogic = (
         isPlaying,
         playerError,
         volume,
-        setVolume
+        setVolume,
+        positionMs,
+        playbackDurationMs
     };
 };

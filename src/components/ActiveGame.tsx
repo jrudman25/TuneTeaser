@@ -9,6 +9,7 @@ import LightbulbOutlined from '@mui/icons-material/LightbulbOutlined';
 import VolumeDown from '@mui/icons-material/VolumeDown';
 import VolumeUp from '@mui/icons-material/VolumeUp';
 import ConfirmDialog from './ConfirmDialog';
+import SnippetProgress from './SnippetProgress';
 import { useGameShortcuts } from '../hooks/useGameShortcuts';
 
 interface ActiveGameProps {
@@ -21,6 +22,8 @@ interface ActiveGameProps {
     onGiveUp: () => void;
     feedbackMessage: string;
     isPlaying: boolean;
+    positionMs?: number;
+    playbackDurationMs?: number;
     selectedPlaylistName: string;
     songs: any[];
     wrongGuesses?: string[];
@@ -38,6 +41,8 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
     onGiveUp,
     feedbackMessage,
     isPlaying,
+    positionMs = 0,
+    playbackDurationMs = 0,
     selectedPlaylistName,
     songs,
     wrongGuesses = [],
@@ -103,7 +108,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
 
             <div className="play-row">
                 <button className="button button-large" onClick={onPlaySnippet} disabled={isPlaying}>Play Snippet</button>
-                {isPlaying && <span className="playing-badge">Playing...</span>}
+                <SnippetProgress isPlaying={isPlaying} positionMs={positionMs} durationMs={isPlaying && playbackDurationMs ? playbackDurationMs : snippetDuration} />
             </div>
 
             <div className="guess-row">
@@ -163,7 +168,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
                                         border: '3px solid var(--ink)'
                                     },
                                     '&:hover fieldset': {
-                                        borderColor: 'var(--red)'
+                                        borderColor: 'var(--ink)'
                                     },
                                     '&.Mui-focused fieldset': {
                                         borderColor: 'var(--teal)'
@@ -199,6 +204,8 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
                 <button className="button button-tertiary" onClick={() => onGuessSubmit()} disabled={isSubmittingGuess}>Guess</button>
             </div>
 
+            {feedbackMessage && <div className="feedback-pill" role="status" aria-live="polite">{feedbackMessage}</div>}
+
             {wrongGuesses.length > 0 && (
                 <div className="guess-history" aria-label="Previous guesses">
                     <span className="guess-history-label">Previous guesses:</span>
@@ -217,8 +224,6 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
             <div className="shortcut-hint">
                 Shortcuts: Space plays the snippet, Enter guesses, Esc gives up.
             </div>
-
-            {feedbackMessage && <div className="feedback-pill">{feedbackMessage}</div>}
 
             <button className="button button-quiet" onClick={onGiveUp}>Give Up</button>
 

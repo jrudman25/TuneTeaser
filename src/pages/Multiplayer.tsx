@@ -5,6 +5,7 @@ import { signInAnonymously, signOut } from 'firebase/auth';
 import { FirebaseError } from 'firebase/app';
 import NavBar from '../components/NavBar';
 import ConfirmDialog from '../components/ConfirmDialog';
+import SnippetProgress from '../components/SnippetProgress';
 import ToastMessage from '../components/ToastMessage';
 import { useGameShortcuts } from '../hooks/useGameShortcuts';
 
@@ -90,7 +91,7 @@ const Multiplayer = () => {
     const [isGuessFocused, setIsGuessFocused] = useState(false);
     const [giveUpConfirmRoundId, setGiveUpConfirmRoundId] = useState<string | null>(null);
     const [roundFeedback, setRoundFeedback] = useState('');
-    const { playPreview, pause, isPlaying, error: playerError, volume, setVolume } = usePreviewPlayer();
+    const { playPreview, pause, isPlaying, error: playerError, volume, setVolume, positionMs, playbackDurationMs } = usePreviewPlayer();
 
     const filteredPlaylists = useMemo(() => {
         if (!playlistSearch.trim()) return playlists;
@@ -754,13 +755,15 @@ const Multiplayer = () => {
             <NavBar actionButtons={navActionButtons} onNavigate={handleNavigateAway} />
             <main className="page home-page multiplayer-page">
                 <section className="record-bin multiplayer-panel">
-                    <span className="eyebrow">Party mode</span>
-                    <h1 className="section-title">{activeRoomId ? 'Game room' : 'Multiplayer lobby'}</h1>
-                    <p className="body-copy">
-                        {activeRoomId
-                            ? 'Share the room link with players, choose a playlist, and get ready to play synchronized rounds.'
-                            : 'Create a private room, share the code or link, and let players join from their own devices.'}
-                    </p>
+                    {!activeRoomId && (
+                        <>
+                            <span className="eyebrow">Party mode</span>
+                            <h1 className="section-title">Multiplayer lobby</h1>
+                            <p className="body-copy">
+                                Create a private room, share the code or link, and let players join from their own devices.
+                            </p>
+                        </>
+                    )}
 
                     <ToastMessage
                         message={toastMessage}
@@ -813,7 +816,7 @@ const Multiplayer = () => {
                     {isMissingRoom && (
                         <div className="multiplayer-card">
                             <span className="eyebrow">Unavailable room</span>
-                            <h2>Room not found or expired</h2>
+                            <h1>Room not found or expired</h1>
                             <p className="body-copy">Check the invite link, or return to the lobby to create or join another room.</p>
                             <button className="button button-secondary" type="button" onClick={() => {
                                 resetLocalRoomState();
@@ -829,7 +832,7 @@ const Multiplayer = () => {
                             <div className="multiplayer-lobby-header">
                                 <div>
                                     <span className="eyebrow">Room code: {activeRoomId}</span>
-                                    <h2 className="section-title">{room.roomName || (room.status === 'playing' ? 'Game in progress' : 'Lobby')}</h2>
+                                    <h1 className="section-title">{room.roomName || (room.status === 'playing' ? 'Game in progress' : 'Lobby')}</h1>
                                     <p className="body-copy">{room.status === 'playing' ? 'Game in progress' : 'Lobby'}</p>
                                     <p className="body-copy">{room.playerCount} / {room.maxPlayers} players joined</p>
                                     {currentPlayer && room.status === 'lobby' && (
@@ -998,7 +1001,11 @@ const Multiplayer = () => {
                                             <button className="button button-large" type="button" disabled={isPlaying || !roundData?.previewUrl} onClick={handlePlayRoundSnippet}>
                                                 Play Snippet
                                             </button>
-                                            {isPlaying && <span className="playing-badge">Playing...</span>}
+                                            <SnippetProgress
+                                                isPlaying={isPlaying}
+                                                positionMs={positionMs}
+                                                durationMs={(isPlaying && playbackDurationMs) || currentPlayer?.roundSnippetDurationMs || room?.currentRound?.snippetDurationMs || 2000}
+                                            />
                                         </div>
 
                                         <div className="guess-row">
@@ -1067,6 +1074,7 @@ const Multiplayer = () => {
                                             </div>
                                         ) : (
                                             <>
+                                                {roundFeedback && <div className="feedback-pill" role="status" aria-live="polite">{roundFeedback}</div>}
                                                 {room.revealedRound && (
                                                     <div className="feedback-pill">
                                                         Answer: {room.revealedRound.title} by {room.revealedRound.artistName}
@@ -1082,7 +1090,6 @@ const Multiplayer = () => {
                                                         </ul>
                                                     </div>
                                                 )}
-                                                {roundFeedback && <div className="feedback-pill">{roundFeedback}</div>}
 
                                                 <div className="give-up-zone">
                                                     <span className="helper-text">Stuck on this round?</span>

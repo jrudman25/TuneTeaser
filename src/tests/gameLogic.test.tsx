@@ -3,6 +3,10 @@ import { renderHook, act } from '@testing-library/react';
 import { useGameLogic } from '../hooks/useGameLogic';
 import { ManualPlaylist } from '../utils/manualPlaylists';
 
+const mocks = vi.hoisted(() => ({
+    preloadPreview: vi.fn()
+}));
+
 vi.mock('../hooks/usePreviewPlayer', () => ({
     default: () => ({
         playPreview: vi.fn(),
@@ -10,7 +14,10 @@ vi.mock('../hooks/usePreviewPlayer', () => ({
         isPlaying: false,
         error: null,
         volume: 0.5,
-        setVolume: vi.fn()
+        setVolume: vi.fn(),
+        positionMs: 0,
+        playbackDurationMs: 0,
+        preloadPreview: mocks.preloadPreview
     })
 }));
 
@@ -204,6 +211,145 @@ describe('useGameLogic (server-run solo rounds)', () => {
         });
 
         expect(result.current.currentRoundId).toBe('second');
+    });
+
+    it('prefetches the next round when a game ends and reuses it on Play Again', async () => {
+        const { result } = renderGame();
+        await act(async () => {
+            await result.current.loadPlaylist('manual1', 'My Mix');
+        });
+        expect(mockStartSoloRound).toHaveBeenCalledTimes(1);
+        expect(mocks.preloadPreview).toHaveBeenCalledWith(ROUND.previewUrl);
+
+        mockStartSoloRound.mockResolvedValueOnce({ ...ROUND, roundId: 'round-2' });
+        mockSubmitSoloGuess.mockResolvedValue({ result: 'correct', snippetDurationMs: 2000, pointsAwarded: 25, answer: ANSWER });
+
+        await act(async () => {
+            await result.current.handleGuessSubmit('Song One');
+            await Promise.resolve();
+        });
+
+        expect(result.current.gameState).toBe('end');
+        expect(mockStartSoloRound).toHaveBeenCalledTimes(2);
+        expect(mockStartSoloRound).toHaveBeenLastCalledWith('manual1');
+
+        await act(async () => {
+            result.current.handlePlayAgain();
+            await Promise.resolve();
+        });
+
+        expect(mockStartSoloRound).toHaveBeenCalledTimes(2);
+        expect(result.current.gameState).toBe('playing');
+        expect(result.current.currentRoundId).toBe('round-2');
+    });
+
+    it('awaits an in-flight prefetch instead of starting a second round', async () => {
+        const { result } = renderGame();
+        await act(async () => {
+            await result.current.loadPlaylist('manual1', 'My Mix');
+        });
+
+        let resolvePrefetch: (value: unknown) => void = () => { };
+        mockStartSoloRound.mockImplementationOnce(() => new Promise(resolve => { resolvePrefetch = resolve; }));
+        mockSubmitSoloGuess.mockResolvedValue({ result: 'correct', snippetDurationMs: 2000, pointsAwarded: 25, answer: ANSWER });
+
+        await act(async () => {
+            await result.current.handleGuessSubmit('Song One');
+        });
+        expect(mockStartSoloRound).toHaveBeenCalledTimes(2);
+
+        await act(async () => {
+            result.current.handlePlayAgain();
+        });
+        resolvePrefetch({ ...ROUND, roundId: 'round-2' });
+        await act(async () => {
+            await Promise.resolve();
+        });
+
+        expect(mockStartSoloRound).toHaveBeenCalledTimes(2);
+        expect(result.current.gameState).toBe('playing');
+        expect(result.current.currentRoundId).toBe('round-2');
+    });
+
+    it('falls back to a fresh round when the prefetch fails', async () => {
+        const { result } = renderGame();
+        await act(async () => {
+            await result.current.loadPlaylist('manual1', 'My Mix');
+        });
+
+        mockStartSoloRound.mockRejectedValueOnce(new Error('prefetch failed'));
+        mockSubmitSoloGuess.mockResolvedValue({ result: 'correct', snippetDurationMs: 2000, pointsAwarded: 25, answer: ANSWER });
+
+        await act(async () => {
+            await result.current.handleGuessSubmit('Song One');
+            await Promise.resolve();
+        });
+        expect(mockStartSoloRound).toHaveBeenCalledTimes(2);
+
+        mockStartSoloRound.mockResolvedValueOnce({ ...ROUND, roundId: 'round-3' });
+        await act(async () => {
+            result.current.handlePlayAgain();
+            await Promise.resolve();
+        });
+
+        expect(mockStartSoloRound).toHaveBeenCalledTimes(3);
+        expect(result.current.gameState).toBe('playing');
+        expect(result.current.currentRoundId).toBe('round-3');
+    });
+
+    it('discards the prefetch when selecting a new playlist', async () => {
+        const { result } = renderGame();
+        await act(async () => {
+            await result.current.loadPlaylist('manual1', 'My Mix');
+        });
+
+        mockStartSoloRound.mockResolvedValueOnce({ ...ROUND, roundId: 'stale-round' });
+        mockSubmitSoloGuess.mockResolvedValue({ result: 'correct', snippetDurationMs: 2000, pointsAwarded: 25, answer: ANSWER });
+
+        await act(async () => {
+            await result.current.handleGuessSubmit('Song One');
+            await Promise.resolve();
+        });
+        expect(mockStartSoloRound).toHaveBeenCalledTimes(2);
+
+        await act(async () => {
+            result.current.handleSelectNewPlaylist();
+        });
+        mockStartSoloRound.mockResolvedValueOnce({ ...ROUND, roundId: 'fresh-round' });
+        await act(async () => {
+            await result.current.loadPlaylist('guest_top_hits', 'Top Hits');
+        });
+
+        expect(mockStartSoloRound).toHaveBeenCalledTimes(3);
+        expect(mockStartSoloRound).toHaveBeenLastCalledWith('guest_top_hits');
+        expect(result.current.currentRoundId).toBe('fresh-round');
+    });
+
+    it('discards a prefetch older than 25 minutes', async () => {
+        const { result } = renderGame();
+        await act(async () => {
+            await result.current.loadPlaylist('manual1', 'My Mix');
+        });
+
+        mockStartSoloRound.mockResolvedValueOnce({ ...ROUND, roundId: 'stale-round' });
+        mockSubmitSoloGuess.mockResolvedValue({ result: 'correct', snippetDurationMs: 2000, pointsAwarded: 25, answer: ANSWER });
+
+        await act(async () => {
+            await result.current.handleGuessSubmit('Song One');
+            await Promise.resolve();
+        });
+        expect(mockStartSoloRound).toHaveBeenCalledTimes(2);
+
+        const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 26 * 60 * 1000);
+        mockStartSoloRound.mockResolvedValueOnce({ ...ROUND, roundId: 'fresh-round' });
+        await act(async () => {
+            result.current.handlePlayAgain();
+            await Promise.resolve();
+        });
+        dateNowSpy.mockRestore();
+
+        expect(mockStartSoloRound).toHaveBeenCalledTimes(3);
+        expect(result.current.currentRoundId).toBe('fresh-round');
     });
 
     it('ignores a double-submit while one is in flight', async () => {
