@@ -124,7 +124,7 @@ const Leaderboard = () => {
                                 </div>
                                 <div className="stat-block">
                                     <span className="stat-value">{currentUserEntry.gamesWon.toLocaleString()}</span>
-                                    <span className="stat-label">Wins</span>
+                                    <span className="stat-label">Songs guessed</span>
                                 </div>
                             </div>
                         </div>
@@ -149,7 +149,7 @@ const Leaderboard = () => {
                                         <th className="col-rank">Rank</th>
                                         <th className="col-name">Player</th>
                                         <th className="col-points">Points</th>
-                                        <th className="col-wins">Wins</th>
+                                        <th className="col-wins">Songs guessed</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -187,7 +187,7 @@ const Leaderboard = () => {
                                         <span className="you-tag">you</span>
                                     </span>
                                     <span className="points-badge">{currentUserEntry.totalPoints.toLocaleString()}</span>
-                                    <span>{currentUserEntry.gamesWon.toLocaleString()} wins</span>
+                                    <span>{currentUserEntry.gamesWon.toLocaleString()} songs guessed</span>
                                 </div>
                             )}
                         </div>

@@ -4,7 +4,7 @@
  * @version 2026.05.24
  */
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signInAnonymously, signOut } from 'firebase/auth';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
@@ -237,14 +237,6 @@ const Login = () => {
                         <p className="lede">
                             Drop the needle on a tiny song snippet, race the clock in your head, and prove you know your playlists better than anyone.
                         </p>
-                        <div className="how-to-card">
-                            <span className="kicker">How it works</span>
-                            <ol className="how-to-list">
-                                <li><span className="number-chip">1</span><span>Create an account, or play instantly in Guest Mode.</span></li>
-                                <li><span className="number-chip">2</span><span>Import playlists by searching Spotify, pasting Spotify links, browsing a Spotify profile, or building a custom track list.</span></li>
-                                <li><span className="number-chip">3</span><span>Pick a playlist, hear a short snippet, and guess the track title.</span></li>
-                            </ol>
-                        </div>
                         <div className="hero-actions">
                                 {
                                         <>
@@ -339,7 +331,18 @@ const Login = () => {
                                     }
                         </div>
                     </div>
-                    <div className="record-visual" aria-hidden="true" />
+                    <div className="hero-side">
+                        <div className="record-visual" aria-hidden="true" />
+                        <div className="how-to-card">
+                            <span className="kicker">How it works</span>
+                            <ol className="how-to-list">
+                                <li><span className="number-chip">1</span><span>Create an account, or play instantly in Guest Mode.</span></li>
+                                <li><span className="number-chip">2</span><span>Import playlists by searching Spotify, pasting Spotify links, browsing a Spotify profile, or building a custom track list.</span></li>
+                                <li><span className="number-chip">3</span><span>Pick a playlist, hear a short snippet, and guess the track title.</span></li>
+                            </ol>
+                            <Link className="text-link" to="/help">Full rules and scoring</Link>
+                        </div>
+                    </div>
                 </section>
             </main>
         </>

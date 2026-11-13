@@ -98,10 +98,20 @@
   body.dark-theme .text-area,
   body.dark-theme .filter-controls .text-input,
   body.dark-theme .button-quiet,
-  body.dark-theme .rank-badge {
+  body.dark-theme .rank-badge,
+  body.dark-theme .playlist-source-tabs,
+  body.dark-theme .filter-chip {
     color: var(--ink);
     background-color: #171b24;
     box-shadow: 4px 4px 0 #05060a;
+  }
+
+  body.dark-theme .filter-chip-selected {
+    color: #171008;
+  }
+
+  body.dark-theme .filter-chip-sheet {
+    background: var(--paper-deep);
   }
 
   body.dark-theme .filter-controls select.text-input {
@@ -221,6 +231,11 @@
 
   body.dark-theme .record-visual {
     box-shadow: 14px 14px 0 var(--red), -16px -16px 0 rgba(57, 214, 199, 0.22);
+  }
+
+  body.dark-theme .snippet-progress-bar {
+    background: #171b24;
+    box-shadow: 3px 3px 0 #05060a;
   }
 
   body.dark-theme .album-frame {
@@ -735,7 +750,6 @@
   }
 
   .button:active:not(:disabled) {
-    transform: translate(3px, 3px);
     box-shadow: 2px 2px 0 var(--ink);
   }
 
@@ -796,6 +810,23 @@
     background: var(--paper);
   }
 
+  .hero-side {
+    display: grid;
+    gap: 24px;
+    align-content: start;
+    justify-items: center;
+  }
+
+  .hero-side .record-visual {
+    position: static;
+    width: min(260px, 60vw);
+  }
+
+  .hero-side .how-to-card {
+    width: 100%;
+    margin-top: 0;
+  }
+
   .how-to-card {
     position: relative;
     z-index: 1;
@@ -804,6 +835,11 @@
     border-radius: 22px;
     padding: 20px;
     background: rgba(255, 248, 232, 0.74);
+  }
+
+  .how-to-card .text-link {
+    display: inline-block;
+    margin-top: 14px;
   }
 
   .how-to-list {
@@ -1344,8 +1380,12 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 26px;
+    gap: 16px;
     overflow: hidden;
+  }
+
+  .stage-card .section-title {
+    font-size: clamp(1.6rem, 4vw, 2.6rem);
   }
 
   .stage-card::before {
@@ -1362,6 +1402,10 @@
     gap: 12px;
     justify-items: center;
     text-align: center;
+  }
+
+  .stage-header {
+    gap: 8px;
   }
 
   .volume-console {
@@ -1410,6 +1454,36 @@
     color: var(--teal);
     font-weight: 900;
     animation: pulse 900ms ease-in-out infinite;
+  }
+
+  .snippet-progress {
+    display: grid;
+    gap: 6px;
+    width: min(100%, 260px);
+    justify-items: center;
+  }
+
+  .snippet-progress-bar {
+    width: 100%;
+    height: 14px;
+    border: 3px solid var(--ink);
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--cream);
+    box-shadow: 3px 3px 0 var(--ink);
+  }
+
+  .snippet-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--teal), var(--gold));
+    transition: width 250ms linear;
+  }
+
+  .snippet-progress-text {
+    min-height: 1.2em;
+    color: var(--ink-soft);
+    font-size: 0.85rem;
+    font-weight: 900;
   }
 
   .guess-row {
@@ -1504,6 +1578,18 @@
     aspect-ratio: 1;
     object-fit: cover;
     border-radius: 10px;
+  }
+
+  .album-frame .album-art {
+    position: absolute;
+    inset: 10px;
+    width: calc(100% - 20px);
+    opacity: 0;
+    transition: opacity 200ms ease;
+  }
+
+  .album-frame .album-art-loaded {
+    opacity: 1;
   }
 
   .fallback-record {
@@ -1678,6 +1764,127 @@
     align-items: center;
     justify-content: center;
     background: var(--cream);
+  }
+
+  .record-bin-header {
+    display: grid;
+    gap: 6px;
+    justify-items: start;
+  }
+
+  .playlist-source-tabs {
+    display: inline-flex;
+    gap: 6px;
+    width: fit-content;
+    border: 3px solid var(--ink);
+    border-radius: 999px;
+    padding: 5px;
+    background: var(--cream);
+    box-shadow: 4px 4px 0 var(--ink);
+  }
+
+  .playlist-source-tab {
+    border: 2px solid transparent;
+    border-radius: 999px;
+    padding: 8px 18px;
+    color: var(--ink);
+    font-weight: 900;
+    cursor: pointer;
+    background: transparent;
+  }
+
+  .playlist-source-tab-selected {
+    border-color: var(--ink);
+    color: var(--cream);
+    background: var(--teal);
+  }
+
+  .filter-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .filter-chip-label {
+    color: var(--ink-soft);
+    font-size: 0.82rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .filter-chip {
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    padding: 6px 14px;
+    color: var(--ink);
+    font-size: 0.9rem;
+    font-weight: 900;
+    cursor: pointer;
+    background: var(--cream);
+    box-shadow: 2px 2px 0 var(--ink);
+  }
+
+  .filter-chip-selected {
+    color: var(--cream);
+    background: var(--teal);
+  }
+
+  .filter-chip-sheet {
+    display: grid;
+    gap: 14px;
+    padding: 20px;
+    border-top: 3px solid var(--ink);
+    background: var(--paper);
+  }
+
+  .filter-chip-sheet-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .playlist-menu-empty {
+    padding: 2rem;
+    text-align: center;
+    opacity: 0.7;
+  }
+
+  .playlist-menu-empty-card {
+    display: grid;
+    gap: 12px;
+    justify-items: center;
+    padding: 2rem;
+    text-align: center;
+    border: 2px dashed var(--ink-soft);
+    border-radius: 12px;
+  }
+
+  .playlist-menu-empty-title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+  }
+
+  .playlist-menu-empty-copy {
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  .playlist-meta-sm {
+    font-size: 0.85rem;
+  }
+
+  .playlist-card-importing-detail {
+    color: var(--cream);
+    font-family: var(--body);
+    font-size: 0.85rem;
+    font-weight: 900;
+  }
+
+  .record-grid-placeholder {
+    visibility: hidden;
   }
 
   /* ── Confirm Dialog & Onboarding ── */
@@ -2049,6 +2256,14 @@
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
+    }
+
+    .snippet-progress-fill {
+      transition: none;
+    }
+
+    .playing-badge {
+      animation: none;
     }
   }
 }

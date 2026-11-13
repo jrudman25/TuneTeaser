@@ -1,10 +1,13 @@
 /**
  * PlaylistMenu.tsx
  * Displays user playlists for selection.
- * @version 2026.05.24
+ * @version 2026.06.05
  */
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import FilterChipRow from './FilterChipRow';
+
+type PlaylistSource = 'mine' | 'premade';
 
 interface PlaylistMenuProps {
     playlists: any[];
@@ -14,18 +17,53 @@ interface PlaylistMenuProps {
     feedbackMessage?: string;
 }
 
+const isPremadePlaylist = (playlist: { id: string }) => {
+    return playlist.id.startsWith('guest_') && !playlist.id.startsWith('guest_manual_');
+};
+
+// Most-tagged first, then alphabetical.
+const getTagOptions = (playlists: Array<{ genres?: string[]; decades?: string[] }>, key: 'genres' | 'decades') => {
+    const counts = new Map<string, number>();
+    playlists.forEach(playlist => {
+        const tags = Array.isArray(playlist[key]) ? playlist[key] : [];
+        tags.forEach((tag: string) => counts.set(tag, (counts.get(tag) || 0) + 1));
+    });
+    return [...counts.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([tag]) => tag);
+};
+
+const getStoredSource = (): PlaylistSource | null => {
+    const stored = localStorage.getItem('playlistMenuSource');
+    return stored === 'mine' || stored === 'premade' ? stored : null;
+};
+
 const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist, isLoading, isGuest = false, feedbackMessage = '' }) => {
     const [playlistPage, setPlaylistPage] = useState(0);
     const PLAYLISTS_PER_PAGE = 8;
 
-    const [showPremadePlaylists, setShowPremadePlaylists] = useState(() => {
-        return localStorage.getItem('showPremadePlaylists') !== 'false';
-    });
+    const [chosenSource, setChosenSource] = useState<PlaylistSource | null>(getStoredSource);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [sortBy, setSortBy] = useState<'default' | 'name' | 'tracks'>('default');
+    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+    const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
+    const [selectedDecade, setSelectedDecade] = useState<string | null>(null);
 
-    const handleTogglePremade = (checked: boolean) => {
-        setShowPremadePlaylists(checked);
-        localStorage.setItem('showPremadePlaylists', String(checked));
+    const ownPlaylists = useMemo(() => playlists.filter(playlist => !isPremadePlaylist(playlist)), [playlists]);
+    const premadePlaylists = useMemo(() => playlists.filter(isPremadePlaylist), [playlists]);
+    const source: PlaylistSource = chosenSource ?? (ownPlaylists.length > 0 ? 'mine' : 'premade');
+    const sourcePlaylists = source === 'premade' ? premadePlaylists : ownPlaylists;
+
+    const genreOptions = useMemo(() => getTagOptions(premadePlaylists, 'genres'), [premadePlaylists]);
+    const decadeOptions = useMemo(() => getTagOptions(premadePlaylists, 'decades'), [premadePlaylists]);
+
+    const handleSelectSource = (next: PlaylistSource) => {
+        setChosenSource(next);
+        localStorage.setItem('playlistMenuSource', next);
         setPlaylistPage(0);
+        setSearchQuery('');
+        setSelectedGenre(null);
+        setSelectedDecade(null);
     };
 
     const formatPlaylistDate = (value: any) => {
@@ -43,21 +81,21 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
         return date ? date.toLocaleDateString() : 'Just now';
     };
 
-    const [searchQuery, setSearchQuery] = useState('');
-    const [sortBy, setSortBy] = useState<'default' | 'name' | 'tracks'>('default');
-    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-
     const filteredAndSortedPlaylists = useMemo(() => {
-        let list = playlists;
-        if (!showPremadePlaylists) {
-            list = playlists.filter(p => !(p.id.startsWith('guest_') && !p.id.startsWith('guest_manual_')));
-        }
-
-        let result = list.map((p, index) => ({ ...p, originalIndex: index }));
+        let result = sourcePlaylists.map((p, index) => ({ ...p, originalIndex: index }));
 
         if (searchQuery.trim()) {
             const lowerQuery = searchQuery.toLowerCase();
             result = result.filter(p => p.name?.toLowerCase().includes(lowerQuery));
+        }
+
+        if (source === 'premade') {
+            if (selectedGenre) {
+                result = result.filter(p => Array.isArray(p.genres) && p.genres.includes(selectedGenre));
+            }
+            if (selectedDecade) {
+                result = result.filter(p => Array.isArray(p.decades) && p.decades.includes(selectedDecade));
+            }
         }
 
         result.sort((a, b) => {
@@ -76,37 +114,50 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
         });
 
         return result;
-    }, [playlists, showPremadePlaylists, searchQuery, sortBy, sortDir]);
+    }, [sourcePlaylists, source, searchQuery, sortBy, sortDir, selectedGenre, selectedDecade]);
 
     const playlistPageCount = Math.ceil(filteredAndSortedPlaylists.length / PLAYLISTS_PER_PAGE);
     const clampedPage = playlistPageCount > 0 ? Math.min(playlistPage, playlistPageCount - 1) : 0;
 
     const currentPagePlaylists = filteredAndSortedPlaylists.slice(clampedPage * PLAYLISTS_PER_PAGE, (clampedPage + 1) * PLAYLISTS_PER_PAGE);
-    const hasLikedSongs = clampedPage === 0 && !isGuest && !searchQuery && sortBy === 'default' && sortDir === 'asc';
+    const hasLikedSongs = clampedPage === 0 && source === 'mine' && !isGuest && !searchQuery && sortBy === 'default' && sortDir === 'asc';
     const visibleItemsCount = currentPagePlaylists.length + (hasLikedSongs ? 1 : 0);
     const placeholdersNeeded = visibleItemsCount > 0 ? Math.max(0, PLAYLISTS_PER_PAGE - visibleItemsCount) : 0;
     const placeholders = Array.from({ length: placeholdersNeeded });
+    const hasActiveFilters = Boolean(searchQuery.trim()) || selectedGenre !== null || selectedDecade !== null;
 
     return (
         <section className="record-bin">
-            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '1rem' }}>
-                <div>
-                    <span className="eyebrow">Record bin</span>
-                    <h2 className="section-title">Choose your playlist</h2>
-                    <p className="body-copy">Pick the playlist you know best. We will pull one track and start the quiz stage.</p>
-                </div>
+            <div className="record-bin-header">
+                <span className="eyebrow">Record bin</span>
+                <h2 className="section-title">Choose your playlist</h2>
+                <p className="body-copy">Pick the playlist you know best. We will pull one track and start the quiz stage.</p>
+            </div>
 
-                {!isLoading && playlists.length > 0 && (
-                    <div className="filter-controls" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.75rem' }}>
-                        <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginRight: '0.5rem', cursor: 'pointer', fontSize: '0.9rem', opacity: 0.9 }}>
-                            <input
-                                type="checkbox"
-                                checked={showPremadePlaylists}
-                                onChange={e => handleTogglePremade(e.target.checked)}
-                                style={{ cursor: 'pointer' }}
-                            />
-                            <span>Include Premades</span>
-                        </label>
+            {!isLoading && playlists.length > 0 && (
+                <>
+                    <div className="playlist-source-tabs" role="tablist" aria-label="Playlist source">
+                        <button
+                            type="button"
+                            role="tab"
+                            aria-selected={source === 'mine'}
+                            className={`playlist-source-tab${source === 'mine' ? ' playlist-source-tab-selected' : ''}`}
+                            onClick={() => handleSelectSource('mine')}
+                        >
+                            Your playlists
+                        </button>
+                        <button
+                            type="button"
+                            role="tab"
+                            aria-selected={source === 'premade'}
+                            className={`playlist-source-tab${source === 'premade' ? ' playlist-source-tab-selected' : ''}`}
+                            onClick={() => handleSelectSource('premade')}
+                        >
+                            Premade
+                        </button>
+                    </div>
+
+                    <div className="filter-controls">
                         <input
                             type="text"
                             className="text-input"
@@ -142,8 +193,31 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
                             {sortDir === 'asc' ? 'Asc' : 'Desc'}
                         </button>
                     </div>
-                )}
-            </div>
+
+                    {source === 'premade' && genreOptions.length > 0 && (
+                        <FilterChipRow
+                            label="Genre"
+                            options={genreOptions}
+                            selected={selectedGenre}
+                            onSelect={value => {
+                                setSelectedGenre(value);
+                                setPlaylistPage(0);
+                            }}
+                        />
+                    )}
+                    {source === 'premade' && decadeOptions.length > 0 && (
+                        <FilterChipRow
+                            label="Decade"
+                            options={decadeOptions}
+                            selected={selectedDecade}
+                            onSelect={value => {
+                                setSelectedDecade(value);
+                                setPlaylistPage(0);
+                            }}
+                        />
+                    )}
+                </>
+            )}
             {!isLoading && feedbackMessage && (
                 <div className="error-banner" role="alert">{feedbackMessage}</div>
             )}
@@ -168,24 +242,24 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
                                         {(isImporting || hasImportError) && (
                                             <div className="playlist-card-importing-overlay">
                                                 <span>{hasImportError ? 'Import Error' : 'Importing'}</span>
-                                                <span style={{ fontSize: '0.85rem', fontFamily: 'var(--body)', fontWeight: 900, color: 'var(--cream)' }}>
+                                                <span className="playlist-card-importing-detail">
                                                     {hasImportError ? (playlist.importError || 'Import failed') : `${playlist.importedCount || 0} / ${playlist.totalCount || 100} tracks`}
                                                 </span>
                                             </div>
                                         )}
-                                        <span className="playlist-label">{playlist.sourceUrl && playlist.sourceUrl.includes('spotify.com') ? 'Spotify import' : playlist.id.startsWith('guest_') && !playlist.id.startsWith('guest_manual_') ? 'Playlist' : 'Custom mix'}</span>
+                                        <span className="playlist-label">{playlist.sourceUrl && playlist.sourceUrl.includes('spotify.com') ? 'Spotify import' : isPremadePlaylist(playlist) ? 'Playlist' : 'Custom mix'}</span>
                                         <span className="playlist-name">{playlist.name}</span>
-                                        {playlist.ownerName && <span className="playlist-meta" style={{ fontSize: '0.85rem' }}>by {playlist.ownerName}</span>}
-                                        <span className="playlist-meta" style={{ fontSize: '0.85rem' }}>
+                                        {playlist.ownerName && <span className="playlist-meta playlist-meta-sm">by {playlist.ownerName}</span>}
+                                        <span className="playlist-meta playlist-meta-sm">
                                             {playlist.tracks?.total ?? playlist.tracks?.length ?? 0} tracks
                                         </span>
-                                        {playlist.id.startsWith('guest_') && !playlist.id.startsWith('guest_manual_') ? (
-                                            <span className="playlist-meta" style={{ fontSize: '0.85rem' }}>
+                                        {isPremadePlaylist(playlist) ? (
+                                            <span className="playlist-meta playlist-meta-sm">
                                                 Premade
                                             </span>
                                         ) : (
                                             playlist.createdAt && (
-                                                <span className="playlist-meta" style={{ fontSize: '0.85rem' }}>
+                                                <span className="playlist-meta playlist-meta-sm">
                                                     Added {formatPlaylistDate(playlist.createdAt)}
                                                 </span>
                                             )
@@ -195,32 +269,40 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
                             );
                         })}
                         {placeholders.map((_, i) => (
-                            <li key={`placeholder-${i}`} style={{ visibility: 'hidden' }} aria-hidden="true">
+                            <li key={`placeholder-${i}`} className="record-grid-placeholder" aria-hidden="true">
                                 <article className="playlist-card">
                                     <span className="playlist-label">&nbsp;</span>
                                     <span className="playlist-name">&nbsp;</span>
-                                    <span className="playlist-meta" style={{ fontSize: '0.85rem' }}>&nbsp;</span>
-                                    <span className="playlist-meta" style={{ fontSize: '0.85rem' }}>&nbsp;</span>
+                                    <span className="playlist-meta playlist-meta-sm">&nbsp;</span>
+                                    <span className="playlist-meta playlist-meta-sm">&nbsp;</span>
                                 </article>
                             </li>
                         ))}
                     </ul>
-                    {visibleItemsCount === 0 && searchQuery && (
-                        <div style={{ padding: '2rem', textAlign: 'center', opacity: 0.7 }}>
-                            No playlists found matching "{searchQuery}"
+                    {visibleItemsCount === 0 && hasActiveFilters && (
+                        <div className="playlist-menu-empty">
+                            {searchQuery.trim()
+                                ? `No playlists found matching "${searchQuery}"`
+                                : 'No playlists found.'}
                         </div>
                     )}
-                    {visibleItemsCount === 0 && !searchQuery && !showPremadePlaylists && (
-                        <div style={{ padding: '2rem', textAlign: 'center', opacity: 0.8, border: '2px dashed var(--ink-soft)', borderRadius: '12px', marginTop: '1rem' }}>
-                            <p style={{ marginBottom: '1rem', fontWeight: 700, fontSize: '1.1rem' }}>You don't have any playlists yet.</p>
-                            <p style={{ lineHeight: 1.5 }}>
-                                Check the <strong>"Include Premades"</strong> box above to play with our curated mixes, or go to{' '}
-                                <Link to={isGuest ? "/playlists?mode=guest" : "/playlists"} style={{ fontWeight: 700, textDecoration: 'underline' }}>
+                    {visibleItemsCount === 0 && !hasActiveFilters && source === 'mine' && (
+                        <div className="playlist-menu-empty-card">
+                            <p className="playlist-menu-empty-title">You don't have any playlists yet.</p>
+                            <p className="playlist-menu-empty-copy">
+                                Go to{' '}
+                                <Link className="text-link" to={isGuest ? "/playlists?mode=guest" : "/playlists"}>
                                     Manage Playlists
                                 </Link>{' '}
-                                to add your own music.
+                                to add your own music, or browse our curated mixes.
                             </p>
+                            <button className="button button-secondary" type="button" onClick={() => handleSelectSource('premade')}>
+                                Browse premade playlists
+                            </button>
                         </div>
+                    )}
+                    {visibleItemsCount === 0 && !hasActiveFilters && source === 'premade' && (
+                        <div className="playlist-menu-empty">No playlists found.</div>
                     )}
                     {filteredAndSortedPlaylists.length > PLAYLISTS_PER_PAGE && (
                         <div className="pagination-row">
