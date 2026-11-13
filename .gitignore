@@ -36,4 +36,5 @@ yarn-error.log*
 .codex-screenshots/
 firestore-debug.log
 firebase-debug.log
+/firebase-export*
 emulator_data/
