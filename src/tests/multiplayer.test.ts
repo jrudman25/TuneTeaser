@@ -30,6 +30,10 @@ vi.mock('firebase/firestore', () => ({
 }));
 
 vi.mock('../backend/FirebaseConfig', () => ({
+    auth: {
+        authStateReady: () => Promise.resolve(),
+        currentUser: { uid: 'user1' },
+    },
     db: 'mock-db',
     functions: 'mock-functions',
 }));

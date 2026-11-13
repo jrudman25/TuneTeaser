@@ -2,8 +2,9 @@ import React from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useManualPlaylists } from '../hooks/useManualPlaylists';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
-import { signInAnonymously, signOut } from 'firebase/auth';
+import { signOut } from 'firebase/auth';
 import { auth } from '../backend/FirebaseConfig';
+import { signInAsGuest } from '../utils/guestSignIn';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import SignedInBadge from '../components/SignedInBadge';
 import NavBar from '../components/NavBar';
@@ -81,7 +82,7 @@ const Playlists = () => {
 
     React.useEffect(() => {
         if (isGuest && !isLoadingUser && !user) {
-            signInAnonymously(auth).catch(err => {
+            signInAsGuest().catch(err => {
                 console.error("Failed to sign in guest anonymously in Playlists:", err);
                 setAuthError("Guest Mode authentication failed. Please ensure 'Anonymous sign-in' is enabled in your Firebase console.");
             });

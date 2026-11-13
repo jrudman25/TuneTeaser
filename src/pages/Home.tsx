@@ -5,8 +5,9 @@
  */
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { signOut, signInAnonymously } from 'firebase/auth';
+import { signOut } from 'firebase/auth';
 import { auth } from '../backend/FirebaseConfig';
+import { signInAsGuest } from '../utils/guestSignIn';
 import { usePlaylists } from '../hooks/usePlaylists';
 import { useGameLogic } from '../hooks/useGameLogic';
 import { useManualPlaylists } from '../hooks/useManualPlaylists';
@@ -50,7 +51,7 @@ const Home = () => {
 
     useEffect(() => {
         if (isGuest && !isLoadingUser && !user) {
-            signInAnonymously(auth).catch(err => {
+            signInAsGuest().catch(err => {
                 console.error("Failed to sign in guest anonymously:", err);
             });
         }
@@ -84,7 +85,9 @@ const Home = () => {
         wrongGuesses,
         isSubmittingGuess,
         volume,
-        setVolume
+        setVolume,
+        positionMs,
+        playbackDurationMs
     } = useGameLogic(isGuest, manualPlaylists, isManualMode);
 
     const [displayedPoints, setDisplayedPoints] = useState<number | null>(null);
@@ -221,6 +224,8 @@ const Home = () => {
                         onGiveUp={handleGiveUp}
                         feedbackMessage={feedbackMessage}
                         isPlaying={isPlaying}
+                        positionMs={positionMs}
+                        playbackDurationMs={playbackDurationMs}
                         selectedPlaylistName={selectedPlaylistName}
                         songs={currentTracks}
                         wrongGuesses={wrongGuesses}

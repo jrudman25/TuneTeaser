@@ -1,6 +1,7 @@
 import { httpsCallable } from 'firebase/functions';
 import { collection, doc, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db, functions } from '../backend/FirebaseConfig';
+import { callWithAuthRetry } from './guestSignIn';
 
 /**
  * Returns the direct HTTP URL for a Firebase Cloud Function callable.
@@ -119,7 +120,7 @@ interface AdvanceRoundResponse extends RoomResponse {
 
 const callRoomFunction = async <TInput>(name: string, input: TInput) => {
     const callable = httpsCallable<TInput, RoomResponse>(functions, name);
-    const result = await callable(input);
+    const result = await callWithAuthRetry(() => callable(input));
     return result.data;
 };
 
@@ -157,7 +158,7 @@ export const startMultiplayerGame = (roomId: string) => {
 
 export const advanceMultiplayerRound = async (roomId: string) => {
     const callable = httpsCallable<{ roomId: string }, AdvanceRoundResponse>(functions, 'advanceMultiplayerRound');
-    const result = await callable({ roomId });
+    const result = await callWithAuthRetry(() => callable({ roomId }));
     return result.data;
 };
 
@@ -170,7 +171,7 @@ export const getMultiplayerRoundData = async (roomId: string, roundId: string) =
         functions,
         'getMultiplayerRoundData'
     );
-    const result = await callable({ roomId, roundId });
+    const result = await callWithAuthRetry(() => callable({ roomId, roundId }));
     return result.data;
 };
 
@@ -184,7 +185,7 @@ export const submitMultiplayerGuess = async (
         { roomId: string; roundId: string; guess: string; snippetDurationMs: number },
         SubmitMultiplayerGuessResponse
     >(functions, 'submitMultiplayerGuess');
-    const result = await callable({ roomId, roundId, guess, snippetDurationMs });
+    const result = await callWithAuthRetry(() => callable({ roomId, roundId, guess, snippetDurationMs }));
     return result.data;
 };
 
