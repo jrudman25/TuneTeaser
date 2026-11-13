@@ -89,7 +89,7 @@ TuneTeaser account setup, username changes, and score writes are Cloud Function-
 *   **Fields**:
     *   `displayName`: `string`
     *   `totalPoints`: `number`
-    *   `gamesWon`: `number`
+    *   `gamesWon`: `number` (correct solo guesses; multiplayer wins are not tracked here)
     *   `lastUpdated`: `timestamp`
 *   **Collection**: `usernames`
 *   **Document ID**: normalized username

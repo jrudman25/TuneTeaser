@@ -4,7 +4,7 @@
 - Install frontend deps: `npm install`
 - Install functions deps: `npm --prefix functions install`
 - Start dev server: `npm run dev`
-- Start Firebase emulators: `npm run emulators`
+- Start Firebase emulators: `npm run emulators` (requires firebase-tools >= 15.x globally; 14.x crashes every function worker at startup because it calls `functions.config()`, which throws under firebase-functions v7)
 - Start dev server against emulators: `npm run dev:emulator`
 - Run frontend tests: `npm run test`
 - Run functions tests: `npm run test-functions`
@@ -29,6 +29,7 @@
 - `firebase.json` header rules: Firebase applies the last matching rule, so keep the general `**` rule before `/assets/**`. When adding an external origin, update the CSP there too (Umami needs `cloud.umami.is` in `script-src` and `connect-src`, plus `gateway.umami.is` in `connect-src` for event sends).
 - Analytics: Umami lives in `src/utils/analytics.ts`; `initAnalytics()` injects the script only in production builds, and `trackEvent()` is a no-op when Umami is absent or blocked.
 - Profanity: `functions/src/profanity.ts` rejects offensive usernames and room names (`containsProfanity`) and masks multiplayer playlist names (`censorProfanity`).
+- `src/hooks/usePreviewPlayer.ts` stops snippets by audio position (`currentTime`), not wall-clock time, so buffering stalls do not shorten the scored snippet; keep it that way. It has a single-slot `preloadPreview(url)` that the next `playPreview` with the same URL reuses. `positionMs` only advances on `timeupdate` ticks (~4 Hz); `SnippetProgress` sweeps its fill with a CSS transition timed to the snippet duration instead of per-tick widths, so do not use `positionMs` for smooth visuals. `useGameLogic` prefetches the next solo round when a round ends and discards it on playlist change or after 25 minutes (the server round TTL is 30).
 - Game keyboard shortcuts (Space play, Esc give-up confirm) go through `src/hooks/useGameShortcuts.ts`; keep Space ignored on editable and interactive targets.
 - `public/theme-init.js` must load at the start of `<body>` (it needs `document.body`); dark mode styles use `body.dark-theme`.
 - `functions/tsconfig.json` sets `rootDir: "src"` explicitly (required by TypeScript 6 editors); output stays at `functions/lib/index.js`.
