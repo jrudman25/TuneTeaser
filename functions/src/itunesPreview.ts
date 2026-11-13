@@ -18,6 +18,12 @@ const cleanItunesQuery = (value: string) => {
     return value.replace(/ - .*/, '').replace(/[([].*?[)\]]/g, '').trim();
 };
 
+// iTunes artwork URLs carry a size segment like "100x100bb.jpg"; swap it for
+// the requested square size. URLs without a size segment are returned as-is.
+export const resizeItunesArtwork = (url: string, size = 300) => {
+    return url.replace(/\d{2,4}x\d{2,4}(?=bb|\.|$)/, `${size}x${size}`);
+};
+
 export const getItunesPreview = async (
     trackName: string,
     artistName: string,
@@ -107,7 +113,7 @@ export const getItunesPreview = async (
         return {
             status: 'found',
             previewUrl: bestMatch.previewUrl,
-            artworkUrl: bestMatch.artworkUrl100 ? bestMatch.artworkUrl100.replace('100x100', '600x600') : ''
+            artworkUrl: bestMatch.artworkUrl100 ? resizeItunesArtwork(bestMatch.artworkUrl100) : ''
         };
     } catch (error) {
         console.warn(`[getItunesPreview] Lookup failed for "${trackName}":`, error);
@@ -191,7 +197,9 @@ export const pickTrackWithPreview = async (
             if (!picked.track && data.status === 'found' && typeof data.previewUrl === 'string' && data.previewUrl) {
                 picked.track = entries[index].track;
                 picked.previewUrl = data.previewUrl;
-                picked.artworkUrl = typeof data.artworkUrl === 'string' ? data.artworkUrl : '';
+                // Cache entries written before the resize change still hold
+                // oversized URLs, so normalize on read too.
+                picked.artworkUrl = typeof data.artworkUrl === 'string' ? resizeItunesArtwork(data.artworkUrl) : '';
             }
             return;
         }

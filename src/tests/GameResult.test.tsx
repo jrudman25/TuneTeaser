@@ -29,6 +29,42 @@ describe('GameResult Component', () => {
         expect(img).toHaveAttribute('src', 'http://example.com/image.jpg');
     });
 
+    it('reveals album art once the image loads', () => {
+        render(
+            <GameResult
+                targetSong={mockSong}
+                feedbackMessage="Correct!"
+                onPlayAgain={vi.fn()}
+                onSelectNewPlaylist={vi.fn()}
+            />
+        );
+
+        const img = screen.getByRole('img');
+        expect(img).not.toHaveClass('album-art-loaded');
+        expect(screen.getByText('TuneTeaser')).toBeInTheDocument();
+
+        fireEvent.load(img);
+
+        expect(img).toHaveClass('album-art-loaded');
+        expect(screen.getByText('TuneTeaser')).toBeInTheDocument();
+    });
+
+    it('keeps the fallback record when album art fails to load', () => {
+        render(
+            <GameResult
+                targetSong={mockSong}
+                feedbackMessage="Correct!"
+                onPlayAgain={vi.fn()}
+                onSelectNewPlaylist={vi.fn()}
+            />
+        );
+
+        fireEvent.error(screen.getByRole('img'));
+
+        expect(screen.queryByRole('img')).not.toBeInTheDocument();
+        expect(screen.getByText('TuneTeaser')).toBeInTheDocument();
+    });
+
     it('renders fallback record when album art is missing', () => {
         const songWithoutImage = { ...mockSong, album: { images: [] } };
         render(

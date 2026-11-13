@@ -191,7 +191,8 @@ vi.mock('firebase-functions/params', () => ({
 }));
 
 import { startSoloRound, submitSoloGuess, giveUpSoloRound } from './soloRounds';
-import { pickTrackWithPreview } from './itunesPreview';
+import { pickTrackWithPreview, resizeItunesArtwork } from './itunesPreview';
+import { getTrackArtworkUrl } from './playlistTracks';
 import { GUEST_TRACKS } from './premadePlaylists';
 
 const EMAIL_AUTH = { uid: 'user1', token: { firebase: { sign_in_provider: 'password' } } };
@@ -423,7 +424,7 @@ describe('solo rounds', () => {
             id: 't1',
             name: 'Only Song',
             artists: [{ name: 'Artist' }],
-            album: { name: 'Album X', images: [{ url: 'https://art.example/600x600.jpg' }] }
+            album: { name: 'Album X', images: [{ url: 'https://art.example/300x300.jpg' }] }
         });
         expect(readSoloDoc('user1').state).toBe('out-of-snippet');
     });
@@ -525,7 +526,7 @@ describe('solo rounds', () => {
             id: 't1',
             name: 'Only Song',
             artists: [{ name: 'Artist' }],
-            album: { name: 'Album X', images: [{ url: 'https://art.example/600x600.jpg' }] }
+            album: { name: 'Album X', images: [{ url: 'https://art.example/300x300.jpg' }] }
         });
         expect(readSoloDoc('user1').state).toBe('gave-up');
 
@@ -596,6 +597,24 @@ describe('pickTrackWithPreview cache', () => {
         expect(fetchMock).toHaveBeenCalledTimes(2);
     });
 
+    it('normalizes oversized artwork URLs stored in cache hits', async () => {
+        const track = makeTrack('t1', 'Song One');
+        const cacheId = createHash('sha256').update('song one|test artist|test album').digest('hex');
+        fake.docs.set(`itunesPreviewCache/${cacheId}`, {
+            status: 'found',
+            previewUrl: 'https://preview.example/cached.m4a',
+            artworkUrl: 'https://art.example/600x600bb.jpg',
+            checkedAtMillis: Date.now(),
+            expiresAt: { toMillis: () => Date.now() + 60 * 1000 }
+        });
+        const fetchMock = vi.fn();
+        vi.stubGlobal('fetch', fetchMock);
+
+        const result = await pickTrackWithPreview([track], 4);
+        expect(result?.artworkUrl).toBe('https://art.example/300x300bb.jpg');
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
     it('treats expired cache entries as unknown', async () => {
         const track = makeTrack('t1', 'Song One');
         const fetchMock = stubFetchForTracks([track]);
@@ -613,5 +632,60 @@ describe('pickTrackWithPreview cache', () => {
         expect(result?.previewUrl).toContain('preview.example/Song');
         expect(result?.stats.lookups).toBe(1);
         expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('artwork helpers', () => {
+    describe('resizeItunesArtwork', () => {
+        it('replaces the iTunes size segment with 300x300 by default', () => {
+            expect(resizeItunesArtwork('https://is1-ssl.mzstatic.com/image/thumb/Music/abc/100x100bb.jpg'))
+                .toBe('https://is1-ssl.mzstatic.com/image/thumb/Music/abc/300x300bb.jpg');
+            expect(resizeItunesArtwork('https://example.com/600x600bb.jpg'))
+                .toBe('https://example.com/300x300bb.jpg');
+        });
+
+        it('supports other sizes and leaves unmatched URLs alone', () => {
+            expect(resizeItunesArtwork('https://example.com/100x100bb.jpg', 640))
+                .toBe('https://example.com/640x640bb.jpg');
+            expect(resizeItunesArtwork('https://i.scdn.co/image/ab67616d0000b273deadbeef'))
+                .toBe('https://i.scdn.co/image/ab67616d0000b273deadbeef');
+        });
+    });
+
+    describe('getTrackArtworkUrl', () => {
+        it('prefers the smallest image at least 300px wide', () => {
+            const track = {
+                album: {
+                    images: [
+                        { url: 'https://img.example/640.jpg', width: 640, height: 640 },
+                        { url: 'https://img.example/300.jpg', width: 300, height: 300 },
+                        { url: 'https://img.example/64.jpg', width: 64, height: 64 }
+                    ]
+                }
+            };
+            expect(getTrackArtworkUrl(track)).toBe('https://img.example/300.jpg');
+        });
+
+        it('falls back to the first valid image when no width qualifies', () => {
+            const track = {
+                album: {
+                    images: [
+                        { url: 'https://img.example/first.jpg', width: 64, height: 64 },
+                        { url: 'https://img.example/second.jpg', width: 100, height: 100 }
+                    ]
+                }
+            };
+            expect(getTrackArtworkUrl(track)).toBe('https://img.example/first.jpg');
+        });
+
+        it('falls back to the first valid image when widths are missing', () => {
+            const track = { album: { images: [{ url: 'https://img.example/first.jpg' }, { url: 'https://img.example/second.jpg' }] } };
+            expect(getTrackArtworkUrl(track)).toBe('https://img.example/first.jpg');
+        });
+
+        it('returns null when there are no valid images', () => {
+            expect(getTrackArtworkUrl({ album: { images: [{ url: ' ' }, {}] } })).toBeNull();
+            expect(getTrackArtworkUrl({})).toBeNull();
+        });
     });
 });

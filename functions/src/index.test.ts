@@ -637,7 +637,7 @@ describe('Cloud Functions (index.ts)', () => {
                     trackId: 'track1',
                     artistName: 'Artist One',
                     albumName: 'Album One',
-                    artworkUrl: 'https://example.com/600x600.jpg',
+                    artworkUrl: 'https://example.com/300x300.jpg',
                     snippetDurationMs: 2000,
                     state: 'playing',
                     roundNumber: 1

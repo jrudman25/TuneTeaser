@@ -1,7 +1,7 @@
 /**
  * GameResult.tsx
  * Displays the result of the game (correct/incorrect) and options to play again.
- * @version 2026.05.27
+ * @version 2026.06.05
  */
 import React from 'react';
 
@@ -24,13 +24,26 @@ const GameResult: React.FC<GameResultProps> = ({
     earnedPoints = null,
     pointsNote = null
 }) => {
+    const artworkUrl = targetSong.album.images?.[0]?.url || '';
+    const [loadedArtworkUrl, setLoadedArtworkUrl] = React.useState('');
+    const [failedArtworkUrl, setFailedArtworkUrl] = React.useState('');
+    const imageLoaded = !!artworkUrl && loadedArtworkUrl === artworkUrl && failedArtworkUrl !== artworkUrl;
+
     return (
         <section className="result-card">
             <div className="album-frame">
-                {targetSong.album.images?.[0] ? (
-                    <img src={targetSong.album.images[0].url} alt="Album Art" />
-                ) : (
-                    <div className="fallback-record">TuneTeaser</div>
+                <div className="fallback-record">TuneTeaser</div>
+                {artworkUrl && failedArtworkUrl !== artworkUrl && (
+                    <img
+                        src={artworkUrl}
+                        alt="Album Art"
+                        width={300}
+                        height={300}
+                        decoding="async"
+                        className={imageLoaded ? 'album-art album-art-loaded' : 'album-art'}
+                        onLoad={() => setLoadedArtworkUrl(artworkUrl)}
+                        onError={() => setFailedArtworkUrl(artworkUrl)}
+                    />
                 )}
             </div>
 
@@ -59,4 +72,3 @@ const GameResult: React.FC<GameResultProps> = ({
 };
 
 export default GameResult;
-

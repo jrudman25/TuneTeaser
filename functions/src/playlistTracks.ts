@@ -14,9 +14,15 @@ export const getTrackArtistName = (track: any) => {
 };
 
 export const getTrackArtworkUrl = (track: any) => {
-    const images = Array.isArray(track?.album?.images) ? track.album.images : [];
-    const firstImage = images.find((image: any) => typeof image?.url === 'string' && image.url.trim());
-    return firstImage?.url || null;
+    const images: Array<{ url?: string; width?: number }> = Array.isArray(track?.album?.images) ? track.album.images : [];
+    const validImages = images.filter(image => typeof image?.url === 'string' && image.url.trim());
+    const sizedImages = validImages.filter((image): image is { url?: string; width: number } => (
+        typeof image?.width === 'number' && image.width >= 300
+    ));
+    if (sizedImages.length > 0) {
+        return sizedImages.reduce((min, image) => (image.width < min.width ? image : min)).url || null;
+    }
+    return validImages[0]?.url || null;
 };
 
 export const getTrackAlbumName = (track: any) => {
