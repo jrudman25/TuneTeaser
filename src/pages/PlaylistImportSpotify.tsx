@@ -3,8 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ManualTrack } from '../utils/manualPlaylists';
 import { useManualPlaylists } from '../hooks/useManualPlaylists';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
-import { signInAnonymously, signOut } from 'firebase/auth';
-import { auth } from '../backend/FirebaseConfig';
+import { signInAsGuest, signOutExplicitly } from '../utils/guestSignIn';
 import { extractSpotifyPlaylistId } from '../utils/spotifyPlaylistName';
 import { importSpotifyPlaylist } from '../utils/spotifyPlaylistImporter';
 import { searchPublicSpotifyPlaylists, SpotifyPlaylistSearchResult } from '../utils/spotifyPlaylistSearch';
@@ -100,7 +99,7 @@ const PlaylistImportSpotify = () => {
 
     useEffect(() => {
         if (isGuest && !isLoadingUser && !user) {
-            signInAnonymously(auth).catch(err => {
+            signInAsGuest().catch(err => {
                 console.error("Failed to sign in guest anonymously in PlaylistImportSpotify:", err);
                 setAuthError("Guest Mode authentication failed. Please ensure 'Anonymous sign-in' is enabled in your Firebase console.");
             });
@@ -481,7 +480,7 @@ const PlaylistImportSpotify = () => {
     const handleLogout = async () => {
 
         try {
-            await signOut(auth);
+            await signOutExplicitly();
         } catch { /* no active Firebase session */ }
 
         navigate('/');

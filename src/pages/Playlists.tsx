@@ -2,9 +2,7 @@ import React from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useManualPlaylists } from '../hooks/useManualPlaylists';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
-import { signOut } from 'firebase/auth';
-import { auth } from '../backend/FirebaseConfig';
-import { signInAsGuest } from '../utils/guestSignIn';
+import { signInAsGuest, signOutExplicitly } from '../utils/guestSignIn';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import SignedInBadge from '../components/SignedInBadge';
 import NavBar from '../components/NavBar';
@@ -130,7 +128,7 @@ const Playlists = () => {
     const handleLogout = async () => {
 
         try {
-            await signOut(auth);
+            await signOutExplicitly();
         } catch { /* no active Firebase session */ }
 
         navigate('/');

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { deleteUser, signOut } from 'firebase/auth';
+import { deleteUser } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
-import { auth, functions } from '../backend/FirebaseConfig';
+import { functions } from '../backend/FirebaseConfig';
+import { signOutExplicitly } from '../utils/guestSignIn';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { useSearchParams, Link } from 'react-router-dom';
@@ -146,7 +147,7 @@ const Settings = () => {
     const handleLogout = async () => {
 
         try {
-            await signOut(auth);
+            await signOutExplicitly();
         } catch (err) {
             console.error("Failed to sign out user from settings page:", err);
         }

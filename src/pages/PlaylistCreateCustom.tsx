@@ -6,8 +6,7 @@ import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
 import { resolveSpotifyTracks } from '../utils/spotifyTrackResolver';
 import SignedInBadge from '../components/SignedInBadge';
 import NavBar from '../components/NavBar';
-import { signOut } from 'firebase/auth';
-import { auth } from '../backend/FirebaseConfig';
+import { signOutExplicitly } from '../utils/guestSignIn';
 
 const PlaylistCreateCustom = () => {
     const navigate = useNavigate();
@@ -117,7 +116,7 @@ const PlaylistCreateCustom = () => {
 
     const handleLogout = async () => {
 
-        await signOut(auth);
+        await signOutExplicitly();
         navigate('/');
     };
 

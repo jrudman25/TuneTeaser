@@ -47,6 +47,7 @@ vi.mock('../utils/spotifyTrackResolver', () => ({
 }));
 
 vi.mock('firebase/auth', () => ({
+    signInAnonymously: vi.fn(),
     signOut: mocks.signOut
 }));
 

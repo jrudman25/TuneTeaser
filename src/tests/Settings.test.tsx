@@ -20,6 +20,7 @@ vi.mock('../backend/FirebaseConfig', () => ({
 
 vi.mock('firebase/auth', () => ({
     deleteUser: mocks.deleteUser,
+    signInAnonymously: vi.fn(),
     signOut: mocks.signOut
 }));
 
