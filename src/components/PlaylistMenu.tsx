@@ -21,16 +21,26 @@ const isPremadePlaylist = (playlist: { id: string }) => {
     return playlist.id.startsWith('guest_') && !playlist.id.startsWith('guest_manual_');
 };
 
-// Most-tagged first, then alphabetical.
+const GENRE_ORDER = ['Pop', 'Rock', 'Hip Hop', 'Indie', 'Country', 'Dance'];
+// Chronological starting at the 80s so the short view shows 80s-2010s.
+const DECADE_ORDER = ['80s', '90s', '2000s', '2010s', '2020s', '50s', '60s', '70s'];
+
+// Fixed display order; unlisted tags fall back alphabetically at the end.
 const getTagOptions = (playlists: Array<{ genres?: string[]; decades?: string[] }>, key: 'genres' | 'decades') => {
-    const counts = new Map<string, number>();
+    const tags = new Set<string>();
     playlists.forEach(playlist => {
-        const tags = Array.isArray(playlist[key]) ? playlist[key] : [];
-        tags.forEach((tag: string) => counts.set(tag, (counts.get(tag) || 0) + 1));
+        const playlistTags = Array.isArray(playlist[key]) ? playlist[key] : [];
+        playlistTags.forEach((tag: string) => tags.add(tag));
     });
-    return [...counts.entries()]
-        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-        .map(([tag]) => tag);
+    const order = key === 'genres' ? GENRE_ORDER : DECADE_ORDER;
+    return [...tags].sort((a, b) => {
+        const aIndex = order.indexOf(a);
+        const bIndex = order.indexOf(b);
+        if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
+        if (aIndex === -1) return 1;
+        if (bIndex === -1) return -1;
+        return aIndex - bIndex;
+    });
 };
 
 const getStoredSource = (): PlaylistSource | null => {
@@ -129,7 +139,6 @@ const PlaylistMenu: React.FC<PlaylistMenuProps> = ({ playlists, onSelectPlaylist
     return (
         <section className="record-bin">
             <div className="record-bin-header">
-                <span className="eyebrow">Record bin</span>
                 <h2 className="section-title">Choose your playlist</h2>
                 <p className="body-copy">Pick the playlist you know best. We will pull one track and start the quiz stage.</p>
             </div>
