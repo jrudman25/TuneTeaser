@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 type ToastMessageProps = {
     message: string;
@@ -9,15 +9,21 @@ type ToastMessageProps = {
 };
 
 const ToastMessage = ({ message, type, title, durationMs = 5000, onClose }: ToastMessageProps) => {
+    const onCloseRef = useRef(onClose);
+
+    useEffect(() => {
+        onCloseRef.current = onClose;
+    }, [onClose]);
+
     useEffect(() => {
         if (!message) return;
 
         const timeoutId = window.setTimeout(() => {
-            onClose?.();
+            onCloseRef.current?.();
         }, durationMs);
 
         return () => window.clearTimeout(timeoutId);
-    }, [durationMs, message, onClose]);
+    }, [durationMs, message]);
 
     if (!message) return null;
 
@@ -29,7 +35,7 @@ const ToastMessage = ({ message, type, title, durationMs = 5000, onClose }: Toas
                 <strong>{label}:</strong> {message}
             </div>
             <button type="button" className="toast-close" aria-label="Dismiss notification" onClick={() => onClose?.()}>
-                X
+                &times;
             </button>
         </div>
     );

@@ -40,4 +40,21 @@ describe('ToastMessage', () => {
         expect(onClose).toHaveBeenCalledTimes(1);
         vi.useRealTimers();
     });
+
+    it('still auto-dismisses when the parent re-renders with a new onClose callback', () => {
+        vi.useFakeTimers();
+        const onClose = vi.fn();
+
+        const { rerender } = render(
+            <ToastMessage message="Game started." type="success" durationMs={5000} onClose={() => onClose()} />
+        );
+
+        vi.advanceTimersByTime(4000);
+        rerender(<ToastMessage message="Game started." type="success" durationMs={5000} onClose={() => onClose()} />);
+
+        vi.advanceTimersByTime(1500);
+
+        expect(onClose).toHaveBeenCalledTimes(1);
+        vi.useRealTimers();
+    });
 });
