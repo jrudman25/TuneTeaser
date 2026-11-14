@@ -5,8 +5,7 @@
  */
 import React from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { signOut } from 'firebase/auth';
-import { auth } from '../backend/FirebaseConfig';
+import { signOutExplicitly } from '../utils/guestSignIn';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
 import { useLeaderboard } from '../hooks/useLeaderboard';
 import NavBar from '../components/NavBar';
@@ -47,7 +46,7 @@ const Leaderboard = () => {
     const handleLogout = async () => {
 
         try {
-            await signOut(auth);
+            await signOutExplicitly();
         } catch (err) {
             console.error("Failed to sign out user from leaderboard:", err);
         }
@@ -95,8 +94,7 @@ const Leaderboard = () => {
 
                 <section className="leaderboard-card">
                     <div>
-                        <span className="eyebrow">Leaderboard</span>
-                        <h1 className="section-title">Top players</h1>
+                        <h1 className="section-title">Leaderboard</h1>
                         <p className="body-copy">
                             Earn points by guessing songs correctly. Faster guesses earn more points.
                             Playlists must have at least 10 tracks to be eligible.

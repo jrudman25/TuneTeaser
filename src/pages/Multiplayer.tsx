@@ -1,8 +1,15 @@
 import React, { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getFunctionsUrl } from '../utils/multiplayer';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { signInAnonymously, signOut } from 'firebase/auth';
+import { signInAsGuest, signOutExplicitly } from '../utils/guestSignIn';
 import { FirebaseError } from 'firebase/app';
+import { Slider } from '@mui/material';
+import ArrowBack from '@mui/icons-material/ArrowBack';
+import LightbulbOutlined from '@mui/icons-material/LightbulbOutlined';
+import PlayArrow from '@mui/icons-material/PlayArrow';
+import GraphicEq from '@mui/icons-material/GraphicEq';
+import VolumeDown from '@mui/icons-material/VolumeDown';
+import VolumeUp from '@mui/icons-material/VolumeUp';
 import NavBar from '../components/NavBar';
 import ConfirmDialog from '../components/ConfirmDialog';
 import SnippetProgress from '../components/SnippetProgress';
@@ -82,16 +89,19 @@ const Multiplayer = () => {
     const [roundData, setRoundData] = useState<MultiplayerRoundData | null>(null);
     const [roundDataId, setRoundDataId] = useState('');
     const [userGuess, setUserGuess] = useState('');
+    const [roundFeedback, setRoundFeedback] = useState('');
     const [wrongGuesses, setWrongGuesses] = useState<string[]>([]);
     const [guessesRoundId, setGuessesRoundId] = useState<string | undefined>(undefined);
     if (room?.currentRound?.id !== guessesRoundId) {
         setGuessesRoundId(room?.currentRound?.id);
         setWrongGuesses([]);
+        setRoundFeedback('');
     }
     const [isGuessFocused, setIsGuessFocused] = useState(false);
+    const [highlightedGuessIndex, setHighlightedGuessIndex] = useState(-1);
     const [giveUpConfirmRoundId, setGiveUpConfirmRoundId] = useState<string | null>(null);
-    const [roundFeedback, setRoundFeedback] = useState('');
-    const { playPreview, pause, isPlaying, error: playerError, volume, setVolume, positionMs, playbackDurationMs } = usePreviewPlayer();
+    const [isLoadingRound, setIsLoadingRound] = useState(false);
+    const { playPreview, pause, isPlaying, isAdvancing, error: playerError, volume, setVolume, positionMs, playbackDurationMs } = usePreviewPlayer();
 
     const filteredPlaylists = useMemo(() => {
         if (!playlistSearch.trim()) return playlists;
@@ -162,7 +172,7 @@ const Multiplayer = () => {
 
     useEffect(() => {
         if (!isLoadingUser && !user) {
-            signInAnonymously(auth).catch(err => {
+            signInAsGuest().catch(err => {
                 setError(getFirebaseMessage(err, 'Could not start guest multiplayer.'));
             });
         }
@@ -282,6 +292,7 @@ const Multiplayer = () => {
             setRoundDataId('');
             setUserGuess('');
             setRoundFeedback('');
+            setIsLoadingRound(false);
             pause();
             return;
         }
@@ -290,25 +301,31 @@ const Multiplayer = () => {
 
         let isCancelled = false;
         setRoundData(null);
-        setRoundFeedback('Loading round...');
         setUserGuess('');
         pause();
 
+        const loadingTimer = setTimeout(() => {
+            if (!isCancelled) setIsLoadingRound(true);
+        }, 300);
+
         getMultiplayerRoundData(activeRoomId, roundId)
             .then(data => {
+                clearTimeout(loadingTimer);
                 if (isCancelled) return;
                 setRoundData(data);
                 setRoundDataId(roundId);
-                setRoundFeedback('');
+                setIsLoadingRound(false);
             })
             .catch(err => {
+                clearTimeout(loadingTimer);
                 if (isCancelled) return;
                 setError(getFirebaseMessage(err, 'Could not load round.'));
-                setRoundFeedback('');
+                setIsLoadingRound(false);
             });
 
         return () => {
             isCancelled = true;
+            clearTimeout(loadingTimer);
         };
     }, [activeRoomId, currentPlayer, pause, room?.currentRound?.id, room?.status, roundData, roundDataId]);
 
@@ -422,7 +439,7 @@ const Multiplayer = () => {
     }, []);
 
     const ensureSignedIn = async () => {
-        const currentUser = auth.currentUser || (await signInAnonymously(auth)).user;
+        const currentUser = await signInAsGuest();
 
         await currentUser.getIdToken();
     };
@@ -711,6 +728,11 @@ const Multiplayer = () => {
         }
     };
 
+    const handleBackToRoomPicker = () => {
+        resetLocalRoomState();
+        navigate(`/multiplayer${modeQuery}`, { replace: true });
+    };
+
     const handleNavigateAway = async (to: string) => {
         await leaveActiveLobby();
         navigate(to);
@@ -720,7 +742,7 @@ const Multiplayer = () => {
         await leaveActiveLobby();
 
         try {
-            await signOut(auth);
+            await signOutExplicitly();
         } catch (err) {
             setError(getFirebaseMessage(err, 'Could not sign out.'));
             return;
@@ -757,8 +779,7 @@ const Multiplayer = () => {
                 <section className="record-bin multiplayer-panel">
                     {!activeRoomId && (
                         <>
-                            <span className="eyebrow">Party mode</span>
-                            <h1 className="section-title">Multiplayer lobby</h1>
+                            <h1 className="section-title">Multiplayer</h1>
                             <p className="body-copy">
                                 Create a private room, share the code or link, and let players join from their own devices.
                             </p>
@@ -788,7 +809,7 @@ const Multiplayer = () => {
                                     onChange={event => setRoomName(event.target.value)}
                                     placeholder="Jess's Birthday Bash"
                                 />
-                                <p className="body-copy">Players will appear by their TuneTeaser username.</p>
+                                <p className="body-copy">Players will appear by their TuneTeaser username or a random guest name.</p>
                                 <button className="button button-secondary" type="submit" disabled={isBusy || isLoadingUser}>
                                     Create room
                                 </button>
@@ -806,6 +827,7 @@ const Multiplayer = () => {
                                     onChange={event => setRoomCode(event.target.value.toUpperCase())}
                                     placeholder="ABC123"
                                 />
+                                <p className="body-copy">Get the room code from the host, or ask them to share the room link.</p>
                                 <button className="button button-secondary" type="submit" disabled={isBusy || isLoadingUser}>
                                     Join game
                                 </button>
@@ -829,6 +851,18 @@ const Multiplayer = () => {
 
                     {activeRoomId && room && !isMissingRoom && (
                         <section className="multiplayer-lobby">
+                            {(!currentPlayer || room.status === 'lobby') && (
+                                <button
+                                    className="button button-quiet stage-back-button multiplayer-back-button"
+                                    type="button"
+                                    disabled={isBusy}
+                                    onClick={currentPlayer ? handleLeaveRoom : handleBackToRoomPicker}
+                                    aria-label="Back to multiplayer lobby"
+                                    title="Back to lobby"
+                                >
+                                    <ArrowBack aria-hidden="true" fontSize="small" />
+                                </button>
+                            )}
                             <div className="multiplayer-lobby-header">
                                 <div>
                                     <span className="eyebrow">Room code: {activeRoomId}</span>
@@ -973,9 +1007,6 @@ const Multiplayer = () => {
                                         <span className="eyebrow">Round {room.currentRound?.roundNumber || 1}</span>
                                         <h2>Guess the song</h2>
                                         <p className="body-copy">Playlist: <strong>{room.playlistName}</strong></p>
-                                        <span className="snippet-meter">
-                                            Snippet length: {(currentPlayer.roundSnippetDurationMs || room.currentRound?.snippetDurationMs || 2000) / 1000} seconds
-                                        </span>
 
                                         {timeRemaining !== null && (
                                             <span className={`round-timer${timeRemaining <= 10 ? ' round-timer-urgent' : ''}`}>
@@ -983,29 +1014,49 @@ const Multiplayer = () => {
                                             </span>
                                         )}
 
-                                        <div className="volume-console">
-                                            <label className="form-label" htmlFor="multiplayer-volume">Volume</label>
-                                            <input
-                                                id="multiplayer-volume"
-                                                type="range"
-                                                min="0"
-                                                max="100"
-                                                value={Math.round(volume * 100)}
-                                                onChange={event => setVolume(Number(event.target.value) / 100)}
-                                            />
-                                        </div>
-
                                         {playerError && <div className="error-banner"><strong>Error:</strong> {playerError}</div>}
 
-                                        <div className="play-row">
-                                            <button className="button button-large" type="button" disabled={isPlaying || !roundData?.previewUrl} onClick={handlePlayRoundSnippet}>
-                                                Play Snippet
+                                        <div className="game-deck">
+                                            <button
+                                                className="game-deck-play"
+                                                type="button"
+                                                onClick={handlePlayRoundSnippet}
+                                                disabled={isPlaying || !roundData?.previewUrl}
+                                                aria-label="Play snippet"
+                                                aria-keyshortcuts="Space"
+                                                title="Play snippet (Space)"
+                                            >
+                                                {isPlaying ? <GraphicEq aria-hidden="true" /> : <PlayArrow aria-hidden="true" />}
                                             </button>
-                                            <SnippetProgress
-                                                isPlaying={isPlaying}
-                                                positionMs={positionMs}
-                                                durationMs={(isPlaying && playbackDurationMs) || currentPlayer?.roundSnippetDurationMs || room?.currentRound?.snippetDurationMs || 2000}
-                                            />
+                                            <div className="game-deck-progress">
+                                                <SnippetProgress
+                                                    isPlaying={isPlaying}
+                                                    isAdvancing={isAdvancing}
+                                                    positionMs={positionMs}
+                                                    durationMs={(isPlaying && playbackDurationMs) || currentPlayer?.roundSnippetDurationMs || room?.currentRound?.snippetDurationMs || 2000}
+                                                    idleText={`${(currentPlayer.roundSnippetDurationMs || room.currentRound?.snippetDurationMs || 2000) / 1000}s snippet`}
+                                                    hint="Space to play"
+                                                />
+                                            </div>
+                                            <div className="game-deck-volume">
+                                                <VolumeDown />
+                                                <Slider
+                                                    aria-label="Volume"
+                                                    value={volume * 100}
+                                                    onChange={(_event, newValue) => setVolume((newValue as number) / 100)}
+                                                    sx={{
+                                                        color: 'var(--gold)',
+                                                        '& .MuiSlider-thumb': {
+                                                            border: '3px solid var(--ink)',
+                                                            backgroundColor: 'var(--cream)'
+                                                        },
+                                                        '& .MuiSlider-rail': {
+                                                            opacity: 0.45
+                                                        }
+                                                    }}
+                                                />
+                                                <VolumeUp />
+                                            </div>
                                         </div>
 
                                         <div className="guess-row">
@@ -1013,33 +1064,63 @@ const Multiplayer = () => {
                                                 <input
                                                     className="text-input guess-input"
                                                     value={userGuess}
+                                                    maxLength={200}
                                                     disabled={isBusy || !isCurrentPlayerGuessing}
-                                                    onBlur={() => window.setTimeout(() => setIsGuessFocused(false), 120)}
-                                                    onChange={event => setUserGuess(event.target.value)}
+                                                    role="combobox"
+                                                    aria-autocomplete="list"
+                                                    aria-expanded={isGuessFocused && guessSuggestions.length > 0}
+                                                    aria-controls="guess-suggestion-list"
+                                                    aria-activedescendant={isGuessFocused && highlightedGuessIndex >= 0 ? `guess-suggestion-${highlightedGuessIndex}` : undefined}
+                                                    onBlur={() => window.setTimeout(() => {
+                                                        setIsGuessFocused(false);
+                                                        setHighlightedGuessIndex(-1);
+                                                    }, 120)}
+                                                    onChange={event => {
+                                                        setUserGuess(event.target.value);
+                                                        setHighlightedGuessIndex(-1);
+                                                        setIsGuessFocused(true);
+                                                    }}
                                                     onFocus={() => setIsGuessFocused(true)}
                                                     onKeyDown={event => {
-                                                        if (event.key === 'Enter') {
+                                                        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                                                            if (!isGuessFocused || guessSuggestions.length === 0) return;
                                                             event.preventDefault();
-                                                            void handleSubmitRoundGuess();
+                                                            const next = (highlightedGuessIndex + (event.key === 'ArrowDown' ? 1 : -1) + guessSuggestions.length) % guessSuggestions.length;
+                                                            setHighlightedGuessIndex(next);
+                                                            document.getElementById(`guess-suggestion-${next}`)?.scrollIntoView({ block: 'nearest' });
+                                                        } else if (event.key === 'Enter') {
+                                                            event.preventDefault();
+                                                            const highlighted = isGuessFocused ? guessSuggestions[highlightedGuessIndex] : undefined;
+                                                            if (highlighted) {
+                                                                setUserGuess(`${highlighted.name} - ${highlighted.artistName}`);
+                                                                setIsGuessFocused(false);
+                                                                setHighlightedGuessIndex(-1);
+                                                            } else {
+                                                                void handleSubmitRoundGuess();
+                                                            }
                                                         } else if (event.key === 'Escape' && isGuessFocused && guessSuggestions.length > 0) {
                                                             event.preventDefault();
                                                             setIsGuessFocused(false);
+                                                            setHighlightedGuessIndex(-1);
                                                         }
                                                     }}
                                                     placeholder="Enter song title..."
                                                 />
                                                 {isGuessFocused && guessSuggestions.length > 0 && (
-                                                    <ul className="guess-suggestion-list">
-                                                        {guessSuggestions.map(choice => {
+                                                    <ul id="guess-suggestion-list" className="guess-suggestion-list">
+                                                        {guessSuggestions.map((choice, index) => {
                                                             const value = `${choice.name} - ${choice.artistName}`;
                                                             return (
                                                                 <li key={choice.id}>
                                                                     <button
+                                                                        id={`guess-suggestion-${index}`}
+                                                                        className={index === highlightedGuessIndex ? 'guess-suggestion-active' : undefined}
                                                                         type="button"
                                                                         onMouseDown={event => event.preventDefault()}
                                                                         onClick={() => {
                                                                             setUserGuess(value);
                                                                             setIsGuessFocused(false);
+                                                                            setHighlightedGuessIndex(-1);
                                                                         }}
                                                                     >
                                                                         {value}
@@ -1060,6 +1141,13 @@ const Multiplayer = () => {
                                             </button>
                                         </div>
 
+                                        <div className="guess-helper">
+                                            <LightbulbOutlined aria-hidden fontSize="small" /> Guess with nothing typed to hear 2 more seconds (up to 30s).
+                                        </div>
+                                        <div className="shortcut-hint">
+                                            Shortcuts: Space plays the snippet, Enter guesses, Esc gives up.
+                                        </div>
+
                                         {room.currentRound?.state === 'advancing' && room.revealedRound ? (
                                             <div className="round-reveal-banner">
                                                 <span className="eyebrow">Answer revealed</span>
@@ -1074,6 +1162,7 @@ const Multiplayer = () => {
                                             </div>
                                         ) : (
                                             <>
+                                                {isLoadingRound && <p className="helper-text" role="status">Loading round...</p>}
                                                 {roundFeedback && <div className="feedback-pill" role="status" aria-live="polite">{roundFeedback}</div>}
                                                 {room.revealedRound && (
                                                     <div className="feedback-pill">
@@ -1085,7 +1174,7 @@ const Multiplayer = () => {
                                                         <span className="guess-history-label">Previous guesses:</span>
                                                         <ul className="guess-history-list">
                                                             {wrongGuesses.map((guess, index) => (
-                                                                <li key={`${guess}-${index}`} className="guess-history-item">{guess}</li>
+                                                                <li key={`${guess}-${index}`} className="guess-history-item" title={guess}>{guess}</li>
                                                             ))}
                                                         </ul>
                                                     </div>
@@ -1094,16 +1183,15 @@ const Multiplayer = () => {
                                                 <div className="give-up-zone">
                                                     <span className="helper-text">Stuck on this round?</span>
                                                     <button
-                                                        className="button button-danger"
+                                                        className="button button-quiet"
                                                         type="button"
                                                         disabled={isBusy || !isCurrentPlayerGuessing}
-                                                        onClick={handleGiveUpRound}
+                                                        onClick={() => setGiveUpConfirmRoundId(room?.currentRound?.id || null)}
+                                                        aria-keyshortcuts="Escape"
+                                                        title="Give up (Esc)"
                                                     >
-                                                        Give Up
+                                                        Give up
                                                     </button>
-                                                    <div className="shortcut-hint">
-                                                        Shortcuts: Space plays the snippet, Enter guesses, Esc gives up.
-                                                    </div>
                                                 </div>
 
                                                 <ConfirmDialog
@@ -1183,10 +1271,6 @@ const Multiplayer = () => {
                                 </div>
                             )}
                         </section>
-                    )}
-
-                    {!activeRoomId && (
-                        <p className="body-copy">Public lobbies are not available. Private room codes keep invites intentional while multiplayer is focused on friend groups.</p>
                     )}
 
                     <div className="action-row">

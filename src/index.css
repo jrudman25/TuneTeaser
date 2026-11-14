@@ -65,6 +65,7 @@
   body.dark-theme .resolved-track-list li,
   body.dark-theme .import-flow-card,
   body.dark-theme .how-to-card,
+  body.dark-theme .game-deck,
   body.dark-theme .top-strip,
   body.dark-theme .account-badge,
   body.dark-theme .loading-card,
@@ -108,6 +109,18 @@
 
   body.dark-theme .filter-chip-selected {
     color: #171008;
+  }
+
+  body.dark-theme .filter-chip:hover:not(:disabled) {
+    box-shadow: 6px 6px 0 #05060a;
+  }
+
+  body.dark-theme .filter-chip:active:not(:disabled) {
+    box-shadow: 2px 2px 0 #05060a;
+  }
+
+  body.dark-theme .playlist-source-tab:hover:not(.playlist-source-tab-selected) {
+    background: rgba(57, 214, 199, 0.15);
   }
 
   body.dark-theme .filter-chip-sheet {
@@ -186,7 +199,6 @@
   }
 
   body.dark-theme .fallback-record,
-  body.dark-theme .volume-console,
   body.dark-theme .playlist-card-importing-overlay span {
     color: #fff8e8;
   }
@@ -231,6 +243,14 @@
 
   body.dark-theme .record-visual {
     box-shadow: 14px 14px 0 var(--red), -16px -16px 0 rgba(57, 214, 199, 0.22);
+  }
+
+  body.dark-theme .game-deck-play {
+    box-shadow: 5px 5px 0 #05060a;
+  }
+
+  body.dark-theme .game-deck-play:hover:not(:disabled) {
+    box-shadow: 7px 7px 0 #05060a;
   }
 
   body.dark-theme .snippet-progress-bar {
@@ -330,7 +350,7 @@
   .page {
     width: min(1120px, calc(100% - 32px));
     margin: 0 auto;
-    padding: 118px 0 32px;
+    padding: clamp(90px, 12vh, 118px) 0 32px;
     flex: 1;
   }
 
@@ -359,16 +379,60 @@
 
   .hero-card {
     max-width: 1060px;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(16px, 2.5vh, 40px);
+    padding: clamp(20px, 3.5vh, 72px) clamp(28px, 6vw, 72px);
+    overflow: hidden;
+  }
+
+  .hero-card .auth-form {
+    gap: 10px;
+  }
+
+  .hero-card .form-label {
+    gap: 6px;
+  }
+
+  .hero-card .text-input {
+    padding-block: clamp(8px, 1.5vh, 12px);
+  }
+
+  .hero-card .auth-toggle-row .button {
+    min-height: clamp(40px, 6vh, 48px);
+  }
+
+  .hero-card .button-large {
+    min-height: clamp(52px, 7vh, 68px);
+  }
+
+  .hero-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: clamp(24px, 4vw, 48px);
+  }
+
+  .hero-bottom {
     display: grid;
     grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
-    gap: clamp(28px, 5vw, 64px);
-    padding: clamp(28px, 6vw, 72px);
-    overflow: hidden;
+    align-items: start;
+    gap: clamp(24px, 4vw, 48px);
+  }
+
+  .hero-bottom .hero-actions {
+    margin-top: 0;
+  }
+
+  .hero-bottom .how-to-card {
+    width: 100%;
+    margin-top: 0;
   }
 
   .hero-copy {
     position: relative;
     z-index: 1;
+    min-width: 0;
   }
 
   .eyebrow,
@@ -395,9 +459,9 @@
   }
 
   .title {
-    margin: 18px 0 14px;
+    margin: 0 0 14px;
     font-family: var(--display);
-    font-size: clamp(3.4rem, 10vw, 7.7rem);
+    font-size: clamp(3rem, min(7.5vw, 10vh), 6.2rem);
     line-height: 0.9;
     letter-spacing: -0.06em;
     text-transform: uppercase;
@@ -443,8 +507,7 @@
   .hero-actions,
   .action-row,
   .pagination-row,
-  .guess-row,
-  .play-row {
+  .guess-row {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -497,18 +560,32 @@
 
   .auth-alt-links {
     display: flex;
-    align-items: center;
-    justify-content: center;
+    flex-direction: column;
+    align-items: stretch;
     gap: 10px;
-    margin-top: 4px;
+    width: 100%;
   }
 
-  .auth-alt-links button {
-    border: 0;
-    padding: 0;
-    background: none;
-    cursor: pointer;
-    font-size: 0.95rem;
+  .auth-divider-text {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--ink-soft);
+    font-size: 0.85rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .auth-divider-text::before,
+  .auth-divider-text::after {
+    flex: 1;
+    border-top: 3px solid var(--ink);
+    content: "";
+  }
+
+  .auth-alt-links .button {
+    width: 100%;
   }
 
   .auth-alt-sep {
@@ -786,11 +863,10 @@
   }
 
   .record-visual {
-    position: sticky;
-    top: 140px;
+    position: relative;
     align-self: start;
     justify-self: center;
-    width: min(360px, 72vw);
+    width: min(220px, 40vw, 22vh);
     aspect-ratio: 1;
     border: 8px solid var(--ink);
     border-radius: 50%;
@@ -808,23 +884,6 @@
     border-radius: 50%;
     content: "";
     background: var(--paper);
-  }
-
-  .hero-side {
-    display: grid;
-    gap: 24px;
-    align-content: start;
-    justify-items: center;
-  }
-
-  .hero-side .record-visual {
-    position: static;
-    width: min(260px, 60vw);
-  }
-
-  .hero-side .how-to-card {
-    width: 100%;
-    margin-top: 0;
   }
 
   .how-to-card {
@@ -983,8 +1042,10 @@
     border-radius: 999px;
     color: inherit;
     font-family: var(--body);
-    font-size: 0.85rem;
+    font-size: 1.1rem;
     font-weight: 900;
+    line-height: 1;
+    padding-bottom: 2px;
     background: rgba(255, 248, 232, 0.68);
     cursor: pointer;
   }
@@ -999,7 +1060,8 @@
   .record-bin {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: clamp(16px, 2.5vh, 24px);
+    padding-block: clamp(16px, 3.5vh, 46px);
   }
 
   .multiplayer-panel {
@@ -1014,6 +1076,7 @@
 
   .multiplayer-card {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     align-content: start;
     gap: 14px;
     border: 3px solid var(--ink);
@@ -1026,7 +1089,7 @@
   .multiplayer-card .eyebrow {
     justify-self: start;
     margin-bottom: 0;
-    width: 120px;
+    min-width: 120px;
     justify-content: center;
     box-sizing: border-box;
   }
@@ -1055,8 +1118,11 @@
   .multiplayer-lobby {
     display: grid;
     gap: 22px;
-    border-top: 3px dashed var(--ink);
-    padding-top: 24px;
+  }
+
+  .multiplayer-lobby .multiplayer-back-button {
+    position: static;
+    justify-self: start;
   }
 
   .multiplayer-lobby-header {
@@ -1212,8 +1278,9 @@
   }
 
   .round-reveal-banner .eyebrow {
-    background: var(--teal);
+    width: auto;
     margin-bottom: 4px;
+    background: var(--teal);
   }
 
   .reveal-title {
@@ -1404,21 +1471,51 @@
     text-align: center;
   }
 
-  .stage-header {
-    gap: 8px;
+  .stage-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    width: min(100%, 680px);
+    min-width: 0;
+    margin-inline: auto;
   }
 
-  .volume-console {
-    display: grid;
-    grid-template-columns: auto minmax(180px, 320px) auto;
+  .stage-header {
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 12px;
-    border: 3px solid var(--ink);
-    border-radius: 999px;
-    padding: 10px 16px;
-    color: var(--cream);
-    background: var(--record);
-    box-shadow: 5px 5px 0 var(--ink);
+    justify-items: start;
+    gap: 8px 16px;
+    text-align: left;
+  }
+
+  .stage-header-copy {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+    justify-items: start;
+  }
+
+  .stage-wrap {
+    position: relative;
+    width: 100%;
+  }
+
+  .stage-back-button {
+    position: absolute;
+    z-index: 2;
+    top: clamp(22px, 5vw, 46px);
+    left: clamp(22px, 5vw, 46px);
+    min-height: 40px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    box-shadow: 3px 3px 0 var(--ink);
+  }
+
+  @media (max-width: 920px) {
+    .stage-back-button {
+      position: static;
+      margin-bottom: 10px;
+    }
   }
 
   .snippet-meter {
@@ -1476,7 +1573,6 @@
   .snippet-progress-fill {
     height: 100%;
     background: linear-gradient(90deg, var(--teal), var(--gold));
-    transition: width 250ms linear;
   }
 
   .snippet-progress-text {
@@ -1486,6 +1582,123 @@
     font-weight: 900;
   }
 
+  .snippet-progress-text-split {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .snippet-progress-hint {
+    font-weight: 800;
+    opacity: 0.7;
+  }
+
+  .game-deck {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px 18px;
+    width: 100%;
+    border: var(--border);
+    border-radius: var(--radius-md);
+    padding: 18px;
+    color: var(--ink);
+    background: rgba(255, 248, 232, 0.74);
+  }
+
+  .game-deck-play {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    border: var(--border);
+    border-radius: 50%;
+    color: var(--cream);
+    background: var(--teal);
+    box-shadow: 5px 5px 0 var(--ink);
+    cursor: pointer;
+    transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+  }
+
+  .game-deck-play svg {
+    font-size: 2rem;
+  }
+
+  .game-deck-play:hover:not(:disabled) {
+    filter: saturate(1.06);
+    transform: translate(-2px, -2px);
+    box-shadow: 7px 7px 0 var(--ink);
+  }
+
+  .game-deck-play:disabled {
+    cursor: not-allowed;
+    filter: grayscale(0.4);
+    opacity: 0.62;
+  }
+
+  .game-deck-progress {
+    flex: 1;
+    min-width: 180px;
+  }
+
+  .game-deck .snippet-progress {
+    width: 100%;
+  }
+
+  .game-deck-volume {
+    display: grid;
+    grid-template-columns: auto 110px auto;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .stage-inner .guess-row {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .stage-inner .guess-input {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+
+  /* The inner MUI input is rectangular; the rounded fieldset already signals focus. */
+  .stage-inner .guess-input .MuiAutocomplete-input:focus-visible {
+    outline: none;
+  }
+
+  .guess-helper {
+    color: var(--ink-soft);
+    font-size: 0.85rem;
+    font-weight: 800;
+  }
+
+  .guess-helper svg {
+    vertical-align: -4px;
+    margin-right: 4px;
+  }
+
+  .stage-inner .shortcut-hint {
+    text-align: left;
+  }
+
+  .stage-inner .feedback-pill {
+    justify-self: start;
+  }
+
+  .stage-inner .guess-history {
+    margin: 0;
+    text-align: left;
+  }
+
+  .stage-inner .guess-history-list {
+    justify-content: flex-start;
+  }
+
   .guess-row {
     width: min(100%, 620px);
   }
@@ -1493,10 +1706,12 @@
   .guess-input-wrap {
     position: relative;
     flex: 1 1 300px;
+    min-width: 0;
   }
 
   .guess-input {
     width: 100%;
+    min-width: 0;
   }
 
   .guess-suggestion-list {
@@ -1531,8 +1746,48 @@
   }
 
   .guess-suggestion-list button:hover,
-  .guess-suggestion-list button:focus-visible {
+  .guess-suggestion-list button:focus-visible,
+  .guess-suggestion-list button.guess-suggestion-active {
     background: var(--gold);
+  }
+
+  /* MUI Autocomplete dropdown on the solo guess box, matching .guess-suggestion-list */
+  .guess-suggestion-popper .MuiAutocomplete-paper {
+    margin-top: 8px;
+    border: 3px solid var(--ink);
+    border-radius: 16px;
+    color: var(--ink);
+    background: var(--paper);
+    box-shadow: 6px 6px 0 var(--ink);
+  }
+
+  .guess-suggestion-popper .MuiAutocomplete-listbox {
+    display: grid;
+    gap: 6px;
+    max-height: 260px;
+    padding: 8px;
+    font-family: var(--body);
+  }
+
+  .guess-suggestion-popper .MuiAutocomplete-option {
+    border: 2px solid var(--ink);
+    border-radius: 12px;
+    padding: 10px 12px;
+    color: var(--ink);
+    font-weight: 900;
+    background: var(--cream);
+  }
+
+  .guess-suggestion-popper .MuiAutocomplete-option:hover,
+  .guess-suggestion-popper .MuiAutocomplete-option.Mui-focused,
+  .guess-suggestion-popper .MuiAutocomplete-option[aria-selected="true"] {
+    background: var(--gold);
+  }
+
+  .guess-suggestion-popper .MuiAutocomplete-noOptions {
+    color: var(--ink-soft);
+    font-family: var(--body);
+    font-weight: 800;
   }
 
   .give-up-zone {
@@ -1553,13 +1808,38 @@
     color: #7d241c;
     font-weight: 900;
     background: #ffe4d9;
+    overflow-wrap: anywhere;
   }
 
   .result-card {
     display: grid;
     grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
     gap: clamp(24px, 5vw, 48px);
-    align-items: center;
+    align-items: stretch;
+  }
+
+  .result-info {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* The status line stays at the top while the title block centers itself in
+     the free space, roughly level with the middle of the album art; the
+     buttons stay at the bottom with a floor on the gap under the artist. */
+  .result-status {
+    display: grid;
+    gap: 12px;
+    justify-items: center;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+
+  .result-info .result-header {
+    margin-block: auto;
+  }
+
+  .result-info .action-row {
+    padding-top: 28px;
   }
 
   .album-frame {
@@ -1618,6 +1898,38 @@
     font-weight: 900;
   }
 
+  .result-media {
+    display: grid;
+    gap: 22px;
+    align-content: center;
+  }
+
+  .result-preview {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .result-preview-play {
+    width: 52px;
+    height: 52px;
+    box-shadow: 4px 4px 0 var(--ink);
+  }
+
+  .result-preview-play svg {
+    font-size: 1.6rem;
+  }
+
+  .result-preview-progress {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .result-preview .snippet-progress {
+    width: 100%;
+    justify-items: stretch;
+  }
+
   .error-card {
     max-width: 840px;
     margin: 0 auto;
@@ -1673,20 +1985,27 @@
       padding-top: 102px;
     }
 
-    .hero-card,
     .result-card {
       grid-template-columns: 1fr;
     }
 
+    .hero-top,
+    .hero-bottom {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .hero-top .record-visual {
+      display: none;
+    }
+
     .title {
-      font-size: clamp(3rem, 18vw, 5.2rem);
+      font-size: clamp(2.4rem, 13vw, 3.4rem);
     }
 
     .hero-actions,
     .action-row,
     .pagination-row,
-    .guess-row,
-    .play-row {
+    .guess-row {
       align-items: stretch;
       flex-direction: column;
     }
@@ -1701,9 +2020,9 @@
       flex-direction: column;
     }
 
-    .volume-console {
-      grid-template-columns: auto minmax(120px, 1fr) auto;
-      width: 100%;
+    .game-deck-volume {
+      flex-basis: 100%;
+      grid-template-columns: auto minmax(0, 1fr) auto;
     }
 
     .toast-message {
@@ -1711,6 +2030,16 @@
       right: 11px;
       left: 11px;
       width: auto;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .stage-header {
+      grid-template-columns: 1fr;
+    }
+
+    .stage-header .button {
+      justify-self: end;
     }
   }
 
@@ -1791,6 +2120,11 @@
     font-weight: 900;
     cursor: pointer;
     background: transparent;
+    transition: background 160ms ease;
+  }
+
+  .playlist-source-tab:hover:not(.playlist-source-tab-selected) {
+    background: rgba(22, 140, 132, 0.16);
   }
 
   .playlist-source-tab-selected {
@@ -1824,6 +2158,18 @@
     cursor: pointer;
     background: var(--cream);
     box-shadow: 2px 2px 0 var(--ink);
+    transform: translate(0, 0);
+    transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+  }
+
+  .filter-chip:hover:not(:disabled) {
+    filter: saturate(1.06);
+    transform: translate(-2px, -2px);
+    box-shadow: 4px 4px 0 var(--ink);
+  }
+
+  .filter-chip:active:not(:disabled) {
+    box-shadow: 1px 1px 0 var(--ink);
   }
 
   .filter-chip-selected {
@@ -2258,10 +2604,6 @@
       transition-duration: 0.01ms !important;
     }
 
-    .snippet-progress-fill {
-      transition: none;
-    }
-
     .playing-badge {
       animation: none;
     }
@@ -2312,6 +2654,10 @@
     border: 2px solid var(--ink);
     border-radius: 999px;
     padding: 3px 10px;
+    max-width: min(100%, 36ch);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* Settings accordion + cards (replaces inline styles) */
@@ -2395,21 +2741,6 @@
     font-size: 0.95rem;
     color: var(--ink);
     font-weight: 700;
-}
-
-/* Pro tip hint under the guess controls */
-.guess-hint {
-    font-size: 0.85rem;
-    color: var(--ink-soft);
-    font-weight: 800;
-    margin-top: -6px;
-    margin-bottom: 12px;
-    text-align: center;
-}
-
-.guess-hint svg {
-    vertical-align: -4px;
-    margin-right: 2px;
 }
 
 /* Keyboard shortcut hint under the guess controls */

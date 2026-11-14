@@ -1,20 +1,19 @@
 /**
  * Home.tsx
  * The main page of the site.
- * @version 2026.05.27
+ * @version 2026.11.13
  */
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { signOut } from 'firebase/auth';
-import { auth } from '../backend/FirebaseConfig';
-import { signInAsGuest } from '../utils/guestSignIn';
+import { signInAsGuest, signOutExplicitly } from '../utils/guestSignIn';
 import { usePlaylists } from '../hooks/usePlaylists';
-import { useGameLogic } from '../hooks/useGameLogic';
+import { useGameLogic, RESULT_PREVIEW_MS } from '../hooks/useGameLogic';
 import { useManualPlaylists } from '../hooks/useManualPlaylists';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
 import PlaylistMenu from '../components/PlaylistMenu';
 import ActiveGame from '../components/ActiveGame';
 import GameResult from '../components/GameResult';
+import ConfirmDialog from '../components/ConfirmDialog';
 import SignedInBadge from '../components/SignedInBadge';
 import NavBar from '../components/NavBar';
 import OnboardingTour from '../components/OnboardingTour';
@@ -77,9 +76,12 @@ const Home = () => {
         handleGuessSubmit,
         handleGiveUp: originalHandleGiveUp,
         playSnippet,
+        playResultPreview,
+        stopPreview,
         handlePlayAgain: originalHandlePlayAgain,
         handleSelectNewPlaylist: originalHandleSelectNewPlaylist,
         isPlaying,
+        isAdvancing,
         playerError,
         currentTracks,
         wrongGuesses,
@@ -92,6 +94,29 @@ const Home = () => {
 
     const [displayedPoints, setDisplayedPoints] = useState<number | null>(null);
     const [pointsNote, setPointsNote] = useState<string | null>(null);
+    const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
+
+    const returnToPlaylistPicker = () => {
+        setDisplayedPoints(null);
+        setPointsNote(null);
+        originalHandleSelectNewPlaylist();
+        window.scrollTo({ top: 0 });
+    };
+
+    const handleNavNavigate = (to: string) => {
+        const pathname = to.split('?')[0];
+        if (gameState === 'playing') {
+            setPendingNavigation(to);
+            return;
+        }
+        if (pathname === '/home') {
+            if (gameState === 'end') {
+                returnToPlaylistPicker();
+            }
+            return;
+        }
+        navigate(to);
+    };
 
     const handleGiveUp = () => {
         setDisplayedPoints(null);
@@ -109,6 +134,15 @@ const Home = () => {
         setDisplayedPoints(null);
         setPointsNote(null);
         originalHandleSelectNewPlaylist();
+    };
+
+    const handleConfirmLeaveRound = () => {
+        const target = pendingNavigation;
+        setPendingNavigation(null);
+        returnToPlaylistPicker();
+        if (target && target.split('?')[0] !== '/home') {
+            navigate(target);
+        }
     };
 
     const handleGuessWithScoring = async (specificGuess?: string) => {
@@ -139,7 +173,7 @@ const Home = () => {
         setIsLoggingOut(true);
 
         try {
-            await signOut(auth);
+            await signOutExplicitly();
         } catch { /* no active Firebase session */ }
 
         navigate('/');
@@ -158,7 +192,14 @@ const Home = () => {
     const actionButtons = (
         <div className="action-row">
             {(isProbablyManualMode || isProbablyGuest) && (
-                <Link className="button button-secondary" to={isProbablyGuest ? "/playlists?mode=guest" : "/playlists"}>
+                <Link
+                    className="button button-secondary"
+                    to={isProbablyGuest ? "/playlists?mode=guest" : "/playlists"}
+                    onClick={(event) => {
+                        event.preventDefault();
+                        handleNavNavigate(isProbablyGuest ? "/playlists?mode=guest" : "/playlists");
+                    }}
+                >
                     Manage Playlists
                 </Link>
             )}
@@ -171,7 +212,7 @@ const Home = () => {
     if (isLoggingOut || isLoadingUser || (user && !user.isAnonymous && isLoadingManualPlaylists)) {
         return (
             <>
-                <NavBar statusBadge={statusBadge} actionButtons={actionButtons} />
+                <NavBar statusBadge={statusBadge} actionButtons={actionButtons} onNavigate={handleNavNavigate} />
                 <main className="page home-page">
                     <div className="loading-card">{isLoggingOut ? 'Signing out...' : 'Loading...'}</div>
                 </main>
@@ -181,7 +222,7 @@ const Home = () => {
 
     return (
         <>
-            <NavBar statusBadge={statusBadge} actionButtons={actionButtons} />
+            <NavBar statusBadge={statusBadge} actionButtons={actionButtons} onNavigate={handleNavNavigate} />
             <main className="page home-page">
                 {manualPlaylistError && (
                     <div className="error-banner">
@@ -222,8 +263,10 @@ const Home = () => {
                         onGuessSubmit={handleGuessWithScoring}
                         onPlaySnippet={playSnippet}
                         onGiveUp={handleGiveUp}
+                        onBack={() => handleNavNavigate('/home')}
                         feedbackMessage={feedbackMessage}
                         isPlaying={isPlaying}
+                        isAdvancing={isAdvancing}
                         positionMs={positionMs}
                         playbackDurationMs={playbackDurationMs}
                         selectedPlaylistName={selectedPlaylistName}
@@ -232,6 +275,7 @@ const Home = () => {
                         isSubmittingGuess={isSubmittingGuess}
                         volume={volume}
                         setVolume={setVolume}
+                        shortcutsEnabled={pendingNavigation === null}
                     />
                 )}
 
@@ -244,6 +288,17 @@ const Home = () => {
                         isLoading={isLoadingGame}
                         earnedPoints={displayedPoints}
                         pointsNote={pointsNote}
+                        isPlaying={isPlaying}
+                        isAdvancing={isAdvancing}
+                        positionMs={positionMs}
+                        previewDurationMs={RESULT_PREVIEW_MS}
+                        onTogglePreview={() => {
+                            if (isPlaying) {
+                                stopPreview();
+                            } else {
+                                playResultPreview();
+                            }
+                        }}
                     />
                 )}
 
@@ -254,6 +309,17 @@ const Home = () => {
                         setOnboardingDismissed(true);
                         localStorage.setItem('onboardingComplete', 'true');
                     }}
+                />
+
+                <ConfirmDialog
+                    open={pendingNavigation !== null}
+                    title="Leave this round?"
+                    message={pendingNavigation?.split('?')[0] === '/home'
+                        ? 'You will go back to playlist selection and this round will not score.'
+                        : 'This round will not score if you leave now.'}
+                    confirmLabel="Leave Round"
+                    onConfirm={handleConfirmLeaveRound}
+                    onCancel={() => setPendingNavigation(null)}
                 />
             </main>
         </>

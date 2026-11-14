@@ -18,6 +18,7 @@ describe('ActiveGame - Enter Key Behavior', () => {
         onGuessSubmit: vi.fn(),
         onPlaySnippet: vi.fn(),
         onGiveUp: vi.fn(),
+        onBack: vi.fn(),
         feedbackMessage: '',
         isPlaying: false,
         selectedPlaylistName: 'Test Playlist',
@@ -76,6 +77,7 @@ describe('ActiveGame - keyboard shortcuts', () => {
         onGuessSubmit: vi.fn(),
         onPlaySnippet: vi.fn(),
         onGiveUp: vi.fn(),
+        onBack: vi.fn(),
         feedbackMessage: '',
         isPlaying: false,
         selectedPlaylistName: 'Test Playlist',
@@ -83,6 +85,16 @@ describe('ActiveGame - keyboard shortcuts', () => {
         volume: 0.5,
         setVolume: vi.fn()
     };
+
+    it('calls onBack when the header Back button is clicked', async () => {
+        const user = userEvent.setup();
+        const onBack = vi.fn();
+
+        render(<ActiveGame {...defaultProps} onBack={onBack} />);
+        await user.click(screen.getByRole('button', { name: 'Back to playlist selection' }));
+
+        expect(onBack).toHaveBeenCalledTimes(1);
+    });
 
     it('plays the snippet when Space is pressed outside editable controls', async () => {
         const user = userEvent.setup();
@@ -126,6 +138,48 @@ describe('ActiveGame - keyboard shortcuts', () => {
         await user.keyboard(' ');
 
         expect(onPlaySnippet).not.toHaveBeenCalled();
+    });
+
+    it('plays the snippet from the deck play button', async () => {
+        const user = userEvent.setup();
+        const onPlaySnippet = vi.fn();
+
+        render(<ActiveGame {...defaultProps} onPlaySnippet={onPlaySnippet} />);
+        await user.click(screen.getByRole('button', { name: 'Play snippet' }));
+
+        expect(onPlaySnippet).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows the empty-guess helper under the guess row', () => {
+        render(<ActiveGame {...defaultProps} />);
+
+        expect(screen.getByText(/Guess with nothing typed to hear 2 more seconds/)).toBeInTheDocument();
+    });
+
+    it('opens the give-up confirmation from the header Give up button', async () => {
+        const user = userEvent.setup();
+        const onGiveUp = vi.fn();
+
+        render(<ActiveGame {...defaultProps} onGiveUp={onGiveUp} />);
+        await user.click(screen.getByRole('button', { name: 'Give up' }));
+
+        expect(screen.getByText('Give up this round?')).toBeInTheDocument();
+        expect(onGiveUp).not.toHaveBeenCalled();
+
+        const dialog = screen.getByRole('dialog');
+        await user.click(within(dialog).getByRole('button', { name: /^give up$/i }));
+        expect(onGiveUp).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not give up when the header Give up confirmation is cancelled', async () => {
+        const user = userEvent.setup();
+        const onGiveUp = vi.fn();
+
+        render(<ActiveGame {...defaultProps} onGiveUp={onGiveUp} />);
+        await user.click(screen.getByRole('button', { name: 'Give up' }));
+        await user.click(await screen.findByRole('button', { name: /cancel/i }));
+
+        expect(onGiveUp).not.toHaveBeenCalled();
     });
 
     it('Esc opens give-up confirmation; cancel keeps the round, confirm gives up', async () => {

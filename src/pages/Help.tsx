@@ -6,8 +6,7 @@
  */
 import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { signOut } from 'firebase/auth';
-import { auth } from '../backend/FirebaseConfig';
+import { signOutExplicitly } from '../utils/guestSignIn';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
 import NavBar from '../components/NavBar';
 import SignedInBadge from '../components/SignedInBadge';
@@ -42,7 +41,7 @@ const Help = () => {
     const handleLogout = async () => {
 
         try {
-            await signOut(auth);
+            await signOutExplicitly();
         } catch (err) {
             console.error("Failed to sign out user from help page:", err);
         }
@@ -96,7 +95,6 @@ const Help = () => {
             <main className="page home-page">
                 <section className="record-bin help-container" style={{ maxWidth: '800px', margin: '0 auto' }}>
                     <div>
-                        <span className="eyebrow">Onboarding Guide</span>
                         <h1 className="section-title">Help & FAQ</h1>
                         <p className="body-copy">
                             Welcome to TuneTeaser. Here you will find everything you need to know about setting up playlists, importing Spotify music, playing solo or multiplayer rounds, managing limits, earning points, and climbing the leaderboard.
@@ -134,9 +132,9 @@ const Help = () => {
                                         TuneTeaser tests your musical recall using song previews from your chosen playlist.
                                     </p>
                                     <ul className="compact-list" style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px', fontWeight: 700, color: 'var(--ink-soft)' }}>
-                                        <li><strong>Select a Playlist:</strong> Choose a playlist from your library, a featured guest playlist, or the host playlist in a multiplayer room.</li>
+                                        <li><strong>Select a Playlist:</strong> Choose one of your own playlists, a premade genre or decade playlist, or the host playlist in a multiplayer room.</li>
                                         <li><strong>Hear the Snippet:</strong> A random track is chosen, and a short audio preview will play.</li>
-                                        <li><strong>Guess the Title:</strong> Type the song title. In solo play, incorrect guesses increase the snippet length. In multiplayer, race the shared round timer.</li>
+                                        <li><strong>Guess the Title:</strong> Type the song title. In solo play, incorrect guesses increase the snippet length, and pressing Guess without typing adds 2 seconds (up to 30). In multiplayer, race the shared round timer.</li>
                                         <li><strong>Earn Points:</strong> Correct guesses can reward points for registered TuneTeaser accounts, and answering quickly earns more.</li>
                                         <li><strong>Keyboard Shortcuts:</strong> Press Space to play the snippet (when you are not typing), Enter to submit a guess, and Esc to give up after confirming.</li>
                                     </ul>

@@ -3,7 +3,7 @@
  * Handles playing 30-second song previews using HTML5 Audio.
  * The stop timer is based on audio position, not wall clock, so a
  * buffering stall does not eat into the scored snippet duration.
- * @version 2026.06.05
+ * @version 2026.11.13
  */
 import { useState, useRef, useCallback, useEffect } from 'react';
 
@@ -11,6 +11,7 @@ interface UsePreviewPlayerReturn {
     playPreview: (previewUrl: string, durationMs: number) => void;
     pause: () => void;
     isPlaying: boolean;
+    isAdvancing: boolean;
     error: string | null;
     volume: number;
     setVolume: (volume: number) => void;
@@ -19,14 +20,20 @@ interface UsePreviewPlayerReturn {
     preloadPreview: (url: string) => void;
 }
 
+// How long the UI stays at a full bar / "0.0s left" after a snippet finishes
+// before resetting to idle.
+const END_HOLD_MS = 300;
+
 const usePreviewPlayer = (): UsePreviewPlayerReturn => {
     const [isPlaying, setIsPlaying] = useState(false);
+    const [isAdvancing, setIsAdvancing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [volume, setVolume] = useState(0.5);
     const [positionMs, setPositionMs] = useState(0);
     const [playbackDurationMs, setPlaybackDurationMs] = useState(0);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const endHoldRef = useRef<NodeJS.Timeout | null>(null);
     const isStoppingRef = useRef(false);
     const volumeRef = useRef(volume);
     const preloadRef = useRef<{ url: string; audio: HTMLAudioElement } | null>(null);
@@ -54,6 +61,9 @@ const usePreviewPlayer = (): UsePreviewPlayerReturn => {
             if (timeoutRef.current) {
                 clearTimeout(timeoutRef.current);
             }
+            if (endHoldRef.current) {
+                clearTimeout(endHoldRef.current);
+            }
         };
     }, []);
 
@@ -70,8 +80,13 @@ const usePreviewPlayer = (): UsePreviewPlayerReturn => {
             clearTimeout(timeoutRef.current);
             timeoutRef.current = null;
         }
+        if (endHoldRef.current) {
+            clearTimeout(endHoldRef.current);
+            endHoldRef.current = null;
+        }
         setPositionMs(0);
         setIsPlaying(false);
+        setIsAdvancing(false);
     }, []);
 
     const preloadPreview = useCallback((url: string) => {
@@ -126,6 +141,26 @@ const usePreviewPlayer = (): UsePreviewPlayerReturn => {
                 }
             };
 
+            // The snippet reached its scored duration: release the audio but
+            // keep the UI pinned at 100% / "0.0s left" for END_HOLD_MS before
+            // resetting to idle.
+            const completePlayback = () => {
+                if (audioRef.current !== audio) return;
+                isStoppingRef.current = true;
+                audio.pause();
+                audio.src = '';
+                audio.load();
+                audioRef.current = null;
+                clearStopTimer();
+                setIsAdvancing(false);
+                setPositionMs(durationMs);
+                endHoldRef.current = setTimeout(() => {
+                    endHoldRef.current = null;
+                    setPositionMs(0);
+                    setIsPlaying(false);
+                }, END_HOLD_MS);
+            };
+
             const scheduleStop = () => {
                 if (audioRef.current !== audio) return;
                 clearStopTimer();
@@ -133,7 +168,7 @@ const usePreviewPlayer = (): UsePreviewPlayerReturn => {
                 timeoutRef.current = setTimeout(() => {
                     if (audioRef.current !== audio) return;
                     if (audio.currentTime * 1000 >= durationMs - 20) {
-                        pause();
+                        completePlayback();
                     } else {
                         scheduleStop();
                     }
@@ -151,6 +186,13 @@ const usePreviewPlayer = (): UsePreviewPlayerReturn => {
                     })
                     .catch((err) => {
                         if (isStoppingRef.current) return;
+                        // Autoplay policy blocked the play (e.g. the result
+                        // screen replay without a recent gesture). Not a real
+                        // failure: stay silent so the play control can retry.
+                        if (err?.name === 'NotAllowedError') {
+                            setIsPlaying(false);
+                            return;
+                        }
                         console.error("Audio playback failed:", err);
                         setError("Failed to play preview. Please try again.");
                         setIsPlaying(false);
@@ -165,12 +207,20 @@ const usePreviewPlayer = (): UsePreviewPlayerReturn => {
 
             audio.addEventListener('playing', () => {
                 if (audioRef.current === audio) {
+                    // 'playing' can fire before the position starts moving
+                    // (buffer priming, output latency). Treat it as advancing
+                    // only when resuming mid-snippet; the first real position
+                    // advance is confirmed by timeupdate below.
+                    if (audio.currentTime * 1000 > 0) {
+                        setIsAdvancing(true);
+                    }
                     scheduleStop();
                 }
             });
 
             audio.addEventListener('waiting', () => {
                 if (audioRef.current === audio) {
+                    setIsAdvancing(false);
                     clearStopTimer();
                 }
             });
@@ -179,8 +229,11 @@ const usePreviewPlayer = (): UsePreviewPlayerReturn => {
                 if (audioRef.current !== audio) return;
                 const position = audio.currentTime * 1000;
                 setPositionMs(Math.min(position, durationMs));
+                if (position > 0) {
+                    setIsAdvancing(true);
+                }
                 if (position >= durationMs) {
-                    pause();
+                    completePlayback();
                 }
             });
 
@@ -188,12 +241,11 @@ const usePreviewPlayer = (): UsePreviewPlayerReturn => {
                 if (audioRef.current !== audio || isStoppingRef.current) return;
                 setError("Failed to load preview audio.");
                 setIsPlaying(false);
+                setIsAdvancing(false);
             });
 
             audio.addEventListener('ended', () => {
-                if (audioRef.current !== audio) return;
-                setIsPlaying(false);
-                clearStopTimer();
+                completePlayback();
             });
 
             if (!isReusedPreload) {
@@ -206,7 +258,7 @@ const usePreviewPlayer = (): UsePreviewPlayerReturn => {
         }
     }, [pause]);
 
-    return { playPreview, pause, isPlaying, error, volume, setVolume, positionMs, playbackDurationMs, preloadPreview };
+    return { playPreview, pause, isPlaying, isAdvancing, error, volume, setVolume, positionMs, playbackDurationMs, preloadPreview };
 };
 
 export default usePreviewPlayer;

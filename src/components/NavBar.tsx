@@ -92,6 +92,7 @@ const NavBar: React.FC<NavBarProps> = ({ statusBadge, actionButtons, onNavigate 
                                     </div>
                                 )}
                                 actionButtons={actionButtons}
+                                onNavigate={onNavigate}
                             />
                         )}
                     </div>

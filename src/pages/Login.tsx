@@ -96,6 +96,8 @@ const Login = () => {
 
     const handleGuestLogin = async () => {
         try {
+            // Explicit user action: calls signInAnonymously directly because
+            // signInAsGuest stays suppressed right after an explicit sign-out.
             await signInAnonymously(auth);
             trackEvent('guest-session');
             navigate('/home?mode=guest');
@@ -231,12 +233,16 @@ const Login = () => {
             <NavBar />
             <main className="page hero-page">
                 <section className="hero-card">
-                    <div className="hero-copy">
-                        <span className="eyebrow">Name that tune from your own playlists</span>
-                        <h1 className="title">TuneTeaser</h1>
-                        <p className="lede">
-                            Drop the needle on a tiny song snippet, race the clock in your head, and prove you know your playlists better than anyone.
-                        </p>
+                    <div className="hero-top">
+                        <div className="hero-copy">
+                            <h1 className="title">TuneTeaser</h1>
+                            <p className="lede">
+                                Name that tune from your own playlists. Prove you know your playlists better than anyone.
+                            </p>
+                        </div>
+                        <div className="record-visual" aria-hidden="true" />
+                    </div>
+                    <div className="hero-bottom">
                         <div className="hero-actions">
                                 {
                                         <>
@@ -323,22 +329,20 @@ const Login = () => {
                                                 </form>
                                             </div>
                                             <div className="auth-alt-links">
-                                                <button className="text-link" type="button" onClick={handleGuestLogin}>
+                                                <span className="auth-divider-text">or play without an account</span>
+                                                <button className="button button-secondary" type="button" onClick={handleGuestLogin}>
                                                     Play as Guest
                                                 </button>
                                             </div>
                                         </>
                                     }
                         </div>
-                    </div>
-                    <div className="hero-side">
-                        <div className="record-visual" aria-hidden="true" />
                         <div className="how-to-card">
                             <span className="kicker">How it works</span>
                             <ol className="how-to-list">
                                 <li><span className="number-chip">1</span><span>Create an account, or play instantly in Guest Mode.</span></li>
                                 <li><span className="number-chip">2</span><span>Import playlists by searching Spotify, pasting Spotify links, browsing a Spotify profile, or building a custom track list.</span></li>
-                                <li><span className="number-chip">3</span><span>Pick a playlist, hear a short snippet, and guess the track title.</span></li>
+                                <li><span className="number-chip">3</span><span>Pick one of your playlists or a premade mix, hear a short snippet, and guess the track title.</span></li>
                             </ol>
                             <Link className="text-link" to="/help">Full rules and scoring</Link>
                         </div>

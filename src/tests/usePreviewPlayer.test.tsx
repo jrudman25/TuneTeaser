@@ -112,7 +112,7 @@ describe('usePreviewPlayer hook', () => {
         expect(result.current.playbackDurationMs).toBe(0);
     });
 
-    it('plays preview and stops after duration', async () => {
+    it('plays preview, holds at the end briefly, then stops', async () => {
         vi.useFakeTimers();
 
         const { result } = renderHook(() => usePreviewPlayer());
@@ -126,8 +126,17 @@ describe('usePreviewPlayer hook', () => {
             vi.advanceTimersByTime(2000);
         });
 
-        expect(result.current.isPlaying).toBe(false);
+        // The UI holds at a full bar / "0.0s left" before resetting.
+        expect(result.current.isPlaying).toBe(true);
+        expect(result.current.positionMs).toBe(2000);
         expect(audio.pause).toHaveBeenCalled();
+
+        act(() => {
+            vi.advanceTimersByTime(800);
+        });
+
+        expect(result.current.isPlaying).toBe(false);
+        expect(result.current.positionMs).toBe(0);
     });
 
     it('stops playback when pause is called', async () => {
@@ -164,6 +173,30 @@ describe('usePreviewPlayer hook', () => {
 
         expect(result.current.isPlaying).toBe(false);
         expect(result.current.error).toBe('Failed to play preview. Please try again.');
+        expect(audio.play).toHaveBeenCalled();
+    });
+
+    it('stays silent when the browser blocks autoplay', async () => {
+        const { result } = renderHook(() => usePreviewPlayer());
+
+        await act(async () => {
+            result.current.playPreview('http://example.com/audio.mp3', 2000);
+        });
+
+        const audio = FakeAudio.instances[0];
+        const blocked = new Error('play() failed because the user didn\'t interact with the document first');
+        blocked.name = 'NotAllowedError';
+        audio.play.mockRejectedValue(blocked);
+
+        act(() => {
+            audio.dispatch('canplay');
+        });
+        await act(async () => {
+            await Promise.resolve();
+        });
+
+        expect(result.current.isPlaying).toBe(false);
+        expect(result.current.error).toBeNull();
         expect(audio.play).toHaveBeenCalled();
     });
 
@@ -206,9 +239,78 @@ describe('usePreviewPlayer hook', () => {
             vi.advanceTimersByTime(1000);
         });
 
-        expect(result.current.isPlaying).toBe(false);
+        // Snippet audio stopped, but the UI holds briefly before resetting.
         expect(audio.pause).toHaveBeenCalled();
+        expect(result.current.isPlaying).toBe(true);
         expect(audio.currentTime).toBeGreaterThanOrEqual(1.98);
+
+        act(() => {
+            vi.advanceTimersByTime(800);
+        });
+        expect(result.current.isPlaying).toBe(false);
+    });
+
+    it('tracks isAdvancing from actual position advancement', async () => {
+        vi.useFakeTimers();
+
+        const { result } = renderHook(() => usePreviewPlayer());
+        const audio = await playSnippet(result);
+
+        // 'playing' alone does not count as advancing: it can fire while the
+        // position is still 0 during buffer priming.
+        expect(result.current.isAdvancing).toBe(false);
+        expect(result.current.isPlaying).toBe(true);
+
+        act(() => {
+            vi.advanceTimersByTime(500);
+            audio.dispatch('timeupdate');
+        });
+        expect(result.current.isAdvancing).toBe(true);
+
+        act(() => {
+            audio.dispatch('waiting');
+        });
+        expect(result.current.isAdvancing).toBe(false);
+        expect(result.current.isPlaying).toBe(true);
+
+        // Resuming mid-snippet counts as advancing immediately.
+        act(() => {
+            audio.dispatch('playing');
+        });
+        expect(result.current.isAdvancing).toBe(true);
+
+        act(() => {
+            result.current.pause();
+        });
+        expect(result.current.isAdvancing).toBe(false);
+    });
+
+    it('pins the bar at 100% then resets when the audio ends early', async () => {
+        vi.useFakeTimers();
+
+        const { result } = renderHook(() => usePreviewPlayer());
+        const audio = await playSnippet(result, 'http://example.com/audio.mp3', 30000);
+
+        act(() => {
+            vi.advanceTimersByTime(29900);
+            audio.dispatch('timeupdate');
+        });
+        expect(result.current.positionMs).toBe(29900);
+
+        // iTunes previews often end slightly before durationMs; 'ended' must
+        // complete like a normal finish instead of leaving the bar at ~99%.
+        act(() => {
+            audio.dispatch('ended');
+        });
+        expect(result.current.positionMs).toBe(30000);
+        expect(result.current.isPlaying).toBe(true);
+        expect(audio.pause).toHaveBeenCalled();
+
+        act(() => {
+            vi.advanceTimersByTime(300);
+        });
+        expect(result.current.positionMs).toBe(0);
+        expect(result.current.isPlaying).toBe(false);
     });
 
     it('updates positionMs on timeupdate', async () => {

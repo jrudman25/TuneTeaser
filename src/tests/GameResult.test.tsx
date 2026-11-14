@@ -126,6 +126,58 @@ describe('GameResult Component', () => {
         expect(newPlaylistMock).toHaveBeenCalledTimes(1);
     });
 
+    it('renders the preview toggle and calls onTogglePreview', () => {
+        const toggleMock = vi.fn();
+        render(
+            <GameResult
+                targetSong={mockSong}
+                feedbackMessage="Correct!"
+                onPlayAgain={vi.fn()}
+                onSelectNewPlaylist={vi.fn()}
+                previewDurationMs={30000}
+                onTogglePreview={toggleMock}
+            />
+        );
+
+        const toggle = screen.getByRole('button', { name: 'Play preview' });
+        expect(screen.getByText('30s preview')).toBeInTheDocument();
+
+        fireEvent.click(toggle);
+        expect(toggleMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows a stop control while the preview is playing', () => {
+        render(
+            <GameResult
+                targetSong={mockSong}
+                feedbackMessage="Correct!"
+                onPlayAgain={vi.fn()}
+                onSelectNewPlaylist={vi.fn()}
+                isPlaying={true}
+                isAdvancing={true}
+                positionMs={5000}
+                previewDurationMs={30000}
+                onTogglePreview={vi.fn()}
+            />
+        );
+
+        expect(screen.getByRole('button', { name: 'Stop preview' })).toBeInTheDocument();
+        expect(screen.getByRole('progressbar', { name: 'Snippet progress' })).toHaveAttribute('aria-valuenow', '5');
+    });
+
+    it('hides the preview row when no toggle handler is provided', () => {
+        render(
+            <GameResult
+                targetSong={mockSong}
+                feedbackMessage="Correct!"
+                onPlayAgain={vi.fn()}
+                onSelectNewPlaylist={vi.fn()}
+            />
+        );
+
+        expect(screen.queryByRole('button', { name: 'Play preview' })).not.toBeInTheDocument();
+    });
+
     it('disables buttons and shows loading text when isLoading is true', () => {
         render(
             <GameResult 

@@ -9,6 +9,7 @@ interface ProfileMenuProps {
     showSettings: boolean;
     statusBadge?: React.ReactNode;
     actionButtons?: React.ReactNode;
+    onNavigate?: (to: string) => void | Promise<void>;
 }
 
 const ProfileMenu: React.FC<ProfileMenuProps> = ({
@@ -16,7 +17,8 @@ const ProfileMenu: React.FC<ProfileMenuProps> = ({
     isGuest,
     showSettings,
     statusBadge,
-    actionButtons
+    actionButtons,
+    onNavigate
 }) => {
     const [isOpen, setIsOpen] = React.useState(false);
     const menuRef = React.useRef<HTMLDivElement>(null);
@@ -95,7 +97,13 @@ const ProfileMenu: React.FC<ProfileMenuProps> = ({
                             className="button button-secondary profile-menu-button"
                             to={settingsPath}
                             role="menuitem"
-                            onClick={() => setIsOpen(false)}
+                            onClick={async (event) => {
+                                setIsOpen(false);
+                                if (onNavigate) {
+                                    event.preventDefault();
+                                    await onNavigate(settingsPath);
+                                }
+                            }}
                         >
                             Settings
                         </Link>

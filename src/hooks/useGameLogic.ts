@@ -2,7 +2,7 @@
  * useGameLogic.ts
  * Handles the core game logic. Rounds are started, judged, and ended by the
  * server callables in utils/soloRounds; the client never sees the answer early.
- * @version 2026.06.01
+ * @version 2026.11.13
  */
 import { useState, useRef, useEffect } from 'react';
 import usePreviewPlayer from './usePreviewPlayer';
@@ -20,6 +20,10 @@ const getErrorMessage = (error: unknown, fallback: string) => {
 // slightly shorter window so a stale promise is never consumed.
 const PREFETCH_MAX_AGE_MS = 25 * 60 * 1000;
 
+// iTunes previews run about 30 seconds; the result screen replays the whole
+// clip once the answer is revealed.
+export const RESULT_PREVIEW_MS = 30 * 1000;
+
 export const useGameLogic = (
     isGuest: boolean,
     manualPlaylists: ManualPlaylist[] = [],
@@ -34,7 +38,7 @@ export const useGameLogic = (
         playlistLoadGenerationRef.current += 1;
     }, []);
 
-    const { playPreview, pause, isPlaying, error: playerError, volume, setVolume, positionMs, playbackDurationMs, preloadPreview } = usePreviewPlayer();
+    const { playPreview, pause, isPlaying, isAdvancing, error: playerError, volume, setVolume, positionMs, playbackDurationMs, preloadPreview } = usePreviewPlayer();
     const [currentTracks, setCurrentTracks] = useState<any[]>([]);
     const [targetSong, setTargetSong] = useState<any | null>(null);
     const [currentPreviewUrl, setCurrentPreviewUrl] = useState<string | null>(null);
@@ -50,9 +54,18 @@ export const useGameLogic = (
     const [isSubmittingGuess, setIsSubmittingGuess] = useState(false);
     const isSubmittingGuessRef = useRef(false);
     const selectedPlaylistIdRef = useRef('');
+    const gameStateRef = useRef(gameState);
+    const currentRoundIdRef = useRef(currentRoundId);
+    const startInFlightRef = useRef<{ playlistId: string; generation: number } | null>(null);
     useEffect(() => {
         selectedPlaylistIdRef.current = selectedPlaylistId;
     }, [selectedPlaylistId]);
+    useEffect(() => {
+        gameStateRef.current = gameState;
+    }, [gameState]);
+    useEffect(() => {
+        currentRoundIdRef.current = currentRoundId;
+    }, [currentRoundId]);
 
     const prefetchRef = useRef<{
         playlistId: string;
@@ -80,9 +93,16 @@ export const useGameLogic = (
         });
     };
 
-    const startRound = async (playlistId: string, loadGeneration?: number) => {
-        const isStaleLoad = () => loadGeneration !== undefined && playlistLoadGenerationRef.current !== loadGeneration;
+    const startRound = async (playlistId: string, loadGeneration: number = playlistLoadGenerationRef.current) => {
+        const isStaleLoad = () => playlistLoadGenerationRef.current !== loadGeneration;
         if (isStaleLoad()) return;
+        // A duplicate start for the same round in flight (for example a
+        // double-click on Next Track) would create a second server round that
+        // races the first; the slower one wins and the client ends up holding
+        // a round the server has already replaced.
+        const inFlight = startInFlightRef.current;
+        if (inFlight && inFlight.playlistId === playlistId && inFlight.generation === loadGeneration) return;
+        startInFlightRef.current = { playlistId, generation: loadGeneration };
         setIsLoadingGame(true);
         pause();
 
@@ -124,34 +144,54 @@ export const useGameLogic = (
             setCurrentPreviewUrl(null);
             setCurrentRoundId(null);
         } finally {
+            if (startInFlightRef.current?.playlistId === playlistId
+                && startInFlightRef.current.generation === loadGeneration) {
+                startInFlightRef.current = null;
+            }
             if (!isStaleLoad()) {
                 setIsLoadingGame(false);
             }
         }
     };
 
+    // Replays the revealed track's full preview on the result screen. Only the
+    // current round's URL is used, and startRound/handleSelectNewPlaylist
+    // already pause it when the player moves on.
+    const playResultPreview = () => {
+        if (!currentPreviewUrl) return;
+        playPreview(currentPreviewUrl, RESULT_PREVIEW_MS);
+    };
+
     const handleGuessSubmit = async (specificGuess?: string): Promise<SubmitSoloGuessResponse | null> => {
         if (isSubmittingGuessRef.current || !currentRoundId || gameState !== 'playing') return null;
+        const roundId = currentRoundId;
         isSubmittingGuessRef.current = true;
         setIsSubmittingGuess(true);
 
         const guessToCheck = specificGuess !== undefined ? specificGuess : userGuess;
         const guessText = guessToCheck.trim();
+        // While the guess is in flight the round can move on (give up, a new
+        // round starting, or a server round replaced by a newer start). Only
+        // apply the result, or show an error, if this is still the live round.
+        const isLiveRound = () => currentRoundIdRef.current === roundId && gameStateRef.current === 'playing';
 
         try {
-            const result = await submitSoloGuess(currentRoundId, guessText);
+            const result = await submitSoloGuess(roundId, guessText);
+            if (!isLiveRound()) return null;
 
             if (result.result === 'correct') {
                 setTargetSong(result.answer);
                 setGameState('end');
                 setFeedbackMessage(`Correct! You won! Guessed the song in ${result.snippetDurationMs / 1000} seconds.`);
                 trackEvent('solo-game-end', { result: 'correct' });
+                playResultPreview();
                 prefetchNextRound();
             } else if (result.result === 'out-of-snippet') {
                 setTargetSong(result.answer);
                 setGameState('end');
                 setFeedbackMessage(`Game Over! You didn't get it. The song was: ${result.answer?.name || 'unknown'}`);
                 trackEvent('solo-game-end', { result: 'out-of-snippet' });
+                playResultPreview();
                 prefetchNextRound();
             } else {
                 setSnippetDuration(result.snippetDurationMs);
@@ -169,7 +209,9 @@ export const useGameLogic = (
 
             return result;
         } catch (error) {
-            setFeedbackMessage(getErrorMessage(error, 'Could not submit your guess. Try again.'));
+            if (isLiveRound()) {
+                setFeedbackMessage(getErrorMessage(error, 'Could not submit your guess. Try again.'));
+            }
             return null;
         } finally {
             isSubmittingGuessRef.current = false;
@@ -194,17 +236,23 @@ export const useGameLogic = (
     };
 
     const handleGiveUp = async () => {
-        if (!currentRoundId) return;
+        if (!currentRoundId || gameStateRef.current !== 'playing') return;
+        const roundId = currentRoundId;
+        const isLiveRound = () => currentRoundIdRef.current === roundId && gameStateRef.current === 'playing';
 
         try {
-            const result = await giveUpSoloRound(currentRoundId);
+            const result = await giveUpSoloRound(roundId);
+            if (!isLiveRound()) return;
             setTargetSong(result.answer);
             setGameState('end');
             setFeedbackMessage(`The song was: ${result.answer.name}`);
             trackEvent('solo-game-end', { result: 'gave-up' });
+            playResultPreview();
             prefetchNextRound();
         } catch (error) {
-            setFeedbackMessage(getErrorMessage(error, 'Could not reveal the song. Try again.'));
+            if (isLiveRound()) {
+                setFeedbackMessage(getErrorMessage(error, 'Could not reveal the song. Try again.'));
+            }
         }
     };
 
@@ -293,9 +341,12 @@ export const useGameLogic = (
         handleGuessSubmit,
         handleGiveUp,
         playSnippet,
+        playResultPreview,
+        stopPreview: pause,
         handlePlayAgain,
         handleSelectNewPlaylist,
         isPlaying,
+        isAdvancing,
         playerError,
         volume,
         setVolume,

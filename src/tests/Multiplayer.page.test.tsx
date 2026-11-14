@@ -320,9 +320,9 @@ describe('Multiplayer page', () => {
         renderPage('/multiplayer/MISSING');
 
         expect(await screen.findByText(/room not found or expired/i)).toBeInTheDocument();
-        await user.click(screen.getByRole('button', { name: /back to multiplayer lobby/i }));
+        await user.click(screen.getByRole('button', { name: /back to multiplayer/i }));
 
-        expect(screen.getByRole('heading', { name: /multiplayer lobby/i })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: /multiplayer/i })).toBeInTheDocument();
     });
 
     it('returns participants to the lobby after the host closes the room', async () => {
@@ -339,7 +339,7 @@ describe('Multiplayer page', () => {
         renderPage('/multiplayer/ABC123');
 
         expect(await screen.findByText(/the host closed the room/i)).toBeInTheDocument();
-        expect(screen.getByRole('heading', { name: /multiplayer lobby/i })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: /multiplayer/i })).toBeInTheDocument();
         expect(screen.queryByText(/join this room/i)).not.toBeInTheDocument();
     });
 
@@ -446,6 +446,27 @@ describe('Multiplayer page', () => {
             expect(leaveMultiplayerRoom).toHaveBeenCalledWith('ABC123');
         });
         expect(screen.getByText(/you left the room/i)).toBeInTheDocument();
+    });
+
+    it('returns a joined player to the host and join screen via the lobby back button', async () => {
+        const user = userEvent.setup();
+        mocks.authState.user = { uid: 'guest-1', isAnonymous: false };
+        mocks.roomSnapshot = room;
+        mocks.playersSnapshot = [hostPlayer, guestPlayer];
+
+        renderPage('/multiplayer/ABC123');
+
+        await waitFor(() => {
+            expect(screen.getByText('Friday Party')).toBeInTheDocument();
+        });
+
+        await user.click(screen.getByRole('button', { name: /back to multiplayer lobby/i }));
+
+        await waitFor(() => {
+            expect(leaveMultiplayerRoom).toHaveBeenCalledWith('ABC123');
+            expect(screen.getByRole('button', { name: /create room/i })).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: /join game/i })).toBeInTheDocument();
+        });
     });
 
     it('leaves the lobby before navigating home from a room', async () => {
