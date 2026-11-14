@@ -149,7 +149,7 @@ const endRound = async (user: ReturnType<typeof userEvent.setup>) => {
     await act(async () => {
         await user.click(screen.getByRole('button', { name: 'Guess' }));
     });
-    await screen.findByRole('button', { name: 'Next Track' });
+    await screen.findByRole('button', { name: 'Next Track (N)' });
 };
 
 describe('Home page navigation during solo play', () => {
@@ -225,6 +225,22 @@ describe('Home page navigation during solo play', () => {
 
         expect(await screen.findByText('Choose your playlist')).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Play snippet' })).not.toBeInTheDocument();
+    });
+
+    it('starts the next track when N is pressed on the result screen', async () => {
+        const user = userEvent.setup();
+        renderHome();
+        await startRound(user);
+        await endRound(user);
+
+        await act(async () => {
+            await user.keyboard('n');
+        });
+
+        expect(await screen.findByRole('button', { name: 'Play snippet' })).toBeInTheDocument();
+
+        await user.keyboard('{Enter}');
+        expect(screen.getByLabelText('Enter song title...')).toHaveFocus();
     });
 
     it('navigates to other pages without confirming once the round has ended', async () => {

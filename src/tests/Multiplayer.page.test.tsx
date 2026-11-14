@@ -582,6 +582,23 @@ describe('Multiplayer page', () => {
         vi.unstubAllGlobals();
     });
 
+    it('focuses the guess input when Enter is pressed', async () => {
+        const user = userEvent.setup();
+        mocks.roomSnapshot = playingRoom;
+        mocks.playersSnapshot = [guessingHostPlayer, correctGuestPlayer];
+
+        renderPage('/multiplayer/ABC123');
+
+        const guessInput = await screen.findByPlaceholderText('Enter song title...');
+        await waitFor(() => {
+            expect(getMultiplayerRoundData).toHaveBeenCalledWith('ABC123', 'round-1');
+        });
+        expect(guessInput).not.toHaveFocus();
+
+        await user.keyboard('{Enter}');
+        expect(guessInput).toHaveFocus();
+    });
+
     it('supports keyboard shortcuts in active gameplay', async () => {
         const user = userEvent.setup();
         mocks.roomSnapshot = playingRoom;

@@ -71,6 +71,8 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
     const [highlightedOption, setHighlightedOption] = React.useState<string | null>(null);
     const [isGiveUpConfirmOpen, setIsGiveUpConfirmOpen] = React.useState(false);
 
+    const guessInputRef = React.useRef<HTMLInputElement>(null);
+
     useGameShortcuts({
         enabled: shortcutsEnabled && !isGiveUpConfirmOpen,
         onPlay: () => {
@@ -78,7 +80,8 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
                 onPlaySnippet();
             }
         },
-        onGiveUpRequest: () => setIsGiveUpConfirmOpen(true)
+        onGiveUpRequest: () => setIsGiveUpConfirmOpen(true),
+        onFocusGuess: () => guessInputRef.current?.focus()
     });
 
     const handleVolumeChange = (event: Event, newValue: number | number[]) => {
@@ -203,6 +206,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
                         renderInput={(params) => (
                             <TextField
                                 {...params}
+                                inputRef={guessInputRef}
                                 slotProps={{ htmlInput: { ...params.inputProps, maxLength: 200 } }}
                                 label="Enter song title..."
                                 variant="outlined"
@@ -212,6 +216,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
                                     borderRadius: '16px',
                                     '& .MuiOutlinedInput-root': {
                                         borderRadius: '16px',
+                                        color: 'var(--ink)',
                                         fontFamily: 'var(--body)',
                                         fontWeight: 800,
                                         '& fieldset': {
@@ -259,7 +264,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({
                 </div>
 
                 <div className="shortcut-hint">
-                    Shortcuts: Space plays the snippet, Enter guesses, Esc gives up.
+                    Shortcuts: Space plays the snippet, Enter focuses the guess field, Esc gives up.
                 </div>
 
                 {feedbackMessage && <div className="feedback-pill" role="status" aria-live="polite">{feedbackMessage}</div>}

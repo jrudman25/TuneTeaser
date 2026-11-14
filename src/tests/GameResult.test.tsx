@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import GameResult from '../components/GameResult';
 
@@ -119,7 +120,7 @@ describe('GameResult Component', () => {
             />
         );
 
-        fireEvent.click(screen.getByText('Next Track'));
+        fireEvent.click(screen.getByText('Next Track (N)'));
         expect(playAgainMock).toHaveBeenCalledTimes(1);
 
         fireEvent.click(screen.getByText('Select New Playlist'));
@@ -178,6 +179,74 @@ describe('GameResult Component', () => {
         expect(screen.queryByRole('button', { name: 'Play preview' })).not.toBeInTheDocument();
     });
 
+    it('starts the next track when N is pressed outside editable controls', async () => {
+        const user = userEvent.setup();
+        const onPlayAgain = vi.fn();
+
+        render(
+            <GameResult
+                targetSong={mockSong}
+                feedbackMessage="Correct!"
+                onPlayAgain={onPlayAgain}
+                onSelectNewPlaylist={vi.fn()}
+            />
+        );
+
+        expect(screen.getByRole('button', { name: 'Next Track (N)' })).toBeInTheDocument();
+
+        await user.keyboard('n');
+        expect(onPlayAgain).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not start the next track on N while a control is focused', async () => {
+        const user = userEvent.setup();
+        const onPlayAgain = vi.fn();
+
+        render(
+            <GameResult
+                targetSong={mockSong}
+                feedbackMessage="Correct!"
+                onPlayAgain={onPlayAgain}
+                onSelectNewPlaylist={vi.fn()}
+            />
+        );
+
+        screen.getByRole('button', { name: 'Select New Playlist' }).focus();
+        await user.keyboard('n');
+        expect(onPlayAgain).not.toHaveBeenCalled();
+    });
+
+    it('does not start the next track on N while shortcuts are disabled or loading', async () => {
+        const user = userEvent.setup();
+        const onPlayAgain = vi.fn();
+
+        const { rerender } = render(
+            <GameResult
+                targetSong={mockSong}
+                feedbackMessage="Correct!"
+                onPlayAgain={onPlayAgain}
+                onSelectNewPlaylist={vi.fn()}
+                shortcutsEnabled={false}
+            />
+        );
+
+        await user.keyboard('n');
+        expect(onPlayAgain).not.toHaveBeenCalled();
+
+        rerender(
+            <GameResult
+                targetSong={mockSong}
+                feedbackMessage="Correct!"
+                onPlayAgain={onPlayAgain}
+                onSelectNewPlaylist={vi.fn()}
+                isLoading={true}
+            />
+        );
+
+        await user.keyboard('n');
+        expect(onPlayAgain).not.toHaveBeenCalled();
+    });
+
     it('disables buttons and shows loading text when isLoading is true', () => {
         render(
             <GameResult 
@@ -189,7 +258,7 @@ describe('GameResult Component', () => {
             />
         );
 
-        expect(screen.getByText('Next Track')).toBeDisabled();
+        expect(screen.getByText('Next Track (N)')).toBeDisabled();
         expect(screen.getByText('Select New Playlist')).toBeDisabled();
         expect(screen.getByText('Loading next track...')).toBeInTheDocument();
     });

@@ -7,6 +7,7 @@ import React from 'react';
 import PlayArrow from '@mui/icons-material/PlayArrow';
 import Stop from '@mui/icons-material/Stop';
 import SnippetProgress from './SnippetProgress';
+import { useGameShortcuts } from '../hooks/useGameShortcuts';
 
 interface GameResultProps {
     targetSong: any;
@@ -21,6 +22,7 @@ interface GameResultProps {
     positionMs?: number;
     previewDurationMs?: number;
     onTogglePreview?: () => void;
+    shortcutsEnabled?: boolean;
 }
 
 const GameResult: React.FC<GameResultProps> = ({
@@ -35,8 +37,14 @@ const GameResult: React.FC<GameResultProps> = ({
     isAdvancing,
     positionMs = 0,
     previewDurationMs = 0,
-    onTogglePreview
+    onTogglePreview,
+    shortcutsEnabled = true
 }) => {
+    useGameShortcuts({
+        enabled: shortcutsEnabled && !isLoading,
+        onNext: onPlayAgain
+    });
+
     const artworkUrl = targetSong.album.images?.[0]?.url || '';
     const [loadedArtworkUrl, setLoadedArtworkUrl] = React.useState('');
     const [failedArtworkUrl, setFailedArtworkUrl] = React.useState('');
@@ -97,8 +105,13 @@ const GameResult: React.FC<GameResultProps> = ({
                     <p className="artist-copy">Artist: {targetSong.artists.map((a: any) => a.name).join(', ')}</p>
                 </div>
                 <div className="action-row">
-                    <button className="button button-tertiary" onClick={onPlayAgain} disabled={isLoading}>
-                        Next Track
+                    <button
+                        className="button button-tertiary"
+                        onClick={onPlayAgain}
+                        disabled={isLoading}
+                        aria-keyshortcuts="n"
+                    >
+                        Next Track (N)
                     </button>
                     <button className="button button-secondary" onClick={onSelectNewPlaylist} disabled={isLoading}>
                         Select New Playlist

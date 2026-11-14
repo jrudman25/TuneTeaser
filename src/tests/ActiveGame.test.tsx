@@ -86,6 +86,17 @@ describe('ActiveGame - keyboard shortcuts', () => {
         setVolume: vi.fn()
     };
 
+    it('focuses the guess input when Enter is pressed outside editable controls', async () => {
+        const user = userEvent.setup();
+
+        render(<ActiveGame {...defaultProps} />);
+        const input = screen.getByLabelText('Enter song title...');
+        expect(input).not.toHaveFocus();
+
+        await user.keyboard('{Enter}');
+        expect(input).toHaveFocus();
+    });
+
     it('calls onBack when the header Back button is clicked', async () => {
         const user = userEvent.setup();
         const onBack = vi.fn();
