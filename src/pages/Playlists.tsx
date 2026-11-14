@@ -2,12 +2,14 @@ import React from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useManualPlaylists } from '../hooks/useManualPlaylists';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
-import { signInAsGuest, signOutExplicitly } from '../utils/guestSignIn';
+import { signOutExplicitly } from '../utils/guestSignIn';
+import { useGuestAutoSignIn } from '../hooks/useGuestAutoSignIn';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import SignedInBadge from '../components/SignedInBadge';
 import NavBar from '../components/NavBar';
 import ConfirmDialog from '../components/ConfirmDialog';
 import ToastMessage from '../components/ToastMessage';
+import { logger } from '../utils/logger';
 
 const MANUAL_PLAYLISTS_PER_PAGE = 8;
 
@@ -78,14 +80,10 @@ const Playlists = () => {
         }
     }, [isLoadingUser, navigate, user, isGuest]);
 
-    React.useEffect(() => {
-        if (isGuest && !isLoadingUser && !user) {
-            signInAsGuest().catch(err => {
-                console.error("Failed to sign in guest anonymously in Playlists:", err);
-                setAuthError("Guest Mode authentication failed. Please ensure 'Anonymous sign-in' is enabled in your Firebase console.");
-            });
-        }
-    }, [isGuest, isLoadingUser, user]);
+    useGuestAutoSignIn(isGuest, user, isLoadingUser, err => {
+        logger.error("Failed to sign in guest anonymously in Playlists:", err);
+        setAuthError("Guest Mode authentication failed. Please ensure 'Anonymous sign-in' is enabled in your Firebase console.");
+    });
 
     const handleDeleteClick = (playlistId: string, name: string) => {
         setDeleteTarget({ id: playlistId, name });

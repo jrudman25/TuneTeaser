@@ -10,6 +10,7 @@ import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
 import { useLeaderboard } from '../hooks/useLeaderboard';
 import NavBar from '../components/NavBar';
 import SignedInBadge from '../components/SignedInBadge';
+import { logger } from '../utils/logger';
 
 const RANK_LABELS = ['\u{1F947}', '\u{1F948}', '\u{1F949}'];
 
@@ -48,7 +49,7 @@ const Leaderboard = () => {
         try {
             await signOutExplicitly();
         } catch (err) {
-            console.error("Failed to sign out user from leaderboard:", err);
+            logger.error("Failed to sign out user from leaderboard:", err);
         }
         navigate('/');
     };

@@ -6,6 +6,7 @@
  * @version 2026.11.13
  */
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { logger } from '../utils/logger';
 
 interface UsePreviewPlayerReturn {
     playPreview: (previewUrl: string, durationMs: number) => void;
@@ -193,7 +194,7 @@ const usePreviewPlayer = (): UsePreviewPlayerReturn => {
                             setIsPlaying(false);
                             return;
                         }
-                        console.error("Audio playback failed:", err);
+                        logger.error("Audio playback failed:", err);
                         setError("Failed to play preview. Please try again.");
                         setIsPlaying(false);
                     });
@@ -253,7 +254,7 @@ const usePreviewPlayer = (): UsePreviewPlayerReturn => {
             }
 
         } catch (err) {
-            console.error("Error creating audio:", err);
+            logger.error("Error creating audio:", err);
             setError("Failed to initialize audio playback.");
         }
     }, [pause]);

@@ -17,6 +17,7 @@ import {
 } from 'firebase/firestore';
 import { User } from 'firebase/auth';
 import { db } from '../backend/FirebaseConfig';
+import { logger } from '../utils/logger';
 
 export interface LeaderboardEntry {
     uid: string;
@@ -52,7 +53,7 @@ export const useLeaderboard = (user: User | null) => {
             setTopPlayers(entries);
             setIsLoading(false);
         }, (error) => {
-            console.error('Leaderboard snapshot error:', error);
+            logger.error('Leaderboard snapshot error:', error);
             setIsLoading(false);
         });
 
@@ -84,7 +85,7 @@ export const useLeaderboard = (user: User | null) => {
                 const countSnap = await getCountFromServer(rankQuery);
                 setCurrentUserRank(countSnap.data().count + 1);
             } catch (error) {
-                console.error('Failed to calculate rank:', error);
+                logger.error('Failed to calculate rank:', error);
                 setCurrentUserRank(null);
             }
         });

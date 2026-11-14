@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
     auth: {
-        currentUser: null as { uid: string } | null,
+        currentUser: null as { uid: string; metadata?: { lastSignInTime?: string } } | null,
         authStateReady: () => Promise.resolve()
     },
     signInAnonymously: vi.fn(),
@@ -31,6 +31,7 @@ describe('guestSignIn explicit sign-out', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         vi.resetModules();
+        localStorage.clear();
         mocks.auth.currentUser = null;
         mocks.signOut.mockImplementation(async () => {
             mocks.auth.currentUser = null;
@@ -48,7 +49,7 @@ describe('guestSignIn explicit sign-out', () => {
         mocks.auth.currentUser = { uid: 'guest-1' };
         await signOutExplicitly();
 
-        await expect(signInAsGuest()).rejects.toThrow('Guest sign-in is disabled');
+        await expect(signInAsGuest()).rejects.toThrow('Guest sign-in is temporarily unavailable');
         expect(mocks.signInAnonymously).not.toHaveBeenCalled();
     });
 
@@ -74,7 +75,7 @@ describe('guestSignIn explicit sign-out', () => {
 
         expect(mocks.signOut).toHaveBeenCalledTimes(2);
         expect(mocks.auth.currentUser).toBeNull();
-        await expect(signInAsGuest()).rejects.toThrow('Guest sign-in is disabled');
+        await expect(signInAsGuest()).rejects.toThrow('Guest sign-in is temporarily unavailable');
     });
 
     it('allows guest sign-in again once a new session exists', async () => {
@@ -85,8 +86,11 @@ describe('guestSignIn explicit sign-out', () => {
         await expect(signInAsGuest()).rejects.toThrow();
 
         // A real sign-in (for example Play as Guest on Login) lifts suppression.
-        mocks.auth.currentUser = { uid: 'user-2' };
-        await expect(signInAsGuest()).resolves.toEqual({ uid: 'user-2' });
+        mocks.auth.currentUser = {
+            uid: 'user-2',
+            metadata: { lastSignInTime: new Date(Date.now() + 1000).toUTCString() }
+        };
+        await expect(signInAsGuest()).resolves.toMatchObject({ uid: 'user-2' });
 
         mocks.auth.currentUser = null;
         mocks.signInAnonymously.mockResolvedValue({ user: { uid: 'guest-3' } });
@@ -105,15 +109,77 @@ describe('guestSignIn explicit sign-out', () => {
         await expect(signInAsGuest()).resolves.toEqual({ uid: 'guest-4' });
     });
 
-    it('allows guest sign-in again after Login ends suppression', async () => {
-        const { signInAsGuest, signOutExplicitly, endGuestSignInSuppression } = await importModule();
+    it('keeps suppressing after Login mounts until a deliberate sign-in', async () => {
+        const { signInAsGuest, signOutExplicitly, endGuestSignInSuppression, clearGuestSignOutMarker } = await importModule();
 
         mocks.auth.currentUser = { uid: 'guest-1' };
         await signOutExplicitly();
         endGuestSignInSuppression();
 
+        // The in-memory flag is lifted, but the persisted marker keeps a
+        // remount (or another tab) from resurrecting the session.
+        await expect(signInAsGuest()).rejects.toThrow('Guest sign-in is temporarily unavailable');
+        expect(mocks.signInAnonymously).not.toHaveBeenCalled();
+
+        // A deliberate guest sign-in (Play as Guest) clears the marker.
+        clearGuestSignOutMarker();
         await expect(signInAsGuest()).resolves.toEqual({ uid: 'new-guest' });
         expect(mocks.signInAnonymously).toHaveBeenCalledTimes(1);
+    });
+
+    it('suppresses guest sign-in in another tab after an explicit sign-out', async () => {
+        const tab1 = await importModule();
+        mocks.auth.currentUser = { uid: 'guest-1' };
+        await tab1.signOutExplicitly();
+
+        // A second tab has fresh module state but shares localStorage.
+        vi.resetModules();
+        const tab2 = await importModule();
+        await expect(tab2.signInAsGuest()).rejects.toThrow('Guest sign-in is temporarily unavailable');
+        expect(mocks.signInAnonymously).not.toHaveBeenCalled();
+    });
+
+    it('lets a guest page sign in again once the sign-out marker expires', async () => {
+        const tab1 = await importModule();
+
+        mocks.auth.currentUser = { uid: 'guest-1' };
+        await tab1.signOutExplicitly();
+
+        // A remount or second tab has fresh module state; once the marker
+        // ages out, auto guest sign-in is allowed again.
+        vi.useFakeTimers();
+        vi.setSystemTime(Date.now() + 90 * 1000);
+        try {
+            vi.resetModules();
+            const tab2 = await importModule();
+            await expect(tab2.signInAsGuest()).resolves.toEqual({ uid: 'new-guest' });
+        } finally {
+            vi.useRealTimers();
+        }
+        expect(mocks.signInAnonymously).toHaveBeenCalledTimes(1);
+    });
+
+    it('undoes an anonymous sign-in that lands after a sign-out in another tab', async () => {
+        const tab1 = await importModule();
+
+        let resolveSignIn: (credential: { user: { uid: string } }) => void = () => {};
+        mocks.signInAnonymously.mockReturnValue(new Promise(resolve => {
+            resolveSignIn = credential => {
+                mocks.auth.currentUser = credential.user;
+                resolve(credential);
+            };
+        }));
+        const pending = tab1.signInAsGuest();
+
+        // A second tab signs out while the first tab's sign-in is in flight.
+        vi.resetModules();
+        const tab2 = await importModule();
+        mocks.auth.currentUser = { uid: 'guest-1' };
+        await tab2.signOutExplicitly();
+
+        resolveSignIn({ user: { uid: 'guest-2' } });
+        await expect(pending).rejects.toThrow('superseded');
+        expect(mocks.auth.currentUser).toBeNull();
     });
 
     it('keeps suppression if Login mounts while the sign-out is still running', async () => {
@@ -136,7 +202,7 @@ describe('guestSignIn explicit sign-out', () => {
         resolveSignOut();
         await done;
 
-        await expect(signInAsGuest()).rejects.toThrow('Guest sign-in is disabled');
+        await expect(signInAsGuest()).rejects.toThrow('Guest sign-in is temporarily unavailable');
         expect(mocks.signInAnonymously).not.toHaveBeenCalled();
     });
 

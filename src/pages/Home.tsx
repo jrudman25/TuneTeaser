@@ -5,11 +5,12 @@
  */
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { signInAsGuest, signOutExplicitly } from '../utils/guestSignIn';
+import { signOutExplicitly } from '../utils/guestSignIn';
 import { usePlaylists } from '../hooks/usePlaylists';
 import { useGameLogic, RESULT_PREVIEW_MS } from '../hooks/useGameLogic';
 import { useManualPlaylists } from '../hooks/useManualPlaylists';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
+import { useGuestAutoSignIn } from '../hooks/useGuestAutoSignIn';
 import PlaylistMenu from '../components/PlaylistMenu';
 import ActiveGame from '../components/ActiveGame';
 import GameResult from '../components/GameResult';
@@ -17,6 +18,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import SignedInBadge from '../components/SignedInBadge';
 import NavBar from '../components/NavBar';
 import OnboardingTour from '../components/OnboardingTour';
+import { logger } from '../utils/logger';
 
 const Home = () => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -48,13 +50,9 @@ const Home = () => {
         return (isManualMode && manualPlaylists.length === 0) || isGuest;
     }, [onboardingDismissed, isLoadingUser, isLoadingManualPlaylists, isManualMode, isGuest, manualPlaylists.length]);
 
-    useEffect(() => {
-        if (isGuest && !isLoadingUser && !user) {
-            signInAsGuest().catch(err => {
-                console.error("Failed to sign in guest anonymously:", err);
-            });
-        }
-    }, [isGuest, isLoadingUser, user]);
+    useGuestAutoSignIn(isGuest, user, isLoadingUser, err => {
+        logger.error("Failed to sign in guest anonymously:", err);
+    });
 
     useEffect(() => {
         if (!isLoadingUser && !isGuest && !isManualMode) {
@@ -299,6 +297,7 @@ const Home = () => {
                                 playResultPreview();
                             }
                         }}
+                        shortcutsEnabled={pendingNavigation === null && !showOnboarding}
                     />
                 )}
 

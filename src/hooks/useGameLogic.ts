@@ -11,6 +11,7 @@ import { ManualPlaylist, ManualTrack, manualTracksToGameItems } from '../utils/m
 import { getManualPlaylistTracks } from '../utils/spotifyPlaylistImporter';
 import { startSoloRound, submitSoloGuess, giveUpSoloRound, SubmitSoloGuessResponse, StartSoloRoundResponse } from '../utils/soloRounds';
 import { trackEvent } from '../utils/analytics';
+import { logger } from '../utils/logger';
 
 const getErrorMessage = (error: unknown, fallback: string) => {
     return error instanceof Error && error.message ? error.message : fallback;
@@ -182,7 +183,7 @@ export const useGameLogic = (
             if (result.result === 'correct') {
                 setTargetSong(result.answer);
                 setGameState('end');
-                setFeedbackMessage(`Correct! You won! Guessed the song in ${result.snippetDurationMs / 1000} seconds.`);
+                setFeedbackMessage(`Correct! You guessed the song in ${result.snippetDurationMs / 1000} seconds.`);
                 trackEvent('solo-game-end', { result: 'correct' });
                 playResultPreview();
                 prefetchNextRound();
@@ -304,7 +305,7 @@ export const useGameLogic = (
                 try {
                     rawTracks = await getManualPlaylistTracks(playlist.id);
                 } catch (e) {
-                    console.error('Failed to load tracks from Storage URL:', e);
+                    logger.error('Failed to load tracks from Storage URL:', e);
                     rawTracks = playlist.tracks || [];
                 }
             } else {

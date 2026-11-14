@@ -16,6 +16,7 @@ import { db, storage } from '../backend/FirebaseConfig';
 import { ManualPlaylist, ManualTrack, sanitizeTrack } from '../utils/manualPlaylists';
 import { extractSpotifyPlaylistId } from '../utils/spotifyPlaylistName';
 import { importSpotifyPlaylist, getManualPlaylistTracks } from '../utils/spotifyPlaylistImporter';
+import { logger } from '../utils/logger';
 
 export const PLAYLIST_LIMIT = 30;
 export const TRACK_LIMIT = 5000;
@@ -44,7 +45,7 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
                 }
                 setFetchedForUserId('guest');
             } catch (error) {
-                console.error('Failed to fetch guest manual playlists:', error);
+                logger.error('Failed to fetch guest manual playlists:', error);
                 setManualPlaylistError('Could not load your guest playlists.');
             } finally {
                 if (!isSilent) setIsLoadingManualPlaylists(false);
@@ -74,7 +75,7 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
                 setFetchedForUserId(user.uid);
             }
         } catch (error) {
-            console.error('Failed to fetch manual playlists:', error);
+            logger.error('Failed to fetch manual playlists:', error);
             setManualPlaylistError('Could not load your playlists.');
         } finally {
             if (!isSilent) setIsLoadingManualPlaylists(false);
@@ -101,7 +102,7 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
         try {
             await deleteObject(storageRef);
         } catch (e) {
-            console.error("Failed to delete tracks from storage:", e);
+            logger.error("Failed to delete tracks from storage:", e);
         }
     }, [user]);
 
@@ -140,7 +141,7 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
                     existingPlaylists = JSON.parse(stored);
                 }
             } catch (e) {
-                console.error(e);
+                logger.error(e);
             }
 
             if (existingPlaylists.length >= PLAYLIST_LIMIT) {
@@ -219,7 +220,7 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
                     existingPlaylists = JSON.parse(stored);
                 }
             } catch (e) {
-                console.error(e);
+                logger.error(e);
             }
 
             const updatedPlaylists = existingPlaylists.map(p => {
@@ -261,7 +262,7 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
                     existingPlaylists = JSON.parse(stored);
                 }
             } catch (e) {
-                console.error(e);
+                logger.error(e);
             }
 
             const updatedPlaylists = existingPlaylists.filter(p => p.id !== playlistId);
@@ -284,7 +285,7 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
         }
 
         if (!user) {
-            console.log("[TuneTeaser Importer] Active importing playlist found, but user is null. Waiting for auth...");
+            logger.log("[TuneTeaser Importer] Active importing playlist found, but user is null. Waiting for auth...");
             return;
         }
 
@@ -301,7 +302,7 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
                 try {
                     currentTracks = await getManualPlaylistTracks(activeImporting.id);
                 } catch (e) {
-                    console.error("[TuneTeaser Importer] Failed to load tracks from Storage:", e);
+                    logger.error("[TuneTeaser Importer] Failed to load tracks from Storage:", e);
                     currentTracks = activeImporting.tracks || [];
                 }
             } else {
@@ -311,25 +312,25 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
             const offset = currentTracks.length;
             const limit = 50;
 
-            console.log(`[TuneTeaser Importer] Found playlist "${activeImporting.name}" to continue importing. Current tracks: ${offset}/${activeImporting.totalCount || 0}`);
+            logger.log(`[TuneTeaser Importer] Found playlist "${activeImporting.name}" to continue importing. Current tracks: ${offset}/${activeImporting.totalCount || 0}`);
 
             if (offset >= TRACK_LIMIT) {
-                console.log(`[TuneTeaser Importer] Playlist has reached the track limit of ${TRACK_LIMIT} tracks. Stopping import.`);
+                logger.log(`[TuneTeaser Importer] Playlist has reached the track limit of ${TRACK_LIMIT} tracks. Stopping import.`);
                 await updateManualPlaylist(playlistId, { status: 'ready' });
                 return;
             }
 
             if (!spotifyPlaylistId) {
-                console.warn(`[TuneTeaser Importer] Invalid Spotify playlist URL: ${sourceUrl}. Marking as ready.`);
+                logger.warn(`[TuneTeaser Importer] Invalid Spotify playlist URL: ${sourceUrl}. Marking as ready.`);
                 await updateManualPlaylist(playlistId, { status: 'ready' });
                 return;
             }
 
             try {
-                console.log(`[TuneTeaser Importer] Fetching next batch from Spotify: ID ${spotifyPlaylistId}, offset ${offset}, limit ${limit}`);
+                logger.log(`[TuneTeaser Importer] Fetching next batch from Spotify: ID ${spotifyPlaylistId}, offset ${offset}, limit ${limit}`);
                 const result = await importSpotifyPlaylist(spotifyPlaylistId, offset, limit);
                 if (!isSubscribed) {
-                    console.log(`[TuneTeaser Importer] Component unmounted during fetch, discarding result.`);
+                    logger.log(`[TuneTeaser Importer] Component unmounted during fetch, discarding result.`);
                     return;
                 }
 
@@ -337,7 +338,7 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
                 const combinedTracks = [...currentTracks, ...newTracks].slice(0, TRACK_LIMIT);
                 const total = Math.min(result.total || activeImporting.totalCount || combinedTracks.length, TRACK_LIMIT);
 
-                console.log(`[TuneTeaser Importer] Fetched ${newTracks.length} tracks. Combined: ${combinedTracks.length} / ${total}`);
+                logger.log(`[TuneTeaser Importer] Fetched ${newTracks.length} tracks. Combined: ${combinedTracks.length} / ${total}`);
 
                 // Upload combined list to Storage
                 const tracksUrl = await uploadTracksToStorage(playlistId, combinedTracks);
@@ -352,9 +353,9 @@ export const useManualPlaylists = (user: User | null, isGuest: boolean = false) 
                     status: isDone ? 'ready' : 'importing',
                     importError: ''
                 });
-                console.log(`[TuneTeaser Importer] Successfully updated playlist tracks in Storage. isDone: ${isDone}`);
+                logger.log(`[TuneTeaser Importer] Successfully updated playlist tracks in Storage. isDone: ${isDone}`);
             } catch (err) {
-                console.error("[TuneTeaser Importer] Background import failed:", err);
+                logger.error("[TuneTeaser Importer] Background import failed:", err);
                 if (isSubscribed) {
                     const importError = err instanceof Error ? err.message : 'Background import failed.';
                     await updateManualPlaylist(playlistId, { status: 'error', importError });

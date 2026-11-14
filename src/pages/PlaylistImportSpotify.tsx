@@ -3,7 +3,8 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ManualTrack } from '../utils/manualPlaylists';
 import { useManualPlaylists } from '../hooks/useManualPlaylists';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
-import { signInAsGuest, signOutExplicitly } from '../utils/guestSignIn';
+import { signOutExplicitly } from '../utils/guestSignIn';
+import { useGuestAutoSignIn } from '../hooks/useGuestAutoSignIn';
 import { extractSpotifyPlaylistId } from '../utils/spotifyPlaylistName';
 import { importSpotifyPlaylist } from '../utils/spotifyPlaylistImporter';
 import { searchPublicSpotifyPlaylists, SpotifyPlaylistSearchResult } from '../utils/spotifyPlaylistSearch';
@@ -11,6 +12,7 @@ import { extractSpotifyUserId, fetchSpotifyUserPlaylists, SpotifyUserPlaylist } 
 import SignedInBadge from '../components/SignedInBadge';
 import NavBar from '../components/NavBar';
 import ToastMessage from '../components/ToastMessage';
+import { logger } from '../utils/logger';
 
 type BatchImportResult = {
     playlistId: string;
@@ -97,14 +99,10 @@ const PlaylistImportSpotify = () => {
         }
     }, [isLoadingUser, navigate, user, isGuest]);
 
-    useEffect(() => {
-        if (isGuest && !isLoadingUser && !user) {
-            signInAsGuest().catch(err => {
-                console.error("Failed to sign in guest anonymously in PlaylistImportSpotify:", err);
-                setAuthError("Guest Mode authentication failed. Please ensure 'Anonymous sign-in' is enabled in your Firebase console.");
-            });
-        }
-    }, [isGuest, isLoadingUser, user]);
+    useGuestAutoSignIn(isGuest, user, isLoadingUser, err => {
+        logger.error("Failed to sign in guest anonymously in PlaylistImportSpotify:", err);
+        setAuthError("Guest Mode authentication failed. Please ensure 'Anonymous sign-in' is enabled in your Firebase console.");
+    });
 
     const validatePlaylistUrl = (url: string): string | null => {
         if (!url.trim()) return 'Enter a Spotify playlist URL.';

@@ -1,7 +1,7 @@
 import React, { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getFunctionsUrl } from '../utils/multiplayer';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { signInAsGuest, signOutExplicitly } from '../utils/guestSignIn';
+import { clearGuestSignOutMarker, signInAsGuest, signOutExplicitly } from '../utils/guestSignIn';
 import { FirebaseError } from 'firebase/app';
 import { Slider } from '@mui/material';
 import ArrowBack from '@mui/icons-material/ArrowBack';
@@ -19,6 +19,7 @@ import { useGameShortcuts } from '../hooks/useGameShortcuts';
 import { appCheck, auth } from '../backend/FirebaseConfig';
 import { getToken } from 'firebase/app-check';
 import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
+import { useGuestAutoSignIn } from '../hooks/useGuestAutoSignIn';
 import { useManualPlaylists } from '../hooks/useManualPlaylists';
 import { usePlaylists } from '../hooks/usePlaylists';
 import usePreviewPlayer from '../hooks/usePreviewPlayer';
@@ -101,6 +102,7 @@ const Multiplayer = () => {
     const [highlightedGuessIndex, setHighlightedGuessIndex] = useState(-1);
     const [giveUpConfirmRoundId, setGiveUpConfirmRoundId] = useState<string | null>(null);
     const [isLoadingRound, setIsLoadingRound] = useState(false);
+    const guessInputRef = useRef<HTMLInputElement | null>(null);
     const { playPreview, pause, isPlaying, isAdvancing, error: playerError, volume, setVolume, positionMs, playbackDurationMs } = usePreviewPlayer();
 
     const filteredPlaylists = useMemo(() => {
@@ -170,13 +172,9 @@ const Multiplayer = () => {
         hadCurrentPlayerRef.current = false;
     }, [activeRoomId, roomCodeParam]);
 
-    useEffect(() => {
-        if (!isLoadingUser && !user) {
-            signInAsGuest().catch(err => {
-                setError(getFirebaseMessage(err, 'Could not start guest multiplayer.'));
-            });
-        }
-    }, [isLoadingUser, user]);
+    useGuestAutoSignIn(true, user, isLoadingUser, err => {
+        setError(getFirebaseMessage(err, 'Could not start guest multiplayer.'));
+    });
 
     useEffect(() => {
         if (!activeRoomId || !user) return;
@@ -439,6 +437,9 @@ const Multiplayer = () => {
     }, []);
 
     const ensureSignedIn = async () => {
+        // Reached only from deliberate room create/join actions, which like
+        // Play as Guest explicitly opt back into having a session.
+        clearGuestSignOutMarker();
         const currentUser = await signInAsGuest();
 
         await currentUser.getIdToken();
@@ -589,7 +590,8 @@ const Multiplayer = () => {
                 handlePlayRoundSnippet();
             }
         },
-        onGiveUpRequest: () => setGiveUpConfirmRoundId(room?.currentRound?.id || null)
+        onGiveUpRequest: () => setGiveUpConfirmRoundId(room?.currentRound?.id || null),
+        onFocusGuess: () => guessInputRef.current?.focus()
     });
 
     const handlePlayRoundSnippet = () => {
@@ -1062,6 +1064,7 @@ const Multiplayer = () => {
                                         <div className="guess-row">
                                             <div className="guess-input-wrap">
                                                 <input
+                                                    ref={guessInputRef}
                                                     className="text-input guess-input"
                                                     value={userGuess}
                                                     maxLength={200}
@@ -1145,7 +1148,7 @@ const Multiplayer = () => {
                                             <LightbulbOutlined aria-hidden fontSize="small" /> Guess with nothing typed to hear 2 more seconds (up to 30s).
                                         </div>
                                         <div className="shortcut-hint">
-                                            Shortcuts: Space plays the snippet, Enter guesses, Esc gives up.
+                                            Shortcuts: Space plays the snippet, Enter focuses the guess field, Esc gives up.
                                         </div>
 
                                         {room.currentRound?.state === 'advancing' && room.revealedRound ? (

@@ -11,7 +11,8 @@ import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { auth, functions } from '../backend/FirebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 import { trackEvent } from '../utils/analytics';
-import { endGuestSignInSuppression } from '../utils/guestSignIn';
+import { clearGuestSignOutMarker, endGuestSignInSuppression } from '../utils/guestSignIn';
+import { logger } from '../utils/logger';
 import NavBar from '../components/NavBar';
 
 import { 
@@ -102,11 +103,12 @@ const Login = () => {
     const handleGuestLogin = async () => {
         try {
             // Explicit user action, so sign in directly rather than through the suppressible signInAsGuest.
+            clearGuestSignOutMarker();
             await signInAnonymously(auth);
             trackEvent('guest-session');
             navigate('/home?mode=guest');
         } catch (error) {
-            console.error("Failed to sign in guest anonymously:", error);
+            logger.error("Failed to sign in guest anonymously:", error);
             navigate('/home?mode=guest');
         }
     };
@@ -193,7 +195,7 @@ const Login = () => {
                     try {
                         await userCredential.user.delete();
                     } catch (deleteError) {
-                        console.error('Failed to roll back user after setup failure:', deleteError);
+                        logger.error('Failed to roll back user after setup failure:', deleteError);
                     }
                     // Clear auth state so onAuthStateChanged does not redirect
                     try {
@@ -203,7 +205,7 @@ const Login = () => {
                     if (setupError._isUserFacing || setupError.code) {
                         setTuneTeaserAuthError(getGracefulAuthErrorMessage(setupError));
                     } else {
-                        console.error('Account setup failed:', setupError);
+                        logger.error('Account setup failed:', setupError);
                         setTuneTeaserAuthError('Account setup failed. Please try again.');
                     }
                     setIsTuneTeaserSubmitting(false);

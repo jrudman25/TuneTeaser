@@ -11,6 +11,7 @@ import { useTuneTeaserAuth } from '../hooks/useTuneTeaserAuth';
 import NavBar from '../components/NavBar';
 import SignedInBadge from '../components/SignedInBadge';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
+import { logger } from '../utils/logger';
 
 const Help = () => {
     const navigate = useNavigate();
@@ -43,7 +44,7 @@ const Help = () => {
         try {
             await signOutExplicitly();
         } catch (err) {
-            console.error("Failed to sign out user from help page:", err);
+            logger.error("Failed to sign out user from help page:", err);
         }
         navigate('/');
     };
@@ -136,7 +137,7 @@ const Help = () => {
                                         <li><strong>Hear the Snippet:</strong> A random track is chosen, and a short audio preview will play.</li>
                                         <li><strong>Guess the Title:</strong> Type the song title. In solo play, incorrect guesses increase the snippet length, and pressing Guess without typing adds 2 seconds (up to 30). In multiplayer, race the shared round timer.</li>
                                         <li><strong>Earn Points:</strong> Correct guesses can reward points for registered TuneTeaser accounts, and answering quickly earns more.</li>
-                                        <li><strong>Keyboard Shortcuts:</strong> Press Space to play the snippet (when you are not typing), Enter to submit a guess, and Esc to give up after confirming.</li>
+                                        <li><strong>Keyboard Shortcuts:</strong> Press Space to play the snippet (when you are not typing), Enter to focus the guess field and submit a guess, N to start the next track on the solo result screen, and Esc to give up after confirming.</li>
                                     </ul>
                                 </div>
                             )}

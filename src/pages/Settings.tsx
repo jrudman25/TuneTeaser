@@ -12,6 +12,7 @@ import SignedInBadge from '../components/SignedInBadge';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import ConfirmDialog from '../components/ConfirmDialog';
 import ToastMessage from '../components/ToastMessage';
+import { logger } from '../utils/logger';
 
 const Settings = () => {
     const navigate = useNavigate();
@@ -108,7 +109,7 @@ const Settings = () => {
             setNewUsername(result.data.displayName);
             setUsernameSuccess('Username updated successfully!');
         } catch (err: any) {
-            console.error('Failed to update username:', err);
+            logger.error('Failed to update username:', err);
             setUsernameError(err.message || 'Could not update username.');
         } finally {
             setIsUpdatingUsername(false);
@@ -124,7 +125,7 @@ const Settings = () => {
             // and we will be automatically signed out and redirected by the auth state listener.
             navigate('/');
         } catch (err: any) {
-            console.error("Failed to delete account:", err);
+            logger.error("Failed to delete account:", err);
             if (err.code === 'auth/requires-recent-login') {
                 setDeleteError('For security reasons, please sign out and sign back in before deleting your account.');
             } else {
@@ -149,7 +150,7 @@ const Settings = () => {
         try {
             await signOutExplicitly();
         } catch (err) {
-            console.error("Failed to sign out user from settings page:", err);
+            logger.error("Failed to sign out user from settings page:", err);
         }
         navigate('/');
     };
