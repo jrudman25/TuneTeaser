@@ -11,6 +11,7 @@ import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { auth, functions } from '../backend/FirebaseConfig';
 import { httpsCallable } from 'firebase/functions';
 import { trackEvent } from '../utils/analytics';
+import { endGuestSignInSuppression } from '../utils/guestSignIn';
 import NavBar from '../components/NavBar';
 
 import { 
@@ -68,6 +69,10 @@ const Login = () => {
     const navigate = useNavigate();
 
     useEffect(() => {
+        endGuestSignInSuppression();
+    }, []);
+
+    useEffect(() => {
 
         if (window.location.hostname === 'localhost') {
             window.location.href = window.location.href.replace('localhost', '127.0.0.1');
@@ -96,8 +101,7 @@ const Login = () => {
 
     const handleGuestLogin = async () => {
         try {
-            // Explicit user action: calls signInAnonymously directly because
-            // signInAsGuest stays suppressed right after an explicit sign-out.
+            // Explicit user action, so sign in directly rather than through the suppressible signInAsGuest.
             await signInAnonymously(auth);
             trackEvent('guest-session');
             navigate('/home?mode=guest');

@@ -4,6 +4,7 @@ import { auth } from '../backend/FirebaseConfig';
 let pendingAnonymousSignIn: Promise<User> | null = null;
 let guestAutoSignInSuppressed = false;
 let explicitSignOutInProgress = false;
+let signOutEpoch = 0;
 
 // Deduplicated anonymous sign-in: concurrent callers share one in-flight
 // request instead of racing to create two anonymous accounts.
@@ -27,13 +28,23 @@ export const signInAsGuest = (): Promise<User> => {
     return pendingAnonymousSignIn;
 };
 
+// Called once Login has mounted: the page that was signed out of is gone, so its
+// auto-guest effects can no longer race the sign-out. A later guest page mount
+// (for example browser Back to ?mode=guest) is a deliberate navigation and may
+// start a fresh guest session.
+export const endGuestSignInSuppression = () => {
+    if (!explicitSignOutInProgress) guestAutoSignInSuppressed = false;
+};
+
 // User-initiated sign-out (Sign Out / Exit Guest Mode). Suppresses automatic
-// anonymous sign-in until a real session exists: the auto-guest effects on the
-// page being left, and in-flight callables retried through callWithAuthRetry,
-// would otherwise recreate an anonymous session in the gap between signOut
-// resolving and the router leaving the guest page, bouncing the user straight
-// back into guest mode after they land on Login.
+// anonymous sign-in until a real session exists or Login calls
+// endGuestSignInSuppression(): the auto-guest effects on the page being left,
+// and in-flight callables retried through callWithAuthRetry, would otherwise
+// recreate an anonymous session in the gap between signOut resolving and the
+// router leaving the guest page, bouncing the user straight back into guest
+// mode after they land on Login.
 export const signOutExplicitly = async (): Promise<void> => {
+    signOutEpoch++;
     guestAutoSignInSuppressed = true;
     explicitSignOutInProgress = true;
     try {
@@ -71,11 +82,13 @@ export const resetToGuest = async (): Promise<User> => {
 // can hold a token the backend rejects, e.g. a production session while
 // running against the emulators, or a call that raced the guest sign-in.
 export const callWithAuthRetry = async <T>(call: () => Promise<T>): Promise<T> => {
+    const epoch = signOutEpoch;
     await ensureSignedIn();
     try {
         return await call();
     } catch (error) {
         if ((error as { code?: string })?.code !== 'functions/unauthenticated') throw error;
+        if (signOutEpoch !== epoch) throw error;
         const user = auth.currentUser;
         if (user) {
             try {

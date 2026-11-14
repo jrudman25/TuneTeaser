@@ -104,4 +104,65 @@ describe('guestSignIn explicit sign-out', () => {
         mocks.signInAnonymously.mockResolvedValue({ user: { uid: 'guest-4' } });
         await expect(signInAsGuest()).resolves.toEqual({ uid: 'guest-4' });
     });
+
+    it('allows guest sign-in again after Login ends suppression', async () => {
+        const { signInAsGuest, signOutExplicitly, endGuestSignInSuppression } = await importModule();
+
+        mocks.auth.currentUser = { uid: 'guest-1' };
+        await signOutExplicitly();
+        endGuestSignInSuppression();
+
+        await expect(signInAsGuest()).resolves.toEqual({ uid: 'new-guest' });
+        expect(mocks.signInAnonymously).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps suppression if Login mounts while the sign-out is still running', async () => {
+        const { signInAsGuest, signOutExplicitly, endGuestSignInSuppression } = await importModule();
+
+        mocks.auth.currentUser = { uid: 'guest-1' };
+
+        let resolveSignOut: () => void = () => {};
+        mocks.signOut.mockReturnValue(new Promise<void>(resolve => {
+            resolveSignOut = () => {
+                mocks.auth.currentUser = null;
+                resolve();
+            };
+        }));
+        const done = signOutExplicitly();
+
+        // Login mounts before the sign-out finishes: suppression must stay on
+        // until it completes.
+        endGuestSignInSuppression();
+        resolveSignOut();
+        await done;
+
+        await expect(signInAsGuest()).rejects.toThrow('Guest sign-in is disabled');
+        expect(mocks.signInAnonymously).not.toHaveBeenCalled();
+    });
+
+    it('does not re-authenticate a call that was in flight across an explicit sign-out', async () => {
+        const { callWithAuthRetry, signOutExplicitly, endGuestSignInSuppression } = await importModule();
+
+        mocks.auth.currentUser = { uid: 'guest-1' };
+
+        let rejectCall: (error: unknown) => void = () => {};
+        const call = vi.fn()
+            .mockImplementationOnce(() => new Promise((_resolve, reject) => {
+                rejectCall = reject;
+            }))
+            .mockResolvedValue('retried-result');
+
+        const retried = callWithAuthRetry(call);
+        await vi.waitFor(() => expect(call).toHaveBeenCalled());
+
+        await signOutExplicitly();
+        endGuestSignInSuppression();
+
+        const authError = { code: 'functions/unauthenticated' };
+        rejectCall(authError);
+
+        await expect(retried).rejects.toBe(authError);
+        expect(call).toHaveBeenCalledTimes(1);
+        expect(mocks.signInAnonymously).not.toHaveBeenCalled();
+    });
 });
