@@ -2,7 +2,7 @@
 
 [TuneTeaser](https://tuneteaser.web.app/) is a "Name That Tune" style game where you test your music knowledge against public Spotify playlists, imported Spotify profile playlists, custom mixes, premade genre and decade playlists, and private online multiplayer rooms.
 
-<img width="700" alt="TuneTeaser game screen" src="https://github.com/user-attachments/assets/2b774f0a-2ff9-4347-a8c7-b4713d7f489d" />
+<img width="700" alt="TuneTeaser gameplay screen" src="https://github.com/user-attachments/assets/6a98429d-e511-403b-9167-d639b3e76f73" />
 
 ## How to Play
 1.  **Sign in** to your TuneTeaser account, or use guest mode to try premade playlists and guest imports.
