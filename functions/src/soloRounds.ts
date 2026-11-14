@@ -62,6 +62,7 @@ const makeSoloRoundId = () => randomBytes(8).toString('hex');
 const INACTIVE_ROUND_ERROR = 'This round is no longer active.';
 
 export const startSoloRound = onCall(PUBLIC_CALLABLE_OPTIONS, async (request) => {
+    const requestedAtMillis = Date.now();
     const uid = getAuthedUid(request);
     const signInProvider = request.auth?.token?.firebase?.sign_in_provider;
     const playlistId = getSoloPlaylistId(request.data?.playlistId);
@@ -106,25 +107,59 @@ export const startSoloRound = onCall(PUBLIC_CALLABLE_OPTIONS, async (request) =>
     const roundId = makeSoloRoundId();
     const artworkUrl = pick.artworkUrl || getTrackArtworkUrl(pick.track) || '';
 
-    await stateRef.set({
-        roundId,
-        playlistId,
-        trackId: pick.track.id,
-        title: getTrackName(pick.track),
-        artistName: getTrackArtistName(pick.track),
-        albumName: getTrackAlbumName(pick.track),
-        artworkUrl,
-        previewUrl: pick.previewUrl,
-        snippetDurationMs: MIN_SNIPPET_DURATION_MS,
-        state: 'playing',
-        eligibleForPoints,
-        playableTrackCount: playableTracks.length,
-        startedAtMillis: now,
-        expiresAtMillis: now + SOLO_ROUND_TTL_MS,
-        recentPlaylistId: playlistId,
-        recentTrackIds: nextRecentTrackIds,
-        updatedAtMillis: now
+    // A slower, earlier-issued start (for example an abandoned prefetch) must
+    // not clobber a round created by a newer request: writes are ordered by
+    // request time, not commit time.
+    const superseded = await db.runTransaction(async transaction => {
+        const liveSnap = await transaction.get(stateRef);
+        const live = liveSnap.exists ? liveSnap.data() : null;
+        const liveRequestedAt = typeof live?.requestedAtMillis === 'number'
+            ? live.requestedAtMillis
+            : (typeof live?.startedAtMillis === 'number' ? live.startedAtMillis : 0);
+
+        if (live && liveRequestedAt > requestedAtMillis) {
+            return live;
+        }
+
+        transaction.set(stateRef, {
+            roundId,
+            playlistId,
+            trackId: pick.track.id,
+            title: getTrackName(pick.track),
+            artistName: getTrackArtistName(pick.track),
+            albumName: getTrackAlbumName(pick.track),
+            artworkUrl,
+            previewUrl: pick.previewUrl,
+            snippetDurationMs: MIN_SNIPPET_DURATION_MS,
+            state: 'playing',
+            eligibleForPoints,
+            playableTrackCount: playableTracks.length,
+            requestedAtMillis,
+            startedAtMillis: now,
+            expiresAtMillis: now + SOLO_ROUND_TTL_MS,
+            recentPlaylistId: playlistId,
+            recentTrackIds: nextRecentTrackIds,
+            updatedAtMillis: now
+        });
+        return null;
     });
+
+    if (superseded) {
+        if (superseded.state === 'playing' && typeof superseded.previewUrl === 'string') {
+            return {
+                roundId: superseded.roundId,
+                previewUrl: superseded.previewUrl,
+                snippetDurationMs: typeof superseded.snippetDurationMs === 'number'
+                    ? superseded.snippetDurationMs
+                    : MIN_SNIPPET_DURATION_MS,
+                eligibleForPoints: superseded.eligibleForPoints === true,
+                playableTrackCount: typeof superseded.playableTrackCount === 'number'
+                    ? superseded.playableTrackCount
+                    : playableTracks.length
+            };
+        }
+        throw new HttpsError('failed-precondition', 'A newer round has already started.');
+    }
 
     return {
         roundId,

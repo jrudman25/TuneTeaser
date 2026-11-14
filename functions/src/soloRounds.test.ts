@@ -384,6 +384,41 @@ describe('solo rounds', () => {
         expect(next.roundId).not.toBe(start.roundId);
     });
 
+    it('keeps the newer round when an earlier start commits late', async () => {
+        const tracks = Array.from({ length: 12 }, (_, i) => makeTrack(`t${i}`, `Song ${i}`));
+        savePlaylistDoc('user1', 'playlist1', tracks);
+        stubFetchForTracks(tracks);
+
+        const newer = await startSolo();
+        const liveDoc = readSoloDoc('user1');
+
+        // Simulate a request issued before `newer` (for example an abandoned
+        // prefetch) whose work finishes after the newer round was written.
+        vi.spyOn(Date, 'now').mockReturnValue(liveDoc.requestedAtMillis - 1000);
+
+        const stale = await startSolo();
+        expect(stale.roundId).toBe(newer.roundId);
+        expect(stale.previewUrl).toBe(newer.previewUrl);
+        expect(readSoloDoc('user1').roundId).toBe(newer.roundId);
+    });
+
+    it('rejects a start that is older than a settled newer round', async () => {
+        const tracks = Array.from({ length: 12 }, (_, i) => makeTrack(`t${i}`, `Song ${i}`));
+        savePlaylistDoc('user1', 'playlist1', tracks);
+        stubFetchForTracks(tracks);
+
+        const start = await startSolo();
+        const title = readSoloDoc('user1').title;
+        const guess = await submitGuess(start.roundId, title);
+        expect(guess.result).toBe('correct');
+
+        const settledRequestedAt = readSoloDoc('user1').requestedAtMillis;
+        vi.spyOn(Date, 'now').mockReturnValue(settledRequestedAt - 1000);
+
+        await expect(startSolo()).rejects.toThrow('A newer round has already started.');
+        expect(readSoloDoc('user1').roundId).toBe(start.roundId);
+    });
+
     it('rejects guesses after the round expires', async () => {
         const tracks = [makeTrack('t1', 'Only Song')];
         savePlaylistDoc('user1', 'playlist1', tracks);
