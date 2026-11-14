@@ -9,6 +9,11 @@ export default defineConfig({
         port: 3000,
         open: true,
         host: true,
+        // Emulator exports write a firebase-export-* temp dir then rename it;
+        // watching it locks the dir on Windows and the rename fails with EPERM.
+        watch: {
+            ignored: ['**/firebase-export-*/**', '**/emulator_data/**'],
+        },
     },
     build: {
         outDir: 'build',
