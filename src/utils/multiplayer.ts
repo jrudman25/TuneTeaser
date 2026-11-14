@@ -46,6 +46,8 @@ export interface MultiplayerRoom {
     closeReason?: 'host-left';
     currentRound?: MultiplayerRound;
     revealedRound?: MultiplayerRevealedRound;
+    playedPlaylistId?: string | null;
+    playedTrackIds?: string[];
 }
 
 export interface MultiplayerPlayer {

@@ -188,18 +188,20 @@ export const pickTrackWithPreview = async (
     const stats = { cacheHits: 0, lookups: 0, elapsedMs: 0 };
     const cachedSnaps = await db.getAll(...entries.map(entry => entry.ref));
     const unknown: typeof entries = [];
+    const founds: { track: any; previewUrl: string; artworkUrl: string }[] = [];
 
-    const picked: { track?: any; previewUrl?: string; artworkUrl?: string } = {};
     cachedSnaps.forEach((snap: any, index: number) => {
         const data = snap.exists ? snap.data() : null;
         if (isCacheEntryFresh(data, startedAt)) {
             stats.cacheHits += 1;
-            if (!picked.track && data.status === 'found' && typeof data.previewUrl === 'string' && data.previewUrl) {
-                picked.track = entries[index].track;
-                picked.previewUrl = data.previewUrl;
-                // Cache entries written before the resize change still hold
-                // oversized URLs, so normalize on read too.
-                picked.artworkUrl = typeof data.artworkUrl === 'string' ? resizeItunesArtwork(data.artworkUrl) : '';
+            if (data.status === 'found' && typeof data.previewUrl === 'string' && data.previewUrl) {
+                founds.push({
+                    track: entries[index].track,
+                    previewUrl: data.previewUrl,
+                    // Cache entries written before the resize change still hold
+                    // oversized URLs, so normalize on read too.
+                    artworkUrl: typeof data.artworkUrl === 'string' ? resizeItunesArtwork(data.artworkUrl) : ''
+                });
             }
             return;
         }
@@ -208,34 +210,38 @@ export const pickTrackWithPreview = async (
 
     const pendingWrites: Promise<void>[] = [];
 
-    if (!picked.track) {
-        for (let i = 0; i < unknown.length && !picked.track; i += PREVIEW_LOOKUP_BATCH_SIZE) {
-            const batch = unknown.slice(i, i + PREVIEW_LOOKUP_BATCH_SIZE);
-            const results = await Promise.all(batch.map(entry => (
-                getItunesPreview(entry.name, entry.artistName, entry.albumName)
-            )));
-            stats.lookups += batch.length;
+    // Resolve every attempted candidate, then pick uniformly among the ones
+    // with previews. Stopping at the first hit lets warm cache entries win
+    // every round, so uncached tracks are almost never heard.
+    for (let i = 0; i < unknown.length; i += PREVIEW_LOOKUP_BATCH_SIZE) {
+        const batch = unknown.slice(i, i + PREVIEW_LOOKUP_BATCH_SIZE);
+        const results = await Promise.all(batch.map(entry => (
+            getItunesPreview(entry.name, entry.artistName, entry.albumName)
+        )));
+        stats.lookups += batch.length;
 
-            results.forEach((result, index) => {
-                pendingWrites.push(writePreviewCacheEntry(batch[index].ref, result, Date.now()));
-                if (!picked.track && result.status === 'found') {
-                    picked.track = batch[index].track;
-                    picked.previewUrl = result.previewUrl;
-                    picked.artworkUrl = result.artworkUrl;
-                }
-            });
-        }
+        results.forEach((result, index) => {
+            pendingWrites.push(writePreviewCacheEntry(batch[index].ref, result, Date.now()));
+            if (result.status === 'found') {
+                founds.push({
+                    track: batch[index].track,
+                    previewUrl: result.previewUrl,
+                    artworkUrl: result.artworkUrl
+                });
+            }
+        });
     }
 
     await Promise.all(pendingWrites);
     stats.elapsedMs = Date.now() - startedAt;
-    console.log(`[pickTrackWithPreview] candidates=${attempted.length} cacheHits=${stats.cacheHits} lookups=${stats.lookups} elapsedMs=${stats.elapsedMs} picked=${picked.track ? 'yes' : 'no'}`);
+    console.log(`[pickTrackWithPreview] candidates=${attempted.length} cacheHits=${stats.cacheHits} lookups=${stats.lookups} founds=${founds.length} elapsedMs=${stats.elapsedMs} picked=${founds.length ? 'yes' : 'no'}`);
 
-    if (!picked.track) return null;
+    if (founds.length === 0) return null;
+    const picked = founds[Math.floor(Math.random() * founds.length)];
     return {
         track: picked.track,
-        previewUrl: picked.previewUrl as string,
-        artworkUrl: picked.artworkUrl as string,
+        previewUrl: picked.previewUrl,
+        artworkUrl: picked.artworkUrl,
         stats
     };
 };

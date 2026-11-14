@@ -170,6 +170,7 @@ import {
     initializeTuneTeaserAccount,
     updateTuneTeaserUsername,
     advanceMultiplayerRound,
+    returnMultiplayerToLobby,
     advanceStuckMultiplayerRounds,
     expireStuckMultiplayerRounds,
     cleanupExpiredMultiplayerRooms,
@@ -689,6 +690,43 @@ describe('Cloud Functions (index.ts)', () => {
             });
             expect(mockBatchUpdate).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
                 status: 'playing'
+            }));
+        });
+
+        it('ignores played-track memory from a previous game when starting round 1', async () => {
+            mockDocGet
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({
+                        hostUid: 'host123',
+                        status: 'lobby',
+                        playlistId: 'playlist1',
+                        playlistName: 'Hits',
+                        playedPlaylistId: 'playlist1',
+                        playedTrackIds: ['track1']
+                    })
+                })
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({
+                        tracks: [
+                            { id: 'track1', name: 'First Song', artists: [{ name: 'Artist One' }], album: { name: 'Album One', images: [] } },
+                            { id: 'track2', name: 'Second Song', artists: [{ name: 'Artist Two' }], album: { name: 'Album Two', images: [] } }
+                        ]
+                    })
+                });
+            vi.spyOn(Math, 'random').mockReturnValue(0);
+
+            const result = await (startMultiplayerGame as any)({
+                data: { roomId: 'ABC234' },
+                auth: { uid: 'host123' }
+            });
+
+            expect(result).toEqual({ roomId: 'ABC234' });
+            expect(mockBatchUpdate).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+                playedPlaylistId: 'playlist1',
+                playedTrackIds: ['track1'],
+                currentRound: expect.objectContaining({ trackId: 'track1', roundNumber: 1 })
             }));
         });
 
@@ -1456,6 +1494,121 @@ describe('Cloud Functions (index.ts)', () => {
 
             expect(result).toEqual({ roomId: 'ABC234', advanced: false });
             expect(mockTransactionUpdate).not.toHaveBeenCalled();
+        });
+
+        it('excludes tracks already played this game when advancing', async () => {
+            vi.spyOn(Date, 'now').mockReturnValue(10_000);
+            mockDocGet
+                .mockResolvedValueOnce({ exists: true, data: () => ({ uid: 'player1' }) })
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({
+                        tracks: [
+                            { id: 'track1', name: 'First Song', artists: [{ name: 'Artist One' }] },
+                            { id: 'track2', name: 'Second Song', artists: [{ name: 'Artist Two' }] }
+                        ]
+                    })
+                });
+            mockTransactionGet.mockResolvedValueOnce({
+                exists: true,
+                data: () => ({
+                    status: 'playing',
+                    hostUid: 'host123',
+                    playlistId: 'playlist1',
+                    roundTimerSeconds: 90,
+                    playedPlaylistId: 'playlist1',
+                    playedTrackIds: ['track1'],
+                    currentRound: { id: 'round1', state: 'advancing', advancesAt: 5_000, roundNumber: 1 }
+                })
+            });
+            const fetchMock = vi.fn().mockResolvedValue({
+                ok: true,
+                json: vi.fn().mockResolvedValue({
+                    resultCount: 1,
+                    results: [{
+                        previewUrl: 'https://example.com/second.m4a',
+                        artworkUrl100: 'https://example.com/100x100.jpg',
+                        trackName: 'Second Song',
+                        artistName: 'Artist Two',
+                        collectionName: 'Album Two'
+                    }]
+                })
+            });
+            vi.stubGlobal('fetch', fetchMock);
+
+            const result = await (advanceMultiplayerRound as any)({
+                data: { roomId: 'ABC234' },
+                auth: { uid: 'player1' }
+            });
+
+            expect(result).toEqual({ roomId: 'ABC234', advanced: true });
+            expect(fetchMock).toHaveBeenCalledTimes(1);
+            expect(fetchMock.mock.calls[0][0]).toContain('Second%20Song');
+            expect(mockBatchUpdate).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+                playedPlaylistId: 'playlist1',
+                playedTrackIds: ['track1', 'track2'],
+                currentRound: expect.objectContaining({ trackId: 'track2', roundNumber: 2 })
+            }));
+        });
+
+        it('restarts the played list when every playable track has played', async () => {
+            vi.spyOn(Date, 'now').mockReturnValue(10_000);
+            mockDocGet
+                .mockResolvedValueOnce({ exists: true, data: () => ({ uid: 'player1' }) })
+                .mockResolvedValueOnce({
+                    exists: true,
+                    data: () => ({
+                        tracks: [
+                            { id: 'track1', name: 'First Song', artists: [{ name: 'Artist One' }] },
+                            { id: 'track2', name: 'Second Song', artists: [{ name: 'Artist Two' }] }
+                        ]
+                    })
+                });
+            mockTransactionGet.mockResolvedValueOnce({
+                exists: true,
+                data: () => ({
+                    status: 'playing',
+                    hostUid: 'host123',
+                    playlistId: 'playlist1',
+                    roundTimerSeconds: 90,
+                    playedPlaylistId: 'playlist1',
+                    playedTrackIds: ['track1', 'track2'],
+                    currentRound: { id: 'round1', state: 'advancing', advancesAt: 5_000, roundNumber: 1 }
+                })
+            });
+
+            const result = await (advanceMultiplayerRound as any)({
+                data: { roomId: 'ABC234' },
+                auth: { uid: 'player1' }
+            });
+
+            expect(result).toEqual({ roomId: 'ABC234', advanced: true });
+            expect(mockBatchUpdate).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+                playedPlaylistId: 'playlist1',
+                playedTrackIds: ['track1'],
+                currentRound: expect.objectContaining({ trackId: 'track1', roundNumber: 2 })
+            }));
+        });
+    });
+
+    describe('returnMultiplayerToLobby', () => {
+        it('clears played-track memory when returning to the lobby', async () => {
+            mockDocGet.mockResolvedValueOnce({
+                exists: true,
+                data: () => ({ hostUid: 'host123', status: 'ended' })
+            });
+
+            const result = await (returnMultiplayerToLobby as any)({
+                data: { roomId: 'ABC234' },
+                auth: { uid: 'host123' }
+            });
+
+            expect(result).toEqual({ roomId: 'ABC234' });
+            expect(mockBatchUpdate).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+                status: 'lobby',
+                playedPlaylistId: { _delete: true },
+                playedTrackIds: { _delete: true }
+            }));
         });
     });
 

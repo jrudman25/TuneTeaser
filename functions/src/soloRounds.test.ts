@@ -513,6 +513,19 @@ describe('solo rounds', () => {
         expect(secondRound.recentTrackIds).toContain(secondRound.trackId);
     });
 
+    it('plays every playable track before repeating', async () => {
+        const tracks = [makeTrack('t1', 'Song One'), makeTrack('t2', 'Song Two'), makeTrack('t3', 'Song Three')];
+        savePlaylistDoc('user1', 'playlist1', tracks);
+        stubFetchForTracks(tracks);
+
+        const played: string[] = [];
+        for (let i = 0; i < tracks.length; i++) {
+            await startSolo();
+            played.push(readSoloDoc('user1').trackId);
+        }
+        expect(new Set(played).size).toBe(tracks.length);
+    });
+
     it('loads a guest storage-only playlist and marks it ineligible', async () => {
         const tracks = Array.from({ length: 12 }, (_, i) => makeTrack(`t${i}`, `Song ${i}`));
         fake.storageFiles.set('users/guest1/playlists/guest_manual_123.json', JSON.stringify(tracks));
@@ -648,6 +661,25 @@ describe('pickTrackWithPreview cache', () => {
         const result = await pickTrackWithPreview([track], 4);
         expect(result?.artworkUrl).toBe('https://art.example/300x300bb.jpg');
         expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('still looks up uncached candidates when a cache hit exists', async () => {
+        const tracks = [makeTrack('t1', 'Song One'), makeTrack('t2', 'Song Two')];
+        const cacheId = createHash('sha256').update('song one|test artist|test album').digest('hex');
+        fake.docs.set(`itunesPreviewCache/${cacheId}`, {
+            status: 'found',
+            previewUrl: 'https://preview.example/cached.m4a',
+            artworkUrl: '',
+            checkedAtMillis: Date.now(),
+            expiresAt: { toMillis: () => Date.now() + 60 * 1000 }
+        });
+        const fetchMock = stubFetchForTracks(tracks);
+
+        const result = await pickTrackWithPreview(tracks, 4);
+        expect(['t1', 't2']).toContain(result?.track.id);
+        expect(result?.stats.cacheHits).toBe(1);
+        expect(result?.stats.lookups).toBe(1);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
     it('treats expired cache entries as unknown', async () => {

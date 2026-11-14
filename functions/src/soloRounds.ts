@@ -100,7 +100,7 @@ export const startSoloRound = onCall(PUBLIC_CALLABLE_OPTIONS, async (request) =>
         && source !== 'storage-only'
         && playableTracks.length >= MIN_TRACKS_FOR_LEADERBOARD_POINTS;
 
-    const recentLimit = Math.min(50, Math.ceil(playableTracks.length * 0.5));
+    const recentLimit = Math.min(500, Math.max(0, playableTracks.length - 1));
     nextRecentTrackIds = [...nextRecentTrackIds, pick.track.id].slice(-recentLimit);
 
     const now = Date.now();

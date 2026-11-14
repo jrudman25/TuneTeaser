@@ -306,7 +306,8 @@ const startNextMultiplayerRound = async (
     hostUid: string,
     playlistId: string,
     roundNumber: number,
-    roundTimerSeconds: number
+    roundTimerSeconds: number,
+    room: any
 ) => {
     const { tracks } = await loadPlaylistTracks(hostUid, playlistId, 'Host playlist not found.');
     const playableTracks = getPlayableTracks(tracks);
@@ -315,7 +316,16 @@ const startNextMultiplayerRound = async (
         throw new HttpsError('failed-precondition', 'Pick a playlist with at least 2 playable tracks.');
     }
 
-    const pick = await pickTrackWithPreview(shuffle(playableTracks), MULTIPLAYER_ROUND_LOOKUP_ATTEMPTS);
+    let playedTrackIds = roundNumber !== 1 && room?.playedPlaylistId === playlistId && Array.isArray(room?.playedTrackIds)
+        ? room.playedTrackIds.filter((id: any) => typeof id === 'string')
+        : [];
+    let candidates = playableTracks.filter(track => !playedTrackIds.includes(track.id));
+    if (candidates.length === 0) {
+        playedTrackIds = [];
+        candidates = playableTracks;
+    }
+
+    const pick = await pickTrackWithPreview(shuffle(candidates), MULTIPLAYER_ROUND_LOOKUP_ATTEMPTS);
     if (!pick) {
         throw new HttpsError('failed-precondition', 'Could not find a playable preview for this playlist. Try another playlist.');
     }
@@ -350,6 +360,8 @@ const startNextMultiplayerRound = async (
         winnerDisplayName: FieldValue.delete(),
         closeReason: FieldValue.delete(),
         revealedRound: FieldValue.delete(),
+        playedPlaylistId: playlistId,
+        playedTrackIds: [...playedTrackIds, roundTrack.id],
         currentRound
     };
 
@@ -406,7 +418,7 @@ const getSafeRevealedRound = (roundData: any) => ({
 const advanceMultiplayerRoomIfReady = async (roomId: string, now: number) => {
     const db = getFirestore();
     const roomRef = db.collection('multiplayerRooms').doc(roomId);
-    let nextRoundInput: { hostUid: string; playlistId: string; roundNumber: number; roundTimerSeconds: number } | null = null;
+    let nextRoundInput: { hostUid: string; playlistId: string; roundNumber: number; roundTimerSeconds: number; room: any } | null = null;
 
     await db.runTransaction(async transaction => {
         const roomSnap = await transaction.get(roomRef);
@@ -436,11 +448,12 @@ const advanceMultiplayerRoomIfReady = async (roomId: string, now: number) => {
             hostUid: room.hostUid,
             playlistId: room.playlistId,
             roundNumber: (currentRound.roundNumber || 1) + 1,
-            roundTimerSeconds: room.roundTimerSeconds || DEFAULT_ROUND_TIMER_SECONDS
+            roundTimerSeconds: room.roundTimerSeconds || DEFAULT_ROUND_TIMER_SECONDS,
+            room
         };
     });
 
-    const roundToStart = nextRoundInput as { hostUid: string; playlistId: string; roundNumber: number; roundTimerSeconds: number } | null;
+    const roundToStart = nextRoundInput as { hostUid: string; playlistId: string; roundNumber: number; roundTimerSeconds: number; room: any } | null;
     if (!roundToStart) {
         return false;
     }
@@ -452,7 +465,8 @@ const advanceMultiplayerRoomIfReady = async (roomId: string, now: number) => {
         roundToStart.hostUid,
         roundToStart.playlistId,
         roundToStart.roundNumber,
-        roundToStart.roundTimerSeconds
+        roundToStart.roundTimerSeconds,
+        roundToStart.room
     );
     return true;
 };
@@ -500,6 +514,8 @@ const settleRoundIfComplete = async (
                 winnerDisplayName: winner.data.displayName,
                 endedAt: now,
                 updatedAt: now,
+                playedPlaylistId: FieldValue.delete(),
+                playedTrackIds: FieldValue.delete(),
                 revealedRound,
                 currentRound: {
                     ...room.currentRound,
@@ -742,7 +758,7 @@ export const startMultiplayerGame = onCall(PUBLIC_CALLABLE_OPTIONS, async (reque
         throw new HttpsError('failed-precondition', 'Pick a playlist before starting.');
     }
 
-    await startNextMultiplayerRound(db, roomRef, roomId, uid, room.playlistId, 1, room.roundTimerSeconds || DEFAULT_ROUND_TIMER_SECONDS);
+    await startNextMultiplayerRound(db, roomRef, roomId, uid, room.playlistId, 1, room.roundTimerSeconds || DEFAULT_ROUND_TIMER_SECONDS, room);
 
     return { roomId };
 });
@@ -993,7 +1009,7 @@ export const playMultiplayerAgain = onCall(PUBLIC_CALLABLE_OPTIONS, async (reque
     });
     await batch.commit();
 
-    await startNextMultiplayerRound(db, roomRef, roomId, uid, room.playlistId, 1, room.roundTimerSeconds || DEFAULT_ROUND_TIMER_SECONDS);
+    await startNextMultiplayerRound(db, roomRef, roomId, uid, room.playlistId, 1, room.roundTimerSeconds || DEFAULT_ROUND_TIMER_SECONDS, room);
     return { roomId };
 });
 
@@ -1013,6 +1029,8 @@ export const returnMultiplayerToLobby = onCall(PUBLIC_CALLABLE_OPTIONS, async (r
         status: 'lobby',
         currentRound: FieldValue.delete(),
         revealedRound: FieldValue.delete(),
+        playedPlaylistId: FieldValue.delete(),
+        playedTrackIds: FieldValue.delete(),
         winnerUid: FieldValue.delete(),
         winnerDisplayName: FieldValue.delete(),
         closeReason: FieldValue.delete(),
