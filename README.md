@@ -1,16 +1,16 @@
 # TuneTeaser
 
-[TuneTeaser](https://tuneteaser.web.app/) is a "Name That Tune" style game where you test your music knowledge against public Spotify playlists, imported Spotify profile playlists, custom mixes, featured guest playlists, and private online multiplayer rooms.
+[TuneTeaser](https://tuneteaser.web.app/) is a "Name That Tune" style game where you test your music knowledge against public Spotify playlists, imported Spotify profile playlists, custom mixes, premade genre and decade playlists, and private online multiplayer rooms.
 
 <img width="700" alt="TuneTeaser game screen" src="https://github.com/user-attachments/assets/2b774f0a-2ff9-4347-a8c7-b4713d7f489d" />
 
 ## How to Play
-1.  **Sign in** to your TuneTeaser account, or use guest mode to try featured playlists and guest imports.
+1.  **Sign in** to your TuneTeaser account, or use guest mode to try premade playlists and guest imports.
 2.  **Import Playlists** by searching public Spotify playlists, pasting a public Spotify playlist URL, browsing public playlists from a Spotify profile URL, or building a custom mix from track URLs and song lines.
-3.  **Pick a Playlist** from your playlist library.
+3.  **Pick a Playlist** from the "Your playlists" tab, or from the "Premade" tab of genre and decade playlists.
 4.  **Listen** to a short snippet of a random song.
 5.  **Guess** the song title!
-    *   Incorrect guesses increase the snippet length up to 30 seconds.
+    *   Incorrect guesses increase the snippet length up to 30 seconds. Guessing with an empty box adds 2 seconds, so you can hear more without a wrong guess.
     *   Correct guesses win the round and can earn points for eligible TuneTeaser accounts.
 6.  **Play Multiplayer** by creating a private room, sharing the room code or link, choosing a playlist, setting a point goal and round timer, then racing friends through synchronized rounds.
 
@@ -20,7 +20,9 @@
 *   **Dynamic Difficulty**: Single-player snippets start short (2 seconds) and grow longer if you are stumped.
 *   **Keyboard Shortcuts**: In solo and multiplayer rounds, press Space to play the snippet (when not typing), Enter to guess, and Esc to give up after a confirm step.
 *   **Play Your Way**: Search public Spotify playlists, import public playlists one at a time, page through and select public playlists from a Spotify profile, or build custom mixes from Spotify track links and `Song - Artist` lines.
-*   **Playlist Sorting & Filtering**: Find the perfect playlist in your library quickly with title-based searching and sorting by Name, Track Count, and Date Added (including reverse sorting).
+*   **Playlist Sorting & Filtering**: Switch between "Your playlists" and "Premade" tabs, search within the selected tab as you type, filter premade playlists by genre and decade chips, and sort by Name, Track Count, or Date Added (including reverse sorting).
+*   **Snippet Progress**: A progress bar and countdown show how much of the snippet is left, follow the actual audio position (pausing during buffering), and respect reduced-motion settings.
+*   **Hear the Answer**: When a solo round ends, the full 30-second preview plays on the result screen, with a play/stop control.
 *   **Account Clarity**: Signed-in pages show which TuneTeaser account is active.
 *   **Retro Arcade Design**: A record-shop inspired interface with arcade-style game panels, responsive layouts, dark mode, toast feedback, and accessible focus states.
 *   **Privacy-Friendly Analytics**: Production builds use cookieless Umami analytics for page views and a few game events (guest session, signup, solo round start and finish). Development and emulator sessions send nothing.
@@ -31,7 +33,7 @@
     *   Guest/anonymous profiles are ineligible for points to prevent scoreboard pollution.
     *   Playlists must contain at least 10 tracks to be eligible for points.
     *   TuneTeaser account setup and Settings username changes reserve normalized usernames and update leaderboard display names through callable Cloud Functions, not direct browser writes.
-    *   Leaderboard points are only awarded by the server-run solo round callables (`startSoloRound`, `submitSoloGuess`, `giveUpSoloRound`). The server picks the track from the player's saved or featured playlist, checks the guess, enforces a 10-minute cooldown for the same song and playlist, and caps solo points at 1,500 per account per UTC day.
+    *   Leaderboard points are only awarded by the server-run solo round callables (`startSoloRound`, `submitSoloGuess`, `giveUpSoloRound`). The server picks the track from the player's saved or premade playlist, checks the guess, enforces a 10-minute cooldown for the same song and playlist, and caps solo points at 1,500 per account per UTC day.
     *   Usernames and multiplayer room names are checked for offensive language on the server, and offensive words in a room's playlist name are masked.
     *   Multiplayer room creation is rate limited, and room codes are reserved atomically so two rooms can never share a code.
     *   Multiplayer timers and round advancement are server-authoritative: late guesses are rejected, unfinished players are timed out by scheduled recovery, roster changes re-evaluate settlement, durable `advancing` rounds recover automatically, and expired rooms are cleaned up with their player and private round subcollections.

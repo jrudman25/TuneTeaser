@@ -1,6 +1,6 @@
 {
   "name": "tuneteaser",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "private": true,
   "dependencies": {
     "@emotion/react": "^11.11.1",
@@ -26,6 +26,7 @@
     "test-functions": "cd functions && npm run test",
     "test:rules": "firebase emulators:exec --only firestore,storage --project demo-tuneteaser \"vitest run --config rules-tests/vitest.config.ts\"",
     "emulators": "set FUNCTIONS_DISCOVERY_TIMEOUT=120 && firebase emulators:start --only auth,firestore,functions,storage --import=./emulator_data --export-on-exit=./emulator_data",
+    "emulators:export": "curl -X POST http://localhost:4400/_admin/export -H \"Content-Type: application/json\" -d \"{\\\"path\\\": \\\"C:/Projects/tuneteaser/emulator_data\\\"}\"",
     "deploy": "npm run build && firebase deploy --only hosting",
     "deploy-functions": "cd functions && npm run deploy",
     "deploy-rules": "firebase deploy --only firestore:rules",
